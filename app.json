@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Vuma",
+    "slug": "vumaapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FF6B00"
+    },
+    "android": {
+      "package": "com.vumastore",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FF6B00"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "621141ab-f046-4da8-9785-b0c952d0530e"
+      }
+    },
+    "owner": "ndala12"
+  }
+}
