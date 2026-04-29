@@ -1,6 +1,6 @@
 /**
  * VUMA Store — Profile Screen
- * Full i18n support
+ * Full i18n support + Guest browsing
  */
 
 import React, { useState, useCallback } from 'react';
@@ -11,7 +11,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import {
   logout, getProfile, selectUser, selectIsVendor,
-  selectIsApprovedVendor, selectVendorStatus,
+  selectIsApprovedVendor, selectVendorStatus, selectIsAuthenticated,
 } from '../../store/authSlice';
 import { selectCartItemCount } from '../../store/cartSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, SCREENS, VENDOR_STATUS } from '../../utils/constants';
@@ -54,6 +54,7 @@ Website: https://vumastore.com`;
 export default function ProfileScreen({ navigation }) {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const isVendor = useSelector(selectIsVendor);
   const isApprovedVendor = useSelector(selectIsApprovedVendor);
   const vendorStatus = useSelector(selectVendorStatus);
@@ -134,6 +135,50 @@ export default function ProfileScreen({ navigation }) {
     <Text style={styles.sectionHeader}>{title}</Text>
   );
 
+  // ── GUEST VIEW ─────────────────────────────────────────
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{t('profile.profile')}</Text>
+          <View style={{ width: 32 }} />
+        </View>
+        <View style={styles.guestContainer}>
+          <Text style={styles.guestIcon}>👤</Text>
+          <Text style={styles.guestTitle}>You're not logged in</Text>
+          <Text style={styles.guestSubtitle}>Login or create an account to access your profile, orders and more.</Text>
+          <TouchableOpacity
+            style={styles.guestLoginBtn}
+            onPress={() => navigation.navigate('Auth')}
+          >
+            <Text style={styles.guestLoginText}>{t('auth.login')} / {t('auth.register')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.guestTermsBtn} onPress={() => setShowTerms(true)}>
+            <Text style={styles.guestTermsText}>📄 {t('profile.terms')}</Text>
+          </TouchableOpacity>
+        </View>
+        <Modal visible={showTerms} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>📄 {t('profile.terms')}</Text>
+                <TouchableOpacity onPress={() => setShowTerms(false)}>
+                  <Text style={styles.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: SPACING.base }}>
+                <Text style={styles.termsText}>{TERMS_CONTENT}</Text>
+                <View style={{ height: 40 }} />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
+
+  // ── AUTHENTICATED VIEW ─────────────────────────────────
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
@@ -308,6 +353,16 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary },
   headerIcon: { fontSize: 22 },
+  // Guest styles
+  guestContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  guestIcon: { fontSize: 64, marginBottom: SPACING.base },
+  guestTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  guestSubtitle: { fontSize: FONTS.base, color: COLORS.textMuted, textAlign: 'center', marginBottom: SPACING.xl, lineHeight: 22 },
+  guestLoginBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingVertical: SPACING.base, paddingHorizontal: SPACING['2xl'], marginBottom: SPACING.base, width: '100%', alignItems: 'center' },
+  guestLoginText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.bold },
+  guestTermsBtn: { padding: SPACING.base },
+  guestTermsText: { color: COLORS.textMuted, fontSize: FONTS.sm },
+  // Normal styles
   avatarCard: { backgroundColor: COLORS.surface, alignItems: 'center', paddingVertical: SPACING.xl, paddingHorizontal: SPACING.base, marginBottom: SPACING.sm },
   avatarWrap: { position: 'relative', marginBottom: SPACING.base },
   avatar: { width: 90, height: 90, borderRadius: RADIUS.full, borderWidth: 3, borderColor: COLORS.primary },

@@ -91,7 +91,7 @@ export default function CartScreen({ navigation }) {
           { text: t('common.cancel'), style: 'cancel' },
           {
             text: t('auth.login'),
-            onPress: () => navigation.navigate('Login'),
+            onPress: () => navigation.navigate('Auth'),
           },
         ]
       );
