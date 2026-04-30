@@ -8,6 +8,7 @@ import { API } from '../utils/constants';
 
 export const paymentsAPI = {
 
+
   // ══════════════════════════════════════════════════
   // WALLET
   // ══════════════════════════════════════════════════
@@ -150,7 +151,27 @@ export const paymentsAPI = {
     get('/payments/mpesa/status/', {
       checkout_request_id: checkoutRequestId,
     }),
+// Add to existing paymentsAPI object:
 
+/**
+ * Initiate mobile money STK push
+ */
+initiateMobileMoney: (data) =>
+  post('/payments/mobile-money/initiate/', {
+    phone: data.phone,
+    amount: data.amount,
+    provider: data.provider,
+    order_id: data.orderId || undefined,
+  }),
+
+/**
+ * Verify mobile money transaction
+ */
+verifyMobileMoney: (data) =>
+  post('/payments/mobile-money/verify/', {
+    tx_ref: data.txRef,
+    flutterwave_tx_id: data.flutterwaveTxId || undefined,
+  }),
   // ══════════════════════════════════════════════════
   // VENDOR PAYOUTS
   // ══════════════════════════════════════════════════

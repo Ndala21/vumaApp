@@ -1,6 +1,6 @@
 /**
  * VUMA Store — App Navigator
- * Fixed: Added VendorApply screen to MainStack
+ * Browse without login, login required for purchase
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -21,6 +21,7 @@ import VendorNavigator from './VendorNavigator';
 
 import ProductDetailScreen from '../screens/product/ProductDetailScreen';
 import OrderDetailScreen from '../screens/order/OrderDetailScreen';
+import MobileMoneyScreen from '../screens/payment/MobileMoneyScreen';
 import CheckoutScreen from '../screens/payment/CheckoutScreen';
 import WalletScreen from '../screens/payment/WalletScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
@@ -47,48 +48,24 @@ function MainStack({ isVendor }) {
         animation: 'slide_from_right',
       }}
     >
+      <Stack.Screen name="Tabs" component={isVendor ? VendorNavigator : TabNavigator} />
+      <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+      <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen
-        name="Tabs"
-        component={isVendor ? VendorNavigator : TabNavigator}
-      />
-      <Stack.Screen
-        name="ProductDetail"
-        component={ProductDetailScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
-      <Stack.Screen
-        name="OrderDetail"
-        component={OrderDetailScreen}
-      />
-      <Stack.Screen
-        name="Checkout"
-        component={CheckoutScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
-      <Stack.Screen
-        name="Wallet"
-        component={WalletScreen}
-      />
-      <Stack.Screen
-        name="Settings"
-        component={SettingsScreen}
-      />
-      <Stack.Screen
-        name="Chat"
-        component={ChatScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
-      <Stack.Screen
-        name="Notifications"
-        component={NotificationsScreen}
-      />
-      {/* ← FIXED: VendorApply now inside MainStack */}
-      <Stack.Screen
-        name="VendorApply"
-        component={VendorApplyScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
+    name="MobileMoney"
+    component={MobileMoneyScreen}
+    options={{ animation: 'slide_from_bottom' }}
+  />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Chat" component={ChatScreen} options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="VendorApply" component={VendorApplyScreen} options={{ animation: 'slide_from_bottom' }} />
+      {/* Auth screens accessible from inside main app */}
+      <Stack.Screen name="Auth" component={AuthNavigator} options={{ animation: 'slide_from_bottom' }} />
     </Stack.Navigator>
+
   );
 }
 
@@ -104,9 +81,7 @@ export default function AppNavigator() {
 
   const sessionCheckRef = useRef(null);
 
-  useEffect(() => {
-    dispatch(initializeAuth());
-  }, []);
+  useEffect(() => { dispatch(initializeAuth()); }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -134,9 +109,7 @@ export default function AppNavigator() {
         }
       } catch {}
     }, 3000);
-    return () => {
-      if (sessionCheckRef.current) clearInterval(sessionCheckRef.current);
-    };
+    return () => { if (sessionCheckRef.current) clearInterval(sessionCheckRef.current); };
   }, []);
 
   if (!isInitialized) return <SplashScreen />;
@@ -144,20 +117,15 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isAuthenticated ? (
-          <Stack.Screen name="Auth" component={AuthNavigator} options={{ animation: 'fade' }} />
-        ) : (
-          <Stack.Screen name="Main" options={{ animation: 'fade' }}>
-            {() => <MainStack isVendor={isApprovedVendor || isVendor} />}
-          </Stack.Screen>
-        )}
+        {/* Always show main app — browse without login */}
+        <Stack.Screen name="Main" options={{ animation: 'fade' }}>
+          {() => <MainStack isVendor={isApprovedVendor || isVendor} />}
+        </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  splash: {
-    flex: 1, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center',
-  },
+  splash: { flex: 1, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
 });
