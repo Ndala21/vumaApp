@@ -75,7 +75,7 @@ ME: 'users/me/',
   SUPPORT_TICKET_CREATE: '/chat/tickets/create/',
 
   // WebSocket
-  WS_BASE: 'ws://127.0.0.1:8000',
+  WS_BASE:  'https://vumastore.store/api/v1/',
   WS_CHAT: (roomId) => `ws://127.0.0.1:8000/ws/chat/${roomId}/`,
 };
 

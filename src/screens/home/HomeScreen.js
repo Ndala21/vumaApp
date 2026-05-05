@@ -105,7 +105,7 @@ export default function HomeScreen({ navigation }) {
     <View>
       <View style={styles.promoBanner}>
         <Text style={styles.promoText}>
-          🔥 {t('home.freeShipping')} {formatPrice(50000)} — {t('home.shopNow')}
+          🔥 Best prices guaranteed — Free shipping on all orders!
         </Text>
       </View>
 
