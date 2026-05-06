@@ -29,6 +29,7 @@ export default function VendorApplyScreen({ navigation }) {
     phone: user?.phone || '',
     category: '',
     experience: '',
+    address: '',
   });
   const [errors, setErrors] = useState({});
   const [businessCert, setBusinessCert] = useState(null);
@@ -69,6 +70,7 @@ export default function VendorApplyScreen({ navigation }) {
     if (!form.category.trim()) errs.category = 'Category is required.';
     if (!businessCert) errs.businessCert = 'Business certificate is required.';
     if (!idCard) errs.idCard = 'ID card or passport is required.';
+    if (!form.address.trim()) errs.address = 'Shop address is required.';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -86,7 +88,7 @@ export default function VendorApplyScreen({ navigation }) {
       formData.append('description', form.description);
       formData.append('contact_phone', form.phone);
       formData.append('business_type', form.category);
-
+      formData.append('shop_address', form.address);
       formData.append('business_certificate', {
         uri: businessCert.uri,
         name: businessCert.name || 'business_certificate.pdf',
@@ -190,11 +192,11 @@ export default function VendorApplyScreen({ navigation }) {
             onChangeText={v => { setForm(p => ({ ...p, phone: v })); if (errors.phone) setErrors(p => ({ ...p, phone: null })); }}
             placeholder="+82 10-xxxx-xxxx" keyboardType="phone-pad" leftIcon="📱" error={errors.phone}
           />
-          <Input
-            label="Years of Experience" value={form.experience}
-            onChangeText={v => setForm(p => ({ ...p, experience: v }))}
-            placeholder="e.g. 2 years" leftIcon="📅" keyboardType="numeric"
-          />
+       <Input
+  label="Shop Address" required value={form.address}
+  onChangeText={v => { setForm(p => ({ ...p, address: v })); if (errors.address) setErrors(p => ({ ...p, address: null })); }}
+  placeholder="e.g. Kariakoo, Dar es Salaam" leftIcon="📍" error={errors.address}
+/>
         </View>
 
         <Text style={styles.sectionTitle}>MAIN PRODUCT CATEGORY</Text>
