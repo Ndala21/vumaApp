@@ -29,7 +29,7 @@ const translations = {
     home: {
       flashSale: '⚡ Flash Sale', featured: '⭐ Featured', allProducts: '🛍️ All Products',
       freeShipping: '🚚 Free shipping on orders over', shopNow: 'Shop Now!',
-      searchPlaceholder: '🔍  Search products...',
+      searchPlaceholder: '🔍 Search products...',
     },
     products: {
       addToCart: 'Add to Cart', buyNow: 'Buy Now', outOfStock: 'Out of Stock',

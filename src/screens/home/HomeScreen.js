@@ -198,7 +198,7 @@ export default function HomeScreen({ navigation }) {
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmit={handleSearchSubmit}
-            placeholder={t('home.searchPlaceholder')}
+            placeholder="Search products..."
             showHistory={false}
             style={styles.searchBar}
           />
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.sm,
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.xl,
     paddingBottom: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider,
     gap: SPACING.sm, ...SHADOWS.sm,
   },
