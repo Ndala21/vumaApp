@@ -102,7 +102,13 @@ export default function LoginScreen({ navigation }) {
       })
     );
     if (login.fulfilled.match(result)) {
-      // AppNavigator handles redirect automatically
+      Alert.alert('✅ Login Successful', 'Welcome back to VUMA!', [
+        { text: 'Continue Shopping', onPress: () => navigation.navigate('Main') }
+      ]);
+    } else {
+      Alert.alert('❌ Login Failed', result.payload || 'Invalid email or password.', [
+        { text: 'Try Again' }
+      ]);
     }
   };
 
