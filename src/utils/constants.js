@@ -238,9 +238,9 @@ export const APP = {
   currency: 'KRW',
   currencySymbol: '₩',
   commissionRate: 0.10,
-  minPayoutAmount: 10000,
-  maxDepositAmount: 10000000,
   freeShippingThreshold: 50000,
+  minPayoutAmount: 5000,
+  maxDepositAmount: 10000000,
 };
 
 // ─── LANGUAGES ────────────────────────────────────────
