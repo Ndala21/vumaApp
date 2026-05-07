@@ -7,7 +7,7 @@
 export const API = {
  BASE_URL: __DEV__
   ? 'http://172.30.1.39:8000/api/v1/'
-  : 'http://vumastore.store/api/v1/',
+  : 'https://vumastore.store/api/v1/',
 
   // Auth
 REGISTER: 'users/register/',
