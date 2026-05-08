@@ -103,7 +103,7 @@ export default function LoginScreen({ navigation }) {
     );
     if (login.fulfilled.match(result)) {
       Alert.alert('✅ Login Successful', 'Welcome back to VUMA!', [
-        { text: 'Continue Shopping', onPress: () => navigation.navigate('Main') }
+        { text: 'Continue Shopping', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Main' }] }) }
       ]);
     } else {
       Alert.alert('❌ Login Failed', result.payload || 'Invalid email or password.', [
