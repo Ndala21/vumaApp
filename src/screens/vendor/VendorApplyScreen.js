@@ -95,7 +95,7 @@ export default function VendorApplyScreen({ navigation }) {
         type: businessCert.mimeType || 'application/pdf',
       });
 
-      formData.append('id_card', {
+      formData.append('id_card_front', {
         uri: idCard.uri,
         name: idCard.name || 'id_card.pdf',
         type: idCard.mimeType || 'application/pdf',
