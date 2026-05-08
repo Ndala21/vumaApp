@@ -94,11 +94,10 @@ export default function VendorApplyScreen({ navigation }) {
         name: businessCert.name || 'business_certificate.pdf',
         type: businessCert.mimeType || 'application/pdf',
       });
-
       formData.append('id_card_front', {
         uri: idCard.uri,
-        name: idCard.name || 'id_card.pdf',
-        type: idCard.mimeType || 'application/pdf',
+        name: idCard.name || 'id_card.jpg',
+        type: idCard.mimeType || 'image/jpeg',
       });
 
       await upload('vendors/applications/apply/', formData);
