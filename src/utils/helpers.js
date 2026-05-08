@@ -11,11 +11,11 @@ import { APP, COLORS, ORDER_STATUS_COLORS, ORDER_STATUS_LABELS } from './constan
 
 /**
  * Format price with currency symbol
- * formatPrice(15000) → '₩15,000'
+ * formatPrice(15000) → 'TZS15,000'
  * formatPrice(15000, 'USD') → '$15,000'
  */
-export const formatPrice = (amount, currency = 'KRW') => {
-  if (amount === null || amount === undefined) return '₩0';
+export const formatPrice = (amount, currency = 'TZS') => {
+  if (amount === null || amount === undefined) return 'TZS0';
 
   const symbols = {
     KRW: '₩',
@@ -33,8 +33,8 @@ export const formatPrice = (amount, currency = 'KRW') => {
 
   if (isNaN(num)) return `${symbol}0`;
 
-  // KRW has no decimals
-  if (currency === 'KRW') {
+  // TZS has no decimals
+  if (currency === 'TZS') {
     return `${symbol}${Math.round(num).toLocaleString()}`;
   }
 
