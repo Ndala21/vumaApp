@@ -14,7 +14,6 @@ import VendorProducts from '../screens/vendor/VendorProducts';
 import VendorOrders from '../screens/vendor/VendorOrders';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import HomeScreen from '../screens/home/HomeScreen';
-import SearchScreen from '../screens/search/SearchScreen';
 import CartScreen from '../screens/cart/CartScreen';
 
 const Tab = createBottomTabNavigator();
@@ -48,15 +47,7 @@ export default function VendorNavigator() {
           ),
         }}
       />
-      <Tab.Screen
-        name={SCREENS.SEARCH}
-        component={SearchScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <VendorTabIcon icon="🔍" label="Search" focused={focused} />
-          ),
-        }}
-      />
+
       <Tab.Screen
         name={SCREENS.CART}
         component={CartScreen}
