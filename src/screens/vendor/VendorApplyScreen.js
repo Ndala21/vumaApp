@@ -1,13 +1,13 @@
 /**
  * VUMA Store — Vendor Apply Screen
- * Full application with document upload
+ * Fixed: keyboard issue, Tanzania phone placeholder
  */
 
 import React, { useState } from 'react';
 import { t } from '../../i18n';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, Platform, Alert,
+  StyleSheet, StatusBar, Platform, Alert, KeyboardAvoidingView,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
@@ -42,7 +42,6 @@ export default function VendorApplyScreen({ navigation }) {
         type: ['image/*', 'application/pdf'],
         copyToCacheDirectory: true,
       });
-
       if (!result.canceled && result.assets?.[0]) {
         const file = result.assets[0];
         if (file.size > 10 * 1024 * 1024) {
@@ -78,10 +77,8 @@ export default function VendorApplyScreen({ navigation }) {
   const handleApply = async () => {
     if (!validate()) return;
     setLoading(true);
-
     try {
       const { upload } = await import('../../api/client');
-
       const formData = new FormData();
       formData.append('business_name', form.storeName);
       formData.append('shop_name', form.storeName);
@@ -99,9 +96,7 @@ export default function VendorApplyScreen({ navigation }) {
         name: idCard.name || 'id_card.jpg',
         type: idCard.mimeType || 'image/jpeg',
       });
-
       await upload('vendors/applications/apply/', formData);
-
       Alert.alert(
         '✅ Application Submitted!',
         'Your vendor application has been received.\n\nWe will review it within 24-48 hours and notify you by email once approved.',
@@ -121,8 +116,7 @@ export default function VendorApplyScreen({ navigation }) {
       <Text style={styles.docHint}>{hint}</Text>
       <TouchableOpacity
         style={[styles.docBox, file && styles.docBoxFilled, error && styles.docBoxError]}
-        onPress={onPress}
-        activeOpacity={0.7}
+        onPress={onPress} activeOpacity={0.7}
       >
         {file ? (
           <View style={styles.docFilled}>
@@ -148,7 +142,10 @@ export default function VendorApplyScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
       <View style={styles.header}>
@@ -159,8 +156,11 @@ export default function VendorApplyScreen({ navigation }) {
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="always"
+      >
         <View style={styles.benefitsCard}>
           <Text style={styles.benefitsTitle}>Why sell on VUMA?</Text>
           {[
@@ -189,13 +189,18 @@ export default function VendorApplyScreen({ navigation }) {
           <Input
             label="Phone Number" required value={form.phone}
             onChangeText={v => { setForm(p => ({ ...p, phone: v })); if (errors.phone) setErrors(p => ({ ...p, phone: null })); }}
-            placeholder="+82 10-xxxx-xxxx" keyboardType="phone-pad" leftIcon="📱" error={errors.phone}
+            placeholder="+255 7XX XXX XXX" keyboardType="phone-pad" leftIcon="📱" error={errors.phone}
           />
-       <Input
-  label="Shop Address" required value={form.address}
-  onChangeText={v => { setForm(p => ({ ...p, address: v })); if (errors.address) setErrors(p => ({ ...p, address: null })); }}
-  placeholder="e.g. Kariakoo, Dar es Salaam" leftIcon="📍" error={errors.address}
-/>
+          <Input
+            label="Years of Experience" value={form.experience}
+            onChangeText={v => setForm(p => ({ ...p, experience: v }))}
+            placeholder="e.g. 2 years" leftIcon="📅" keyboardType="numeric"
+          />
+          <Input
+            label="Shop Address" required value={form.address}
+            onChangeText={v => { setForm(p => ({ ...p, address: v })); if (errors.address) setErrors(p => ({ ...p, address: null })); }}
+            placeholder="e.g. Kariakoo, Dar es Salaam" leftIcon="📍" error={errors.address}
+          />
         </View>
 
         <Text style={styles.sectionTitle}>MAIN PRODUCT CATEGORY</Text>
@@ -221,64 +226,41 @@ export default function VendorApplyScreen({ navigation }) {
               🔒 Your documents are encrypted and used only for verification. They will not be shared publicly.
             </Text>
           </View>
-
           <DocumentUploadBox
-            label="Business Registration Certificate"
-            required
-            file={businessCert}
-            onPress={() => pickDocument('business')}
+            label="Business Registration Certificate" required
+            file={businessCert} onPress={() => pickDocument('business')}
             error={errors.businessCert}
             hint="Official business registration document from your government"
           />
-
           <View style={styles.docDivider} />
-
           <DocumentUploadBox
-            label="Government-issued ID / Passport"
-            required
-            file={idCard}
-            onPress={() => pickDocument('id')}
+            label="Government-issued ID / Passport" required
+            file={idCard} onPress={() => pickDocument('id')}
             error={errors.idCard}
             hint="National ID card, passport, or driver's license"
           />
         </View>
 
         <Button
-          title="Submit Application"
-          onPress={handleApply}
-          loading={loading}
-          disabled={loading}
-          fullWidth
-          size="lg"
-          style={styles.submitBtn}
+          title="Submit Application" onPress={handleApply}
+          loading={loading} disabled={loading} fullWidth size="lg" style={styles.submitBtn}
         />
-
         <Text style={styles.note}>
           📋 Applications are reviewed within 24-48 hours.{'\n'}You'll receive an email notification once approved.
         </Text>
-
         <View style={{ height: 60 }} />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
-    paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
   backIcon: { fontSize: FONTS.xl, color: COLORS.textPrimary, fontWeight: FONTS.bold },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   scroll: { padding: SPACING.base },
-  benefitsCard: {
-    backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.xl,
-    padding: SPACING.base, marginBottom: SPACING.base,
-    borderLeftWidth: 4, borderLeftColor: COLORS.primary,
-  },
+  benefitsCard: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.base, borderLeftWidth: 4, borderLeftColor: COLORS.primary },
   benefitsTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary, marginBottom: SPACING.sm },
   benefitItem: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginBottom: 4, lineHeight: 20 },
   sectionTitle: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.textMuted, letterSpacing: 1, marginBottom: SPACING.sm, marginTop: SPACING.sm },
