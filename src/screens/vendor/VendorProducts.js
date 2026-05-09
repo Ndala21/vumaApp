@@ -216,7 +216,7 @@ export default function VendorProducts({ navigation, route }) {
 
   const ProductModal = () => (
     <Modal visible={showModal} animationType="slide" onRequestClose={() => setShowModal(false)}>
-      <KeyboardAvoidingView style={styles.modalContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+       <KeyboardAvoidingView style={styles.modalContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
         <View style={styles.modalHeader}>
           <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={styles.modalClose}>✕</Text>
@@ -225,7 +225,11 @@ export default function VendorProducts({ navigation, route }) {
           <View style={{ width: 32 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.modalScroll}
+          keyboardShouldPersistTaps="always"
+          showsVerticalScrollIndicator={false}
+        >
 
           {/* Image Upload */}
           <Text style={styles.fieldLabel}>Product Image</Text>
