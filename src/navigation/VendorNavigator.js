@@ -1,6 +1,7 @@
 /**
  * VUMA Store — Vendor Navigator
  * Bottom tab navigation for approved vendors
+ * Fixed: Added Home, Search, Cart tabs so vendors can browse store
  */
 
 import React from 'react';
@@ -12,29 +13,17 @@ import VendorDashboard from '../screens/vendor/VendorDashboard';
 import VendorProducts from '../screens/vendor/VendorProducts';
 import VendorOrders from '../screens/vendor/VendorOrders';
 import ProfileScreen from '../screens/profile/ProfileScreen';
-import NotificationsScreen from '../screens/notifications/NotificationsScreen';
+import HomeScreen from '../screens/home/HomeScreen';
+import SearchScreen from '../screens/search/SearchScreen';
+import CartScreen from '../screens/cart/CartScreen';
 
 const Tab = createBottomTabNavigator();
 
 function VendorTabIcon({ icon, label, focused }) {
   return (
     <View style={styles.tabItem}>
-      <Text
-        style={[
-          styles.tabIcon,
-          focused && styles.tabIconActive,
-        ]}
-      >
-        {icon}
-      </Text>
-      <Text
-        style={[
-          styles.tabLabel,
-          focused && styles.tabLabelActive,
-        ]}
-      >
-        {label}
-      </Text>
+      <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>{icon}</Text>
+      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
     </View>
   );
 }
@@ -49,16 +38,42 @@ export default function VendorNavigator() {
         tabBarHideOnKeyboard: true,
       }}
     >
+      {/* Store tabs - vendors can browse */}
+      <Tab.Screen
+        name={SCREENS.HOME}
+        component={HomeScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <VendorTabIcon icon="🏠" label="Home" focused={focused} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name={SCREENS.SEARCH}
+        component={SearchScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <VendorTabIcon icon="🔍" label="Search" focused={focused} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name={SCREENS.CART}
+        component={CartScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <VendorTabIcon icon="🛒" label="Cart" focused={focused} />
+          ),
+        }}
+      />
+
+      {/* Vendor tabs */}
       <Tab.Screen
         name={SCREENS.VENDOR_DASHBOARD}
         component={VendorDashboard}
         options={{
           tabBarIcon: ({ focused }) => (
-            <VendorTabIcon
-              icon="📊"
-              label="Dashboard"
-              focused={focused}
-            />
+            <VendorTabIcon icon="📊" label="Dashboard" focused={focused} />
           ),
         }}
       />
@@ -67,11 +82,7 @@ export default function VendorNavigator() {
         component={VendorProducts}
         options={{
           tabBarIcon: ({ focused }) => (
-            <VendorTabIcon
-              icon="📦"
-              label="Products"
-              focused={focused}
-            />
+            <VendorTabIcon icon="📦" label="Products" focused={focused} />
           ),
         }}
       />
@@ -80,24 +91,7 @@ export default function VendorNavigator() {
         component={VendorOrders}
         options={{
           tabBarIcon: ({ focused }) => (
-            <VendorTabIcon
-              icon="🛒"
-              label="Orders"
-              focused={focused}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name={SCREENS.NOTIFICATIONS}
-        component={NotificationsScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <VendorTabIcon
-              icon="🔔"
-              label="Alerts"
-              focused={focused}
-            />
+            <VendorTabIcon icon="📋" label="Orders" focused={focused} />
           ),
         }}
       />
@@ -106,11 +100,7 @@ export default function VendorNavigator() {
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <VendorTabIcon
-              icon="👤"
-              label="Profile"
-              focused={focused}
-            />
+            <VendorTabIcon icon="👤" label="Profile" focused={focused} />
           ),
         }}
       />
@@ -140,14 +130,14 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   tabIcon: {
-    fontSize: 22,
+    fontSize: 20,
     opacity: 0.5,
   },
   tabIconActive: {
     opacity: 1,
   },
   tabLabel: {
-    fontSize: FONTS.xs,
+    fontSize: 9,
     marginTop: 2,
     color: 'rgba(255,255,255,0.5)',
     fontWeight: FONTS.medium,
