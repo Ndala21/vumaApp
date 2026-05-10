@@ -1,14 +1,13 @@
 /**
  * VUMA Store — Vendor Products Screen
- * Fixed: image upload, currency TZS, keyboard, browse store
+ * Fixed: keyboard stays up on Android using windowSoftInputMode pan
  */
 
 import { t } from '../../i18n';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
-  Platform, Alert, RefreshControl, Modal, ScrollView, TextInput,
-  Image, KeyboardAvoidingView,
+  Platform, Alert, RefreshControl, Modal, ScrollView, TextInput, Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -116,7 +115,6 @@ export default function VendorProducts({ navigation, route }) {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     const formData = new FormData();
     formData.append('name', form.name.trim());
     formData.append('description', form.description.trim());
@@ -126,7 +124,6 @@ export default function VendorProducts({ navigation, route }) {
     formData.append('sku', form.sku.trim());
     formData.append('status', form.status);
     if (form.weight) formData.append('weight', Number(form.weight));
-
     if (productImage) {
       formData.append('image', {
         uri: productImage.uri,
@@ -134,14 +131,12 @@ export default function VendorProducts({ navigation, route }) {
         type: 'image/jpeg',
       });
     }
-
     let result;
     if (editingProduct) {
       result = await dispatch(updateProduct({ productId: editingProduct.id, data: formData }));
     } else {
       result = await dispatch(createProduct(formData));
     }
-
     if (createProduct.fulfilled.match(result) || updateProduct.fulfilled.match(result)) {
       setShowModal(false);
       setForm(EMPTY_FORM);
@@ -214,9 +209,15 @@ export default function VendorProducts({ navigation, route }) {
     );
   };
 
+  // No KeyboardAvoidingView - using windowSoftInputMode pan in app.json
   const ProductModal = () => (
-    <Modal visible={showModal} animationType="slide" onRequestClose={() => setShowModal(false)}>
-      <KeyboardAvoidingView style={styles.modalContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <Modal
+      visible={showModal}
+      animationType="slide"
+      onRequestClose={() => setShowModal(false)}
+      statusBarTranslucent={false}
+    >
+      <View style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={styles.modalClose}>✕</Text>
@@ -225,8 +226,12 @@ export default function VendorProducts({ navigation, route }) {
           <View style={{ width: 32 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
-
+        <ScrollView
+          contentContainerStyle={styles.modalScroll}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Image Upload */}
           <Text style={styles.fieldLabel}>Product Image</Text>
           <TouchableOpacity style={styles.imageUploadBox} onPress={pickImage}>
@@ -246,16 +251,15 @@ export default function VendorProducts({ navigation, route }) {
             </TouchableOpacity>
           )}
 
-          {/* Name */}
           <Text style={styles.fieldLabel}>Product Name *</Text>
           <TextInput
             style={[styles.fieldInput, formErrors.name && styles.fieldInputError]}
             value={form.name} onChangeText={(v) => setField('name', v)}
             placeholder="Product name" placeholderTextColor={COLORS.textLight}
+            returnKeyType="next"
           />
           {formErrors.name && <Text style={styles.fieldError}>⚠️ {formErrors.name}</Text>}
 
-          {/* Description */}
           <Text style={styles.fieldLabel}>Description</Text>
           <TextInput
             style={[styles.fieldInput, styles.textArea]}
@@ -264,7 +268,6 @@ export default function VendorProducts({ navigation, route }) {
             textAlignVertical="top" placeholderTextColor={COLORS.textLight}
           />
 
-          {/* Price & Stock */}
           <View style={styles.rowFields}>
             <View style={styles.halfField}>
               <Text style={styles.fieldLabel}>Price (TZS) *</Text>
@@ -272,6 +275,7 @@ export default function VendorProducts({ navigation, route }) {
                 style={[styles.fieldInput, formErrors.price && styles.fieldInputError]}
                 value={form.price} onChangeText={(v) => setField('price', v)}
                 placeholder="0" keyboardType="numeric" placeholderTextColor={COLORS.textLight}
+                returnKeyType="next"
               />
               {formErrors.price && <Text style={styles.fieldError}>⚠️ {formErrors.price}</Text>}
             </View>
@@ -281,12 +285,12 @@ export default function VendorProducts({ navigation, route }) {
                 style={[styles.fieldInput, formErrors.stock && styles.fieldInputError]}
                 value={form.stock} onChangeText={(v) => setField('stock', v)}
                 placeholder="0" keyboardType="numeric" placeholderTextColor={COLORS.textLight}
+                returnKeyType="next"
               />
               {formErrors.stock && <Text style={styles.fieldError}>⚠️ {formErrors.stock}</Text>}
             </View>
           </View>
 
-          {/* SKU & Weight */}
           <View style={styles.rowFields}>
             <View style={styles.halfField}>
               <Text style={styles.fieldLabel}>SKU</Text>
@@ -294,7 +298,7 @@ export default function VendorProducts({ navigation, route }) {
                 style={styles.fieldInput} value={form.sku}
                 onChangeText={(v) => setField('sku', v)}
                 placeholder="SKU-001" autoCapitalize="characters"
-                placeholderTextColor={COLORS.textLight}
+                placeholderTextColor={COLORS.textLight} returnKeyType="next"
               />
             </View>
             <View style={styles.halfField}>
@@ -303,21 +307,19 @@ export default function VendorProducts({ navigation, route }) {
                 style={styles.fieldInput} value={form.weight}
                 onChangeText={(v) => setField('weight', v)}
                 placeholder="0.5" keyboardType="decimal-pad"
-                placeholderTextColor={COLORS.textLight}
+                placeholderTextColor={COLORS.textLight} returnKeyType="next"
               />
             </View>
           </View>
 
-          {/* Category */}
           <Text style={styles.fieldLabel}>Category</Text>
           <TextInput
             style={styles.fieldInput} value={form.category}
             onChangeText={(v) => setField('category', v)}
             placeholder="electronics, fashion..." autoCapitalize="none"
-            placeholderTextColor={COLORS.textLight}
+            placeholderTextColor={COLORS.textLight} returnKeyType="done"
           />
 
-          {/* Status */}
           <Text style={styles.fieldLabel}>Status</Text>
           <View style={styles.statusOptions}>
             {PRODUCT_STATUS.map((opt) => (
@@ -336,8 +338,9 @@ export default function VendorProducts({ navigation, route }) {
             loading={loading.createProduct || loading.updateProduct}
             fullWidth style={styles.submitBtn}
           />
+          <View style={{ height: 100 }} />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 
@@ -455,7 +458,7 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   modalClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
   modalTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  modalScroll: { padding: SPACING.base, paddingBottom: SPACING['3xl'] },
+  modalScroll: { padding: SPACING.base },
   imageUploadBox: { borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', borderRadius: RADIUS.xl, marginBottom: SPACING.sm, overflow: 'hidden', height: 180, backgroundColor: COLORS.surfaceAlt },
   imagePreview: { width: '100%', height: '100%' },
   imageUploadEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.xs },

@@ -13,16 +13,17 @@
     },
     "android": {
       "package": "com.vumastore",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FF6B00"
-      },
-      "permissions": [
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "CAMERA"
-      ]
-    },
+  },
+  "permissions": [
+    "READ_EXTERNAL_STORAGE",
+    "WRITE_EXTERNAL_STORAGE",
+    "CAMERA"
+  ]
+},
     "plugins": [
       [
         "expo-image-picker",
