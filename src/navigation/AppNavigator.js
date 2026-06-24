@@ -1,6 +1,6 @@
 /**
  * VUMA Store — App Navigator
- * Browse without login, login required for purchase
+ * Fixed: added missing ProductList screen, guest browsing
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -39,6 +39,9 @@ function SplashScreen() {
   );
 }
 
+// Simple ProductList screen that shows HomeScreen filtered
+import HomeScreen from '../screens/home/HomeScreen';
+
 function MainStack({ isVendor }) {
   return (
     <Stack.Navigator
@@ -49,23 +52,62 @@ function MainStack({ isVendor }) {
       }}
     >
       <Stack.Screen name="Tabs" component={isVendor ? VendorNavigator : TabNavigator} />
-      <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ animation: 'slide_from_bottom' }} />
+
+      {/* Product screens */}
+      <Stack.Screen
+        name="ProductDetail"
+        component={ProductDetailScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+      <Stack.Screen
+        name="ProductList"
+        component={HomeScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
+
+      {/* Order */}
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
-      <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ animation: 'slide_from_bottom' }} />
+
+      {/* Payment */}
+      <Stack.Screen
+        name="Checkout"
+        component={CheckoutScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen
-    name="MobileMoney"
-    component={MobileMoneyScreen}
-    options={{ animation: 'slide_from_bottom' }}
-  />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen name="Chat" component={ChatScreen} options={{ animation: 'slide_from_bottom' }} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} />
-      <Stack.Screen name="VendorApply" component={VendorApplyScreen} options={{ animation: 'slide_from_bottom' }} />
-      {/* Auth screens accessible from inside main app */}
-      <Stack.Screen name="Auth" component={AuthNavigator} options={{ animation: 'slide_from_bottom' }} />
-    </Stack.Navigator>
+        name="MobileMoney"
+        component={MobileMoneyScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
 
+      {/* Settings */}
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+
+      {/* Chat */}
+      <Stack.Screen
+        name="Chat"
+        component={ChatScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+
+      {/* Notifications */}
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+
+      {/* Vendor */}
+      <Stack.Screen
+        name="VendorApply"
+        component={VendorApplyScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+
+      {/* Auth screens accessible from inside main app */}
+      <Stack.Screen
+        name="Auth"
+        component={AuthNavigator}
+        options={{ animation: 'slide_from_bottom' }}
+      />
+    </Stack.Navigator>
   );
 }
 
@@ -117,7 +159,6 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* Always show main app — browse without login */}
         <Stack.Screen name="Main" options={{ animation: 'fade' }}>
           {() => <MainStack isVendor={isApprovedVendor || isVendor} />}
         </Stack.Screen>
