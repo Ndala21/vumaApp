@@ -1,4 +1,3 @@
-
 /**
  * VUMA Store — Vendor Products Screen
  * Fixed: keyboard with KeyboardAwareScrollView, image upload, category dropdown
@@ -671,4 +670,3 @@ const styles = StyleSheet.create({
   pickerLoadingText: { fontSize: FONTS.sm, color: COLORS.textMuted },
   pickerEmpty: { textAlign: 'center', padding: SPACING.xl, fontSize: FONTS.sm, color: COLORS.textMuted },
 });
-ENDOFFILE
