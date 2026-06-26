@@ -1,13 +1,15 @@
+
 /**
  * VUMA Store — Vendor Products Screen
- * Fixed: image upload (2-step), category dropdown, keyboard
+ * Fixed: keyboard with KeyboardAwareScrollView, image upload, category dropdown
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
-  Platform, Alert, RefreshControl, Modal, ScrollView, TextInput, Image,
+  Platform, Alert, RefreshControl, Modal, TextInput, Image, ScrollView,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchMyProducts, createProduct, updateProduct, deleteProduct,
@@ -32,7 +34,7 @@ const EMPTY_FORM = {
   category: '', sku: '', weight: '', status: 'active',
 };
 
-// ── Category Picker Modal — outside to prevent re-renders ──
+// ── Category Picker Modal ─────────────────────────────
 const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, loading }) => {
   const [search, setSearch] = useState('');
   const filtered = categories.filter(c =>
@@ -49,7 +51,6 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
               <Text style={styles.pickerClose}>✕</Text>
             </TouchableOpacity>
           </View>
-
           <View style={styles.pickerSearch}>
             <Text style={styles.pickerSearchIcon}>🔍</Text>
             <TextInput
@@ -61,7 +62,6 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
               autoFocus
             />
           </View>
-
           {loading ? (
             <View style={styles.pickerLoading}>
               <Text style={styles.pickerLoadingText}>Loading categories...</Text>
@@ -76,9 +76,7 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
                   onPress={() => { onSelect(item); setSearch(''); }}
                 >
                   <Text style={styles.pickerItemText}>{item.name}</Text>
-                  <Text style={styles.pickerItemCount}>
-                    {item.product_count || 0} products
-                  </Text>
+                  <Text style={styles.pickerItemCount}>{item.product_count || 0} products</Text>
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
@@ -88,6 +86,7 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
               }
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 40 }}
+              keyboardShouldPersistTaps="always"
             />
           )}
         </View>
@@ -96,7 +95,7 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
   );
 });
 
-// ── Product Modal — outside to prevent re-renders ──
+// ── Product Modal with KeyboardAwareScrollView ────────
 const ProductModal = memo(({
   visible, onClose, editingProduct,
   form, setField, formErrors,
@@ -119,11 +118,14 @@ const ProductModal = memo(({
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.modalScroll}
         keyboardShouldPersistTaps="always"
-        keyboardDismissMode="none"
         showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={120}
+        extraHeight={120}
       >
         {/* Image Upload */}
         <Text style={styles.fieldLabel}>Product Image</Text>
@@ -149,7 +151,7 @@ const ProductModal = memo(({
           </View>
         )}
 
-        {/* Name */}
+        {/* Product Name */}
         <Text style={styles.fieldLabel}>Product Name *</Text>
         <TextInput
           style={[styles.fieldInput, formErrors.name && styles.fieldInputError]}
@@ -252,13 +254,13 @@ const ProductModal = memo(({
           loading={loading || uploading}
           fullWidth style={styles.submitBtn}
         />
-        <View style={{ height: 100 }} />
-      </ScrollView>
+        <View style={{ height: 120 }} />
+      </KeyboardAwareScrollView>
     </View>
   </Modal>
 ));
 
-// ── Product Item — outside to prevent re-renders ──
+// ── Product Item ──────────────────────────────────────
 const ProductItem = memo(({ item, onEdit, onDelete }) => {
   const imageUrl = item.primary_image || item.images?.[0]?.image_url;
   const isLowStock = item.stock > 0 && item.stock <= 5;
@@ -299,7 +301,7 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
   );
 });
 
-// ── Main Component ──────────────────────────────────────
+// ── Main Component ────────────────────────────────────
 export default function VendorProducts({ navigation, route }) {
   const dispatch = useDispatch();
   const products = useSelector(selectMyProducts);
@@ -396,7 +398,6 @@ export default function VendorProducts({ navigation, route }) {
   const handleSubmit = useCallback(async () => {
     if (!validateForm()) return;
 
-    // Step 1: Create/update product without image
     const productData = {
       name: form.name.trim(),
       description: form.description.trim(),
@@ -424,13 +425,11 @@ export default function VendorProducts({ navigation, route }) {
       if (createProduct.fulfilled.match(result)) {
         savedProduct = result.payload;
       } else {
-        const errMsg = errors.createProduct || 'Failed to create product.';
-        Alert.alert('Error', errMsg);
+        Alert.alert('Error', errors.createProduct || 'Failed to create product.');
         return;
       }
     }
 
-    // Step 2: Upload image separately if selected
     if (productImage && savedProduct?.id) {
       setUploading(true);
       try {
@@ -442,26 +441,20 @@ export default function VendorProducts({ navigation, route }) {
             name: productImage.fileName || 'product_image.jpg',
             type: productImage.mimeType || 'image/jpeg',
           },
-          true // isPrimary
+          true
         );
       } catch (imgError) {
-        // Product saved but image failed — show warning not error
-        Alert.alert(
-          'Product Saved',
-          'Product was saved but image upload failed. You can try again by editing the product.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('Product Saved', 'Product saved but image upload failed. Edit product to retry.', [{ text: 'OK' }]);
       } finally {
         setUploading(false);
       }
     }
 
-    // Done!
     setShowModal(false);
     setFormState(EMPTY_FORM);
     setEditingProduct(null);
     setProductImage(null);
-    dispatch(fetchMyProducts()); // Refresh to show updated image
+    dispatch(fetchMyProducts());
   }, [form, productImage, editingProduct, validateForm, errors]);
 
   const handleDelete = useCallback((product) => {
@@ -631,7 +624,6 @@ const styles = StyleSheet.create({
   editBtnText: { fontSize: 16 },
   deleteBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.dangerLight, alignItems: 'center', justifyContent: 'center' },
   deleteBtnText: { fontSize: 16 },
-  // Modal
   modalContainer: { flex: 1, backgroundColor: COLORS.background },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   modalClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
@@ -654,7 +646,6 @@ const styles = StyleSheet.create({
   fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: -SPACING.sm, marginBottom: SPACING.sm },
   rowFields: { flexDirection: 'row', gap: SPACING.sm },
   halfField: { flex: 1 },
-  // Category selector
   categorySelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   categorySelected: { fontSize: FONTS.base, color: COLORS.textPrimary, flex: 1 },
   categoryPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight, flex: 1 },
@@ -665,7 +656,6 @@ const styles = StyleSheet.create({
   statusOptionText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
   statusOptionTextActive: { color: COLORS.primary, fontWeight: FONTS.bold },
   submitBtn: { marginTop: SPACING.base, borderRadius: RADIUS.xl },
-  // Category Picker Modal
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   pickerContainer: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '80%', paddingBottom: Platform.OS === 'ios' ? 34 : 16 },
   pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
@@ -681,3 +671,4 @@ const styles = StyleSheet.create({
   pickerLoadingText: { fontSize: FONTS.sm, color: COLORS.textMuted },
   pickerEmpty: { textAlign: 'center', padding: SPACING.xl, fontSize: FONTS.sm, color: COLORS.textMuted },
 });
+ENDOFFILE
