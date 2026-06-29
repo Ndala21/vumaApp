@@ -1,6 +1,6 @@
 /**
- * VUMA Store — Products API
- * All product and category endpoints
+ * VUMA Store — Products API Upgrade
+ * Add trending, deals, recently viewed, recommendations, coupon
  */
 
 import { get, post, patch, del, upload } from './client';
@@ -8,23 +8,7 @@ import { API } from '../utils/constants';
 
 export const productsAPI = {
 
-  // ══════════════════════════════════════════════════
-  // PRODUCTS
-  // ══════════════════════════════════════════════════
-
-  /**
-   * Get products list with filters
-   */
-  getProducts: ({
-    page = 1,
-    category = '',
-    q = '',
-    ordering = '-created_at',
-    min_price = '',
-    max_price = '',
-    featured = false,
-    flash_sale = false,
-  } = {}) => {
+  getProducts: ({ page = 1, category = '', q = '', ordering = '-created_at', min_price = '', max_price = '', featured = false, flash_sale = false } = {}) => {
     const params = { page };
     if (category) params.category = category;
     if (q) params.q = q;
@@ -36,150 +20,72 @@ export const productsAPI = {
     return get(API.PRODUCTS, params);
   },
 
-  /**
-   * Get single product detail
-   */
-  getProductDetail: (productId) =>
-    get(API.PRODUCT_DETAIL(productId)),
+  getProductDetail: (productId) => get(API.PRODUCT_DETAIL(productId)),
 
-  /**
-   * Create product (vendor only)
-   */
   createProduct: (data) => {
-    // Has images — use multipart
-    if (data.images && data.images.length > 0) {
-      const formData = new FormData();
-      Object.keys(data).forEach((key) => {
-        if (key === 'images') return;
-        if (key === 'tags') {
-          formData.append(key, JSON.stringify(data[key]));
-        } else if (
-          data[key] !== undefined &&
-          data[key] !== null
-        ) {
-          formData.append(key, String(data[key]));
-        }
-      });
-      return upload(API.PRODUCTS, formData);
-    }
+    if (data instanceof FormData) return upload(API.PRODUCTS, data);
     return post(API.PRODUCTS, data);
   },
 
-  /**
-   * Update product (vendor only)
-   */
   updateProduct: (productId, data) => {
-    if (data.images && data.images.length > 0) {
-      const formData = new FormData();
-      Object.keys(data).forEach((key) => {
-        if (key === 'images') return;
-        if (key === 'tags') {
-          formData.append(key, JSON.stringify(data[key]));
-        } else if (
-          data[key] !== undefined &&
-          data[key] !== null
-        ) {
-          formData.append(key, String(data[key]));
-        }
-      });
-      return upload(API.PRODUCT_DETAIL(productId), formData);
-    }
+    if (data instanceof FormData) return upload(API.PRODUCT_DETAIL(productId), data);
     return patch(API.PRODUCT_DETAIL(productId), data);
   },
 
-  /**
-   * Delete product (vendor only)
-   */
-  deleteProduct: (productId) =>
-    del(API.PRODUCT_DETAIL(productId)),
+  deleteProduct: (productId) => del(API.PRODUCT_DETAIL(productId)),
 
-  /**
-   * Upload product image
-   */
-  uploadProductImage: (
-    productId,
-    imageData,
-    isPrimary = false,
-    onProgress = null
-  ) => {
+  uploadProductImage: (productId, imageData, isPrimary = false, onProgress = null) => {
     const formData = new FormData();
     formData.append('image', {
       uri: imageData.uri,
-      name:
-        imageData.fileName || imageData.name || 'product.jpg',
+      name: imageData.fileName || imageData.name || 'product.jpg',
       type: imageData.type || 'image/jpeg',
     });
     formData.append('is_primary', isPrimary ? 'true' : 'false');
-    return upload(
-      API.PRODUCT_IMAGES(productId),
-      formData,
-      onProgress
-    );
+    return upload(API.PRODUCT_IMAGES(productId), formData, onProgress);
   },
 
-  /**
-   * Submit product review
-   */
-  submitReview: (productId, data) =>
-    post(API.PRODUCT_REVIEWS(productId), {
-      rating: data.rating,
-      comment: data.comment || '',
-    }),
+  uploadMultipleImages: async (productId, images) => {
+    const results = [];
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      try {
+        const result = await productsAPI.uploadProductImage(productId, img, i === 0);
+        results.push(result);
+      } catch (e) {
+        results.push(null);
+      }
+    }
+    return results;
+  },
 
-  /**
-   * Get vendor's own products
-   */
+  submitReview: (productId, data) => post(API.PRODUCT_REVIEWS(productId), { rating: data.rating, comment: data.comment || '' }),
+
   getMyProducts: () => get(API.PRODUCT_MY),
 
-  // ══════════════════════════════════════════════════
-  // CATEGORIES
-  // ══════════════════════════════════════════════════
-
-  /**
-   * Get all categories
-   */
   getCategories: () => get(API.CATEGORIES),
 
-  /**
-   * Get category by slug
-   */
-  getCategoryDetail: (slug) =>
-    get(API.CATEGORY_DETAIL(slug)),
+  getCategoryDetail: (slug) => get(API.CATEGORY_DETAIL(slug)),
 
-  // ══════════════════════════════════════════════════
-  // SEARCH
-  // ══════════════════════════════════════════════════
+  searchProducts: (query, page = 1) => get(API.PRODUCTS, { q: query, page }),
 
-  /**
-   * Search products
-   */
-  searchProducts: (query, page = 1) =>
-    get(API.PRODUCTS, { q: query, page }),
+  getFeaturedProducts: () => get(API.PRODUCTS, { featured: 'true', page: 1 }),
 
-  /**
-   * Get featured products
-   */
-  getFeaturedProducts: () =>
-    get(API.PRODUCTS, { featured: 'true', page: 1 }),
+  getFlashSaleProducts: () => get(API.PRODUCTS, { flash_sale: 'true', page: 1 }),
 
-  /**
-   * Get flash sale products
-   */
-  getFlashSaleProducts: () =>
-    get(API.PRODUCTS, { flash_sale: 'true', page: 1 }),
+  getProductsByCategory: (slug, page = 1) => get(API.PRODUCTS, { category: slug, page }),
 
-  /**
-   * Get products by category slug
-   */
-  getProductsByCategory: (slug, page = 1) =>
-    get(API.PRODUCTS, { category: slug, page }),
+  // ── New features ──────────────────────────────────
 
-  /**
-   * Get related products
-   */
-  getRelatedProducts: (categorySlug, excludeId) =>
-    get(API.PRODUCTS, {
-      category: categorySlug,
-      page: 1,
-    }),
+  getTrending: () => get('/promotions/trending/'),
+
+  getDailyDeals: () => get('/promotions/daily-deals/'),
+
+  getRecentlyViewed: () => get('/promotions/recently-viewed/'),
+
+  getRecommendations: () => get('/promotions/recommendations/'),
+
+  trackView: (productId) => post('/promotions/track-view/', { product_id: productId }),
+
+  validateCoupon: (code, orderAmount) => post('/promotions/validate-coupon/', { code, order_amount: orderAmount }),
 };
