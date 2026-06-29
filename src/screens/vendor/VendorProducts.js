@@ -1,6 +1,6 @@
 /**
  * VUMA Store — Vendor Products Screen
- * Fixed: keyboard with KeyboardAwareScrollView, image upload, category dropdown
+ * Fixed: image upload, category dropdown, keyboard, SIZE SELECTOR
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
@@ -21,6 +21,7 @@ import { formatPrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import Loading, { SkeletonListItem } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
+import { VendorSizePicker, requiresSize, getSizeOptions } from '../../components/SizeSelector';
 
 const PRODUCT_STATUS = [
   { label: 'Active', value: 'active' },
@@ -30,7 +31,8 @@ const PRODUCT_STATUS = [
 
 const EMPTY_FORM = {
   name: '', description: '', price: '', stock: '',
-  category: '', sku: '', weight: '', status: 'active',
+  category: '', categoryId: '', sku: '', weight: '', status: 'active',
+  available_sizes: [], requires_size: false,
 };
 
 // ── Category Picker Modal ─────────────────────────────
@@ -39,7 +41,6 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
   const filtered = categories.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
-
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.pickerOverlay}>
@@ -54,8 +55,7 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
             <Text style={styles.pickerSearchIcon}>🔍</Text>
             <TextInput
               style={styles.pickerSearchInput}
-              value={search}
-              onChangeText={setSearch}
+              value={search} onChangeText={setSearch}
               placeholder="Search categories..."
               placeholderTextColor={COLORS.textLight}
               autoFocus
@@ -78,11 +78,7 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
                   <Text style={styles.pickerItemCount}>{item.product_count || 0} products</Text>
                 </TouchableOpacity>
               )}
-              ListEmptyComponent={
-                <Text style={styles.pickerEmpty}>
-                  {search ? `No category matching "${search}"` : 'No categories available'}
-                </Text>
-              }
+              ListEmptyComponent={<Text style={styles.pickerEmpty}>No categories found</Text>}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 40 }}
               keyboardShouldPersistTaps="always"
@@ -94,20 +90,15 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
   );
 });
 
-// ── Product Modal with KeyboardAwareScrollView ────────
+// ── Product Modal ─────────────────────────────────────
 const ProductModal = memo(({
   visible, onClose, editingProduct,
   form, setField, formErrors,
   productImage, onPickImage, onRemoveImage,
   onSubmit, loading, uploading,
-  onOpenCategoryPicker,
+  onOpenCategoryPicker, onToggleSize,
 }) => (
-  <Modal
-    visible={visible}
-    animationType="slide"
-    onRequestClose={onClose}
-    statusBarTranslucent={false}
-  >
+  <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent={false}>
     <View style={styles.modalContainer}>
       <View style={styles.modalHeader}>
         <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -150,7 +141,7 @@ const ProductModal = memo(({
           </View>
         )}
 
-        {/* Product Name */}
+        {/* Name */}
         <Text style={styles.fieldLabel}>Product Name *</Text>
         <TextInput
           style={[styles.fieldInput, formErrors.name && styles.fieldInputError]}
@@ -202,8 +193,7 @@ const ProductModal = memo(({
               style={styles.fieldInput} value={form.sku}
               onChangeText={(v) => setField('sku', v)}
               placeholder="SKU-001" autoCapitalize="characters"
-              placeholderTextColor={COLORS.textLight} returnKeyType="next"
-              blurOnSubmit={false}
+              placeholderTextColor={COLORS.textLight} returnKeyType="next" blurOnSubmit={false}
             />
           </View>
           <View style={styles.halfField}>
@@ -212,8 +202,7 @@ const ProductModal = memo(({
               style={styles.fieldInput} value={form.weight}
               onChangeText={(v) => setField('weight', v)}
               placeholder="0.5" keyboardType="decimal-pad"
-              placeholderTextColor={COLORS.textLight} returnKeyType="next"
-              blurOnSubmit={false}
+              placeholderTextColor={COLORS.textLight} returnKeyType="next" blurOnSubmit={false}
             />
           </View>
         </View>
@@ -230,6 +219,15 @@ const ProductModal = memo(({
           <Text style={styles.categoryArrow}>▼</Text>
         </TouchableOpacity>
         {formErrors.category && <Text style={styles.fieldError}>⚠️ {formErrors.category}</Text>}
+
+        {/* Size Selector — only for Fashion/Clothing/Shoes */}
+        {requiresSize(form.category) && (
+          <VendorSizePicker
+            categoryName={form.category}
+            selectedSizes={form.available_sizes || []}
+            onToggle={onToggleSize}
+          />
+        )}
 
         {/* Status */}
         <Text style={styles.fieldLabel}>Status</Text>
@@ -276,6 +274,9 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
       <View style={styles.productInfo}>
         <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
         <Text style={styles.productPrice}>{formatPrice(item.price)}</Text>
+        {item.available_sizes?.length > 0 && (
+          <Text style={styles.sizesText}>📏 {item.available_sizes.join(', ')}</Text>
+        )}
         <View style={styles.productMeta}>
           <View style={[styles.statusBadge, item.status === 'active' ? styles.statusActive : styles.statusInactive]}>
             <Text style={[styles.statusText, item.status === 'active' ? styles.statusTextActive : styles.statusTextInactive]}>
@@ -286,7 +287,6 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
             {isOutOfStock ? '❌ Out of stock' : isLowStock ? `⚠️ Low: ${item.stock}` : `📦 ${item.stock}`}
           </Text>
         </View>
-        <Text style={styles.productStats}>⭐ {Number(item.rating_avg || 0).toFixed(1)} · {item.sales_count || 0} sold</Text>
       </View>
       <View style={styles.productActions}>
         <TouchableOpacity style={styles.editBtn} onPress={() => onEdit(item)}>
@@ -346,11 +346,13 @@ export default function VendorProducts({ navigation, route }) {
       description: product.description || '',
       price: String(product.price || ''),
       stock: String(product.stock || ''),
-      category: product.category_name || product.category || '',
+      category: product.category_name || '',
       categoryId: product.category || '',
       sku: product.sku || '',
       weight: String(product.weight || ''),
       status: product.status || 'active',
+      available_sizes: product.available_sizes || [],
+      requires_size: product.requires_size || false,
     });
     setFormErrors({});
     setProductImage(null);
@@ -360,6 +362,16 @@ export default function VendorProducts({ navigation, route }) {
   const setField = useCallback((key, value) => {
     setFormState((prev) => ({ ...prev, [key]: value }));
     setFormErrors((prev) => ({ ...prev, [key]: null }));
+  }, []);
+
+  const handleToggleSize = useCallback((size) => {
+    setFormState((prev) => {
+      const current = prev.available_sizes || [];
+      const updated = current.includes(size)
+        ? current.filter(s => s !== size)
+        : [...current, size];
+      return { ...prev, available_sizes: updated };
+    });
   }, []);
 
   const pickImage = useCallback(async () => {
@@ -372,13 +384,9 @@ export default function VendorProducts({ navigation, route }) {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        allowsEditing: true, aspect: [1, 1], quality: 0.8,
       });
-      if (!result.canceled && result.assets?.[0]) {
-        setProductImage(result.assets[0]);
-      }
+      if (!result.canceled && result.assets?.[0]) setProductImage(result.assets[0]);
     } catch (error) {
       Alert.alert('Error', 'Could not open image picker.');
     }
@@ -397,6 +405,7 @@ export default function VendorProducts({ navigation, route }) {
   const handleSubmit = useCallback(async () => {
     if (!validateForm()) return;
 
+    const needsSize = requiresSize(form.category);
     const productData = {
       name: form.name.trim(),
       description: form.description.trim(),
@@ -405,6 +414,8 @@ export default function VendorProducts({ navigation, route }) {
       category: form.categoryId,
       sku: form.sku.trim(),
       status: form.status,
+      available_sizes: needsSize ? form.available_sizes : [],
+      requires_size: needsSize,
     };
     if (form.weight) productData.weight = Number(form.weight);
 
@@ -413,37 +424,25 @@ export default function VendorProducts({ navigation, route }) {
 
     if (editingProduct) {
       result = await dispatch(updateProduct({ productId: editingProduct.id, data: productData }));
-      if (updateProduct.fulfilled.match(result)) {
-        savedProduct = result.payload;
-      } else {
-        Alert.alert('Error', errors.updateProduct || 'Failed to update product.');
-        return;
-      }
+      if (updateProduct.fulfilled.match(result)) savedProduct = result.payload;
+      else { Alert.alert('Error', errors.updateProduct || 'Failed to update.'); return; }
     } else {
       result = await dispatch(createProduct(productData));
-      if (createProduct.fulfilled.match(result)) {
-        savedProduct = result.payload;
-      } else {
-        Alert.alert('Error', errors.createProduct || 'Failed to create product.');
-        return;
-      }
+      if (createProduct.fulfilled.match(result)) savedProduct = result.payload;
+      else { Alert.alert('Error', errors.createProduct || 'Failed to create.'); return; }
     }
 
     if (productImage && savedProduct?.id) {
       setUploading(true);
       try {
         const { productsAPI } = await import('../../api/products');
-        await productsAPI.uploadProductImage(
-          savedProduct.id,
-          {
-            uri: productImage.uri,
-            name: productImage.fileName || 'product_image.jpg',
-            type: productImage.mimeType || 'image/jpeg',
-          },
-          true
-        );
-      } catch (imgError) {
-        Alert.alert('Product Saved', 'Product saved but image upload failed. Edit product to retry.', [{ text: 'OK' }]);
+        await productsAPI.uploadProductImage(savedProduct.id, {
+          uri: productImage.uri,
+          name: productImage.fileName || 'product_image.jpg',
+          type: productImage.mimeType || 'image/jpeg',
+        }, true);
+      } catch {
+        Alert.alert('Product Saved', 'Product saved but image upload failed. Edit product to retry.');
       } finally {
         setUploading(false);
       }
@@ -457,7 +456,7 @@ export default function VendorProducts({ navigation, route }) {
   }, [form, productImage, editingProduct, validateForm, errors]);
 
   const handleDelete = useCallback((product) => {
-    Alert.alert('Delete Product', `Delete "${product.name}"? This cannot be undone.`, [
+    Alert.alert('Delete Product', `Delete "${product.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -474,6 +473,8 @@ export default function VendorProducts({ navigation, route }) {
       ...prev,
       category: category.name,
       categoryId: category.id || category.slug,
+      available_sizes: [],
+      requires_size: requiresSize(category.name),
     }));
     setFormErrors((prev) => ({ ...prev, category: null }));
     setShowCategoryPicker(false);
@@ -488,7 +489,6 @@ export default function VendorProducts({ navigation, route }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
-
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Products</Text>
         <View style={styles.headerRight}>
@@ -518,8 +518,7 @@ export default function VendorProducts({ navigation, route }) {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filterContent}>
         {[{ label: 'All', value: '' }, ...PRODUCT_STATUS].map((opt) => (
-          <TouchableOpacity
-            key={opt.value}
+          <TouchableOpacity key={opt.value}
             style={[styles.filterChip, filterStatus === opt.value && styles.filterChipActive]}
             onPress={() => setFilterStatus(opt.value)}
           >
@@ -535,9 +534,7 @@ export default function VendorProducts({ navigation, route }) {
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => item.id?.toString()}
-        renderItem={({ item }) => (
-          <ProductItem item={item} onEdit={openEditModal} onDelete={handleDelete} />
-        )}
+        renderItem={({ item }) => <ProductItem item={item} onEdit={openEditModal} onDelete={handleDelete} />}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />}
         ListEmptyComponent={
           loading.myProducts ? (
@@ -555,9 +552,7 @@ export default function VendorProducts({ navigation, route }) {
         visible={showModal}
         onClose={() => setShowModal(false)}
         editingProduct={editingProduct}
-        form={form}
-        setField={setField}
-        formErrors={formErrors}
+        form={form} setField={setField} formErrors={formErrors}
         productImage={productImage}
         onPickImage={pickImage}
         onRemoveImage={() => setProductImage(null)}
@@ -565,6 +560,7 @@ export default function VendorProducts({ navigation, route }) {
         loading={loading.createProduct || loading.updateProduct}
         uploading={uploading}
         onOpenCategoryPicker={() => setShowCategoryPicker(true)}
+        onToggleSize={handleToggleSize}
       />
 
       <CategoryPickerModal
@@ -607,6 +603,7 @@ const styles = StyleSheet.create({
   productInfo: { flex: 1, padding: SPACING.sm, gap: SPACING.xs },
   productName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, lineHeight: 18 },
   productPrice: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
+  sizesText: { fontSize: FONTS.xs, color: COLORS.textMuted },
   productMeta: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
   statusBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: RADIUS.full },
   statusActive: { backgroundColor: COLORS.successLight },
@@ -617,7 +614,6 @@ const styles = StyleSheet.create({
   stockText: { fontSize: FONTS.xs, color: COLORS.textMuted },
   stockDanger: { color: COLORS.danger, fontWeight: FONTS.semiBold },
   stockWarning: { color: COLORS.warning, fontWeight: FONTS.semiBold },
-  productStats: { fontSize: FONTS.xs, color: COLORS.textMuted },
   productActions: { flexDirection: 'column', justifyContent: 'center', padding: SPACING.sm, gap: SPACING.sm },
   editBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center' },
   editBtnText: { fontSize: 16 },

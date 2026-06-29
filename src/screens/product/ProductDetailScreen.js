@@ -1,6 +1,6 @@
 /**
  * VUMA Store — Product Detail Screen
- * Fixed: Professional auth modal for guest users
+ * Fixed: Size selector for Fashion/Clothing/Shoes + auth modal
  */
 
 import { t } from '../../i18n';
@@ -18,7 +18,7 @@ import {
 } from '../../store/productSlice';
 import {
   addToCartAndSave, toggleWishlistAndSave,
-  selectIsInCart, selectIsInWishlist, selectCartItemByProductId,
+  selectIsInCart, selectIsInWishlist,
 } from '../../store/cartSlice';
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SCREENS, SHADOWS } from '../../utils/constants';
@@ -29,46 +29,33 @@ import {
 import Button from '../../components/common/Button';
 import Loading, { OverlayLoading } from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
+import { CustomerSizeSelector, requiresSize } from '../../components/SizeSelector';
 
 const { width } = Dimensions.get('window');
 
-// ── Auth Modal — outside component to prevent re-renders ──
+// ── Auth Modal ────────────────────────────────────────
 const AuthModal = memo(({ visible, onClose, onLogin, onRegister }) => (
   <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
     <View style={styles.authOverlay}>
       <View style={styles.authModal}>
-        {/* Icon */}
         <View style={styles.authIconWrap}>
           <Text style={styles.authIcon}>🔐</Text>
         </View>
-
-        {/* Title */}
         <Text style={styles.authTitle}>Login Required</Text>
         <Text style={styles.authMessage}>
           Please login or create an account to continue shopping on VUMA.
         </Text>
-
-        {/* Benefits */}
         <View style={styles.authBenefits}>
-          {[
-            '🛒 Add items to cart',
-            '⚡ Fast checkout',
-            '📦 Track your orders',
-            '❤️ Save your wishlist',
-          ].map((b, i) => (
+          {['🛒 Add items to cart', '⚡ Fast checkout', '📦 Track your orders', '❤️ Save your wishlist'].map((b, i) => (
             <Text key={i} style={styles.authBenefit}>{b}</Text>
           ))}
         </View>
-
-        {/* Buttons */}
         <TouchableOpacity style={styles.authLoginBtn} onPress={onLogin}>
           <Text style={styles.authLoginText}>Login to My Account</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.authRegisterBtn} onPress={onRegister}>
           <Text style={styles.authRegisterText}>Create New Account</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.authCancelBtn} onPress={onClose}>
           <Text style={styles.authCancelText}>Cancel — Continue Browsing</Text>
         </TouchableOpacity>
@@ -96,7 +83,9 @@ export default function ProductDetailScreen({ navigation, route }) {
   const [flashCountdown, setFlashCountdown] = useState(0);
   const [addedToCart, setAddedToCart] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null); // 'cart' or 'buy'
+  const [pendingAction, setPendingAction] = useState(null);
+  const [selectedSize, setSelectedSize] = useState(null);
+  const [sizeError, setSizeError] = useState(false);
 
   const cartBounce = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -113,7 +102,12 @@ export default function ProductDetailScreen({ navigation, route }) {
     return () => clearInterval(timer);
   }, [product?.flash_sale_end]);
 
-  // ── After login, resume pending action ──
+  useEffect(() => {
+    // Reset size when product changes
+    setSelectedSize(null);
+    setSizeError(false);
+  }, [product?.id]);
+
   useEffect(() => {
     if (isAuthenticated && pendingAction && displayProduct) {
       if (pendingAction === 'cart') {
@@ -140,8 +134,18 @@ export default function ProductDetailScreen({ navigation, route }) {
   const outOfStock = displayProduct.stock <= 0;
   const images = displayProduct.images || [];
   const reviews = displayProduct.reviews || [];
+  const productNeedsSize = displayProduct.requires_size && displayProduct.available_sizes?.length > 0;
 
-  // ── Auth Modal Handlers ──
+  // ── Validate size selection ──
+  const validateSize = () => {
+    if (productNeedsSize && !selectedSize) {
+      setSizeError(true);
+      Alert.alert('Select Size', 'Please select a size before continuing.');
+      return false;
+    }
+    return true;
+  };
+
   const handleAuthLogin = () => {
     setShowAuthModal(false);
     navigation.navigate('Auth', { screen: SCREENS.LOGIN, params: { returnTo: 'ProductDetail', productId } });
@@ -152,15 +156,11 @@ export default function ProductDetailScreen({ navigation, route }) {
     navigation.navigate('Auth', { screen: SCREENS.REGISTER, params: { returnTo: 'ProductDetail', productId } });
   };
 
-  // ── Add to Cart ──
   const handleAddToCart = () => {
-    if (!isAuthenticated) {
-      setPendingAction('cart');
-      setShowAuthModal(true);
-      return;
-    }
+    if (!isAuthenticated) { setPendingAction('cart'); setShowAuthModal(true); return; }
     if (outOfStock) return;
-    dispatch(addToCartAndSave(displayProduct, quantity));
+    if (!validateSize()) return;
+    dispatch(addToCartAndSave({ ...displayProduct, selectedSize }, quantity));
     setAddedToCart(true);
     Animated.sequence([
       Animated.spring(cartBounce, { toValue: 1.2, useNativeDriver: true }),
@@ -169,46 +169,27 @@ export default function ProductDetailScreen({ navigation, route }) {
     setTimeout(() => setAddedToCart(false), 2000);
   };
 
-  // ── Buy Now ──
   const handleBuyNow = () => {
-    if (!isAuthenticated) {
-      setPendingAction('buy');
-      setShowAuthModal(true);
-      return;
-    }
-    dispatch(addToCartAndSave(displayProduct, quantity));
+    if (!isAuthenticated) { setPendingAction('buy'); setShowAuthModal(true); return; }
+    if (!validateSize()) return;
+    dispatch(addToCartAndSave({ ...displayProduct, selectedSize }, quantity));
     navigation.navigate(SCREENS.CHECKOUT);
   };
 
-  // ── Wishlist ──
   const handleWishlist = () => {
-    if (!isAuthenticated) {
-      setPendingAction(null);
-      setShowAuthModal(true);
-      return;
-    }
+    if (!isAuthenticated) { setPendingAction(null); setShowAuthModal(true); return; }
     dispatch(toggleWishlistAndSave(displayProduct.id));
   };
 
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: `Check out ${displayProduct.name} on VUMA Store! ${formatPrice(effectivePrice)}`,
-        title: displayProduct.name,
-      });
+      await Share.share({ message: `Check out ${displayProduct.name} on VUMA Store! ${formatPrice(effectivePrice)}`, title: displayProduct.name });
     } catch {}
   };
 
   const handleSubmitReview = async () => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-      return;
-    }
-    const result = await dispatch(submitReview({
-      productId: displayProduct.id,
-      rating: reviewRating,
-      comment: reviewComment,
-    }));
+    if (!isAuthenticated) { setShowAuthModal(true); return; }
+    const result = await dispatch(submitReview({ productId: displayProduct.id, rating: reviewRating, comment: reviewComment }));
     if (submitReview.fulfilled.match(result)) {
       setShowReviewModal(false);
       setReviewComment('');
@@ -217,20 +198,16 @@ export default function ProductDetailScreen({ navigation, route }) {
     }
   };
 
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 200], outputRange: [0, 1], extrapolate: 'clamp',
-  });
+  const headerOpacity = scrollY.interpolate({ inputRange: [0, 200], outputRange: [0, 1], extrapolate: 'clamp' });
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/* Animated Header */}
       <Animated.View style={[styles.animHeader, { opacity: headerOpacity }]}>
         <Text style={styles.animHeaderTitle} numberOfLines={1}>{displayProduct.name}</Text>
       </Animated.View>
 
-      {/* Top Actions */}
       <View style={styles.topActions}>
         <TouchableOpacity style={styles.topActionBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.topActionIcon}>←</Text>
@@ -248,7 +225,6 @@ export default function ProductDetailScreen({ navigation, route }) {
         </View>
       </View>
 
-      {/* Scrollable Content */}
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
@@ -341,6 +317,19 @@ export default function ProductDetailScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
+        {/* Size Selector — only for Fashion/Clothing/Shoes */}
+        {productNeedsSize && (
+          <View style={styles.card}>
+            <CustomerSizeSelector
+              categoryName={displayProduct.category_name}
+              availableSizes={displayProduct.available_sizes}
+              selectedSize={selectedSize}
+              onSelect={(size) => { setSelectedSize(size); setSizeError(false); }}
+              error={sizeError}
+            />
+          </View>
+        )}
+
         {/* Quantity */}
         <View style={styles.card}>
           <Text style={styles.qtyLabel}>Quantity</Text>
@@ -381,6 +370,7 @@ export default function ProductDetailScreen({ navigation, route }) {
             ['SKU', displayProduct.sku],
             ['Stock', `${displayProduct.stock} units`],
             ['Weight', displayProduct.weight ? `${displayProduct.weight} kg` : null],
+            ['Sizes', displayProduct.available_sizes?.length > 0 ? displayProduct.available_sizes.join(', ') : null],
           ].filter(([, v]) => v).map(([label, value]) => (
             <View key={label} style={styles.detailRow}>
               <Text style={styles.detailLabel}>{label}</Text>
@@ -453,7 +443,6 @@ export default function ProductDetailScreen({ navigation, route }) {
         />
       </View>
 
-      {/* Auth Modal */}
       <AuthModal
         visible={showAuthModal}
         onClose={() => { setShowAuthModal(false); setPendingAction(null); }}
@@ -461,7 +450,6 @@ export default function ProductDetailScreen({ navigation, route }) {
         onRegister={handleAuthRegister}
       />
 
-      {/* Review Modal */}
       {showReviewModal && (
         <View style={styles.reviewModalOverlay}>
           <View style={styles.reviewModal}>
@@ -530,7 +518,6 @@ const styles = StyleSheet.create({
   ratingValue: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textSecondary },
   ratingCountSmall: { fontSize: FONTS.sm, color: COLORS.textMuted },
   salesCount: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  // Guest Banner
   guestBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primaryFade, marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1, borderColor: COLORS.primary + '30' },
   guestBannerIcon: { fontSize: 28, marginRight: SPACING.sm },
   guestBannerText: { flex: 1 },
@@ -573,7 +560,6 @@ const styles = StyleSheet.create({
   cartBtnWrap: { flex: 1 },
   addCartBtn: { flex: 1 },
   buyNowBtn: { flex: 1 },
-  // Auth Modal
   authOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: SPACING.base },
   authModal: { backgroundColor: COLORS.surface, borderRadius: RADIUS['2xl'], padding: SPACING.xl, width: '100%', maxWidth: 380, alignItems: 'center' },
   authIconWrap: { width: 72, height: 72, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.base },
@@ -588,7 +574,6 @@ const styles = StyleSheet.create({
   authRegisterText: { color: COLORS.primary, fontSize: FONTS.base, fontWeight: FONTS.bold },
   authCancelBtn: { paddingVertical: SPACING.sm },
   authCancelText: { color: COLORS.textMuted, fontSize: FONTS.sm },
-  // Review Modal
   reviewModalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay, justifyContent: 'flex-end', zIndex: 999 },
   reviewModal: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.xl, paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.xl },
   reviewModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xl },
