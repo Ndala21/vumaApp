@@ -1,6 +1,6 @@
 /**
  * VUMA Store — Vendor Products Screen
- * Fixed: image upload, category dropdown, keyboard, SIZE SELECTOR
+ * Multi-image upload (up to 10), category dropdown, size selector, keyboard fix
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
@@ -21,7 +21,8 @@ import { formatPrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import Loading, { SkeletonListItem } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
-import { VendorSizePicker, requiresSize, getSizeOptions } from '../../components/SizeSelector';
+import { VendorSizePicker, requiresSize } from '../../components/SizeSelector';
+import { MultiImagePicker } from '../../components/MultiImagePicker';
 
 const PRODUCT_STATUS = [
   { label: 'Active', value: 'active' },
@@ -38,9 +39,7 @@ const EMPTY_FORM = {
 // ── Category Picker Modal ─────────────────────────────
 const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, loading }) => {
   const [search, setSearch] = useState('');
-  const filtered = categories.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.pickerOverlay}>
@@ -70,10 +69,7 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
               data={filtered}
               keyExtractor={(item) => item.id?.toString() || item.slug}
               renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.pickerItem}
-                  onPress={() => { onSelect(item); setSearch(''); }}
-                >
+                <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(item); setSearch(''); }}>
                   <Text style={styles.pickerItemText}>{item.name}</Text>
                   <Text style={styles.pickerItemCount}>{item.product_count || 0} products</Text>
                 </TouchableOpacity>
@@ -94,8 +90,8 @@ const CategoryPickerModal = memo(({ visible, categories, onSelect, onClose, load
 const ProductModal = memo(({
   visible, onClose, editingProduct,
   form, setField, formErrors,
-  productImage, onPickImage, onRemoveImage,
-  onSubmit, loading, uploading,
+  productImages, onAddImages, onRemoveImage, onSetPrimaryImage,
+  onSubmit, loading, uploading, uploadingIndex,
   onOpenCategoryPicker, onToggleSize,
 }) => (
   <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent={false}>
@@ -117,29 +113,15 @@ const ProductModal = memo(({
         extraScrollHeight={120}
         extraHeight={120}
       >
-        {/* Image Upload */}
-        <Text style={styles.fieldLabel}>Product Image</Text>
-        <TouchableOpacity style={styles.imageUploadBox} onPress={onPickImage}>
-          {productImage ? (
-            <Image source={{ uri: productImage.uri }} style={styles.imagePreview} resizeMode="cover" />
-          ) : (
-            <View style={styles.imageUploadEmpty}>
-              <Text style={styles.imageUploadIcon}>📷</Text>
-              <Text style={styles.imageUploadText}>Tap to upload image</Text>
-              <Text style={styles.imageUploadHint}>JPG, PNG — Max 10MB</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-        {productImage && (
-          <TouchableOpacity onPress={onRemoveImage} style={styles.removeImageBtn}>
-            <Text style={styles.removeImageText}>✕ Remove image</Text>
-          </TouchableOpacity>
-        )}
-        {uploading && (
-          <View style={styles.uploadingBar}>
-            <Text style={styles.uploadingText}>📤 Uploading image...</Text>
-          </View>
-        )}
+        {/* Multi Image Upload */}
+        <MultiImagePicker
+          images={productImages}
+          onAdd={onAddImages}
+          onRemove={onRemoveImage}
+          onSetPrimary={onSetPrimaryImage}
+          uploading={uploading}
+          uploadingIndex={uploadingIndex}
+        />
 
         {/* Name */}
         <Text style={styles.fieldLabel}>Product Name *</Text>
@@ -220,7 +202,7 @@ const ProductModal = memo(({
         </TouchableOpacity>
         {formErrors.category && <Text style={styles.fieldError}>⚠️ {formErrors.category}</Text>}
 
-        {/* Size Selector — only for Fashion/Clothing/Shoes */}
+        {/* Size Selector */}
         {requiresSize(form.category) && (
           <VendorSizePicker
             categoryName={form.category}
@@ -262,20 +244,31 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
   const imageUrl = item.primary_image || item.images?.[0]?.image_url;
   const isLowStock = item.stock > 0 && item.stock <= 5;
   const isOutOfStock = item.stock <= 0;
+  const imageCount = item.images?.length || 0;
   return (
     <View style={styles.productItem}>
-      {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
-      ) : (
-        <View style={styles.productImagePlaceholder}>
-          <Text style={{ fontSize: 24 }}>📦</Text>
-        </View>
-      )}
+      <View style={styles.productImageWrap}>
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.productImagePlaceholder}>
+            <Text style={{ fontSize: 24 }}>📦</Text>
+          </View>
+        )}
+        {imageCount > 1 && (
+          <View style={styles.imageCountBadge}>
+            <Text style={styles.imageCountText}>📷 {imageCount}</Text>
+          </View>
+        )}
+      </View>
       <View style={styles.productInfo}>
         <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
         <Text style={styles.productPrice}>{formatPrice(item.price)}</Text>
         {item.available_sizes?.length > 0 && (
           <Text style={styles.sizesText}>📏 {item.available_sizes.join(', ')}</Text>
+        )}
+        {item.view_count > 0 && (
+          <Text style={styles.viewsText}>👁 {item.view_count} views</Text>
         )}
         <View style={styles.productMeta}>
           <View style={[styles.statusBadge, item.status === 'active' ? styles.statusActive : styles.statusInactive]}>
@@ -316,8 +309,9 @@ export default function VendorProducts({ navigation, route }) {
   const [formErrors, setFormErrors] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [productImage, setProductImage] = useState(null);
+  const [productImages, setProductImages] = useState([]); // array of {uri, ...} or existing {image_url, id}
   const [uploading, setUploading] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState(null);
 
   useEffect(() => {
     dispatch(fetchMyProducts());
@@ -335,7 +329,7 @@ export default function VendorProducts({ navigation, route }) {
     setEditingProduct(null);
     setFormState(EMPTY_FORM);
     setFormErrors({});
-    setProductImage(null);
+    setProductImages([]);
     setShowModal(true);
   }, []);
 
@@ -355,7 +349,14 @@ export default function VendorProducts({ navigation, route }) {
       requires_size: product.requires_size || false,
     });
     setFormErrors({});
-    setProductImage(null);
+    // Load existing images
+    const existingImages = (product.images || []).map(img => ({
+      id: img.id,
+      image_url: img.image_url,
+      is_primary: img.is_primary,
+      isExisting: true,
+    }));
+    setProductImages(existingImages);
     setShowModal(true);
   }, []);
 
@@ -367,29 +368,39 @@ export default function VendorProducts({ navigation, route }) {
   const handleToggleSize = useCallback((size) => {
     setFormState((prev) => {
       const current = prev.available_sizes || [];
-      const updated = current.includes(size)
-        ? current.filter(s => s !== size)
-        : [...current, size];
+      const updated = current.includes(size) ? current.filter(s => s !== size) : [...current, size];
       return { ...prev, available_sizes: updated };
     });
   }, []);
 
-  const pickImage = useCallback(async () => {
-    try {
-      const ImagePicker = await import('expo-image-picker');
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Permission needed', 'Please allow access to your photos.');
-        return;
+  // ── Multi image handlers ──
+  const handleAddImages = useCallback((newAssets) => {
+    setProductImages((prev) => {
+      const combined = [...prev, ...newAssets.map(a => ({ ...a, isExisting: false }))];
+      return combined.slice(0, 10); // max 10
+    });
+  }, []);
+
+  const handleRemoveImage = useCallback(async (index) => {
+    const img = productImages[index];
+    // If existing image with id, delete from server
+    if (img?.isExisting && img.id && editingProduct?.id) {
+      try {
+        const { del } = await import('../../api/client');
+        await del(`/products/${editingProduct.id}/images/${img.id}/`);
+      } catch (e) {
+        // Continue removing from UI even if API fails
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, aspect: [1, 1], quality: 0.8,
-      });
-      if (!result.canceled && result.assets?.[0]) setProductImage(result.assets[0]);
-    } catch (error) {
-      Alert.alert('Error', 'Could not open image picker.');
     }
+    setProductImages((prev) => prev.filter((_, i) => i !== index));
+  }, [productImages, editingProduct]);
+
+  const handleSetPrimaryImage = useCallback((index) => {
+    setProductImages((prev) => {
+      const reordered = [...prev];
+      const [selected] = reordered.splice(index, 1);
+      return [selected, ...reordered];
+    });
   }, []);
 
   const validateForm = useCallback(() => {
@@ -432,28 +443,44 @@ export default function VendorProducts({ navigation, route }) {
       else { Alert.alert('Error', errors.createProduct || 'Failed to create.'); return; }
     }
 
-    if (productImage && savedProduct?.id) {
+    // Upload only NEW images (not existing ones)
+    const newImages = productImages.filter(img => !img.isExisting);
+    if (newImages.length > 0 && savedProduct?.id) {
       setUploading(true);
-      try {
-        const { productsAPI } = await import('../../api/products');
-        await productsAPI.uploadProductImage(savedProduct.id, {
-          uri: productImage.uri,
-          name: productImage.fileName || 'product_image.jpg',
-          type: productImage.mimeType || 'image/jpeg',
-        }, true);
-      } catch {
-        Alert.alert('Product Saved', 'Product saved but image upload failed. Edit product to retry.');
-      } finally {
-        setUploading(false);
+      const { productsAPI } = await import('../../api/products');
+      let failedCount = 0;
+
+      for (let i = 0; i < newImages.length; i++) {
+        setUploadingIndex(productImages.indexOf(newImages[i]));
+        try {
+          const isFirstOverall = productImages.indexOf(newImages[i]) === 0;
+          await productsAPI.uploadProductImage(
+            savedProduct.id,
+            {
+              uri: newImages[i].uri,
+              name: newImages[i].fileName || `product_image_${i}.jpg`,
+              type: newImages[i].mimeType || 'image/jpeg',
+            },
+            isFirstOverall
+          );
+        } catch (e) {
+          failedCount++;
+        }
+      }
+      setUploadingIndex(null);
+      setUploading(false);
+
+      if (failedCount > 0) {
+        Alert.alert('Partial Success', `Product saved. ${failedCount} of ${newImages.length} images failed to upload. Edit product to retry.`);
       }
     }
 
     setShowModal(false);
     setFormState(EMPTY_FORM);
     setEditingProduct(null);
-    setProductImage(null);
+    setProductImages([]);
     dispatch(fetchMyProducts());
-  }, [form, productImage, editingProduct, validateForm, errors]);
+  }, [form, productImages, editingProduct, validateForm, errors]);
 
   const handleDelete = useCallback((product) => {
     Alert.alert('Delete Product', `Delete "${product.name}"?`, [
@@ -553,12 +580,14 @@ export default function VendorProducts({ navigation, route }) {
         onClose={() => setShowModal(false)}
         editingProduct={editingProduct}
         form={form} setField={setField} formErrors={formErrors}
-        productImage={productImage}
-        onPickImage={pickImage}
-        onRemoveImage={() => setProductImage(null)}
+        productImages={productImages}
+        onAddImages={handleAddImages}
+        onRemoveImage={handleRemoveImage}
+        onSetPrimaryImage={handleSetPrimaryImage}
         onSubmit={handleSubmit}
         loading={loading.createProduct || loading.updateProduct}
         uploading={uploading}
+        uploadingIndex={uploadingIndex}
         onOpenCategoryPicker={() => setShowCategoryPicker(true)}
         onToggleSize={handleToggleSize}
       />
@@ -598,12 +627,16 @@ const styles = StyleSheet.create({
   countText: { fontSize: FONTS.xs, color: COLORS.textMuted },
   listContent: { padding: SPACING.sm, paddingBottom: 100 },
   productItem: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, marginBottom: SPACING.sm, overflow: 'hidden', ...SHADOWS.sm },
+  productImageWrap: { position: 'relative' },
   productImage: { width: 100, height: 100 },
   productImagePlaceholder: { width: 100, height: 100, backgroundColor: COLORS.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  imageCountBadge: { position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: RADIUS.sm, paddingHorizontal: 5, paddingVertical: 2 },
+  imageCountText: { fontSize: 9, color: 'white', fontWeight: FONTS.bold },
   productInfo: { flex: 1, padding: SPACING.sm, gap: SPACING.xs },
   productName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, lineHeight: 18 },
   productPrice: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
   sizesText: { fontSize: FONTS.xs, color: COLORS.textMuted },
+  viewsText: { fontSize: FONTS.xs, color: COLORS.info },
   productMeta: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
   statusBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: RADIUS.full },
   statusActive: { backgroundColor: COLORS.successLight },
@@ -624,16 +657,6 @@ const styles = StyleSheet.create({
   modalClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
   modalTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   modalScroll: { padding: SPACING.base },
-  imageUploadBox: { borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', borderRadius: RADIUS.xl, marginBottom: SPACING.sm, overflow: 'hidden', height: 180, backgroundColor: COLORS.surfaceAlt },
-  imagePreview: { width: '100%', height: '100%' },
-  imageUploadEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.xs },
-  imageUploadIcon: { fontSize: 40 },
-  imageUploadText: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.primary },
-  imageUploadHint: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  removeImageBtn: { alignSelf: 'flex-start', marginBottom: SPACING.base },
-  removeImageText: { fontSize: FONTS.sm, color: COLORS.danger, fontWeight: FONTS.semiBold },
-  uploadingBar: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.lg, padding: SPACING.sm, marginBottom: SPACING.base, alignItems: 'center' },
-  uploadingText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
   fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs },
   fieldInput: { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.base },
   fieldInputError: { borderColor: COLORS.danger, backgroundColor: COLORS.dangerLight },
