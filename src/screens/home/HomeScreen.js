@@ -1,13 +1,13 @@
 /**
- * VUMA Store — Home Screen Upgraded
- * Recently Viewed, Recommendations, Trending, Daily Deals, Coupons
+ * VUMA Store — Home Screen
+ * Upgraded: Banners, Trending, Daily Deals, Recently Viewed, Recommendations
  */
 
 import { t } from '../../i18n';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, Dimensions, StatusBar, Platform, Animated, Image,
+  RefreshControl, Dimensions, StatusBar, Platform, Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -23,6 +23,7 @@ import { formatPrice, formatCountdown, secondsUntil } from '../../utils/helpers'
 import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
+import HomeBanner from '../../components/HomeBanner';
 import { SkeletonProductGrid } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
@@ -32,7 +33,6 @@ const NUM_COLUMNS = 2;
 
 export default function HomeScreen({ navigation }) {
   const dispatch = useDispatch();
-  const user = useSelector(selectUser);
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const products = useSelector(selectProducts);
   const featured = useSelector(selectFeaturedProducts);
@@ -48,11 +48,11 @@ export default function HomeScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [flashCountdown, setFlashCountdown] = useState(0);
-  const [recentlyViewed, setRecentlyViewed] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
+  const [banners, setBanners] = useState([]);
   const [trending, setTrending] = useState([]);
   const [dailyDeals, setDailyDeals] = useState([]);
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
 
   useEffect(() => { loadInitialData(); }, []);
 
@@ -78,10 +78,12 @@ export default function HomeScreen({ navigation }) {
 
   const loadExtraFeatures = useCallback(async () => {
     try {
-      const [trendingData, dealsData] = await Promise.all([
+      const [bannersData, trendingData, dealsData] = await Promise.all([
+        productsAPI.getBanners().catch(() => []),
         productsAPI.getTrending().catch(() => []),
         productsAPI.getDailyDeals().catch(() => []),
       ]);
+      setBanners(bannersData || []);
       setTrending(trendingData?.results || trendingData || []);
       setDailyDeals(dealsData?.results || dealsData || []);
 
@@ -114,12 +116,21 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   const handleProductPress = useCallback((product) => {
-    // Track view
-    if (isAuthenticated) {
-      productsAPI.trackView(product.id).catch(() => {});
-    }
+    if (isAuthenticated) productsAPI.trackView(product.id).catch(() => {});
     navigation.navigate(SCREENS.PRODUCT_DETAIL, { productId: product.id, product });
   }, [isAuthenticated]);
+
+  const handleBannerPress = useCallback((banner) => {
+    if (!banner.link_type || banner.link_type === 'none') return;
+    if (banner.link_type === 'product' && banner.link_value) {
+      navigation.navigate(SCREENS.PRODUCT_DETAIL, { productId: banner.link_value });
+    } else if (banner.link_type === 'category' && banner.link_value) {
+      handleCategorySelect(banner.link_value);
+    } else if (banner.link_type === 'flash_sale') {
+      dispatch(resetProducts());
+      dispatch(fetchProducts({ page: 1, flash_sale: true, refresh: true }));
+    }
+  }, []);
 
   const handleSearchSubmit = (query) => navigation.navigate(SCREENS.SEARCH, { query });
 
@@ -128,48 +139,33 @@ export default function HomeScreen({ navigation }) {
     ...CATEGORIES.filter((c) => c.id !== 'all'),
   ];
 
-  // ── Product Row ──────────────────────────────────
-  const HorizontalProductRow = ({ title, data, icon, onSeeAll }) => {
-    if (!data || data.length === 0) return null;
+  // ── Horizontal product row ──
+  const HorizontalRow = ({ title, data }) => {
+    if (!data?.length) return null;
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{icon} {title}</Text>
-          {onSeeAll && (
-            <TouchableOpacity onPress={onSeeAll}>
-              <Text style={styles.seeAll}>See all →</Text>
-            </TouchableOpacity>
-          )}
+          <Text style={styles.sectionTitle}>{title}</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
           {data.slice(0, 8).map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              variant="featured"
-              onPress={() => handleProductPress(product)}
-              style={styles.featuredCard}
-            />
+            <ProductCard key={product.id} product={product} variant="featured" onPress={() => handleProductPress(product)} style={styles.featuredCard} />
           ))}
         </ScrollView>
       </View>
     );
   };
 
-  // ── Daily Deal Card ──────────────────────────────
+  // ── Daily deal card ──
   const DealCard = ({ deal }) => {
     const timeLeft = deal.deal_ends_at ? secondsUntil(deal.deal_ends_at) : 0;
     return (
-      <TouchableOpacity
-        style={styles.dealCard}
-        onPress={() => handleProductPress(deal)}
-        activeOpacity={0.85}
-      >
+      <TouchableOpacity style={styles.dealCard} onPress={() => handleProductPress(deal)} activeOpacity={0.85}>
         {deal.primary_image ? (
           <Image source={{ uri: deal.primary_image }} style={styles.dealImage} resizeMode="cover" />
         ) : (
-          <View style={[styles.dealImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt }]}>
-            <Text style={{ fontSize: 40 }}>📦</Text>
+          <View style={[styles.dealImage, styles.dealImagePlaceholder]}>
+            <Text style={{ fontSize: 36 }}>📦</Text>
           </View>
         )}
         <View style={styles.dealBadge}>
@@ -178,9 +174,7 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.dealInfo}>
           <Text style={styles.dealName} numberOfLines={2}>{deal.name}</Text>
           <Text style={styles.dealPrice}>{formatPrice(deal.deal_price || deal.price)}</Text>
-          {timeLeft > 0 && (
-            <Text style={styles.dealTimer}>⏰ {formatCountdown(timeLeft)}</Text>
-          )}
+          {timeLeft > 0 && <Text style={styles.dealTimer}>⏰ {formatCountdown(timeLeft)}</Text>}
         </View>
       </TouchableOpacity>
     );
@@ -188,32 +182,32 @@ export default function HomeScreen({ navigation }) {
 
   const ListHeader = () => (
     <View>
-      {/* Promo Banner */}
-      <View style={styles.promoBanner}>
-        <Text style={styles.promoText}>
-          🔥 Best prices guaranteed — Free shipping on all orders!
-        </Text>
-      </View>
+      {/* ── Banners ── */}
+      <HomeBanner
+        banners={banners}
+        onBannerPress={handleBannerPress}
+        navigation={navigation}
+      />
 
       {/* Flash Sale */}
       {flashSale?.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.flashTitleRow}>
-              <Text style={styles.sectionTitle}>⚡ {t('home.flashSale')}</Text>
+              <Text style={styles.sectionTitle}>⚡ Flash Sale</Text>
               {flashCountdown > 0 && (
                 <View style={styles.countdownBadge}>
                   <Text style={styles.countdownText}>⏰ {formatCountdown(flashCountdown)}</Text>
                 </View>
               )}
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate(SCREENS.PRODUCT_LIST || 'ProductList', { flash_sale: true })}>
-              <Text style={styles.seeAll}>{t('common.seeAll')} →</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('ProductList', { flash_sale: true })}>
+              <Text style={styles.seeAll}>See all →</Text>
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-            {flashSale.slice(0, 8).map((product) => (
-              <ProductCard key={product.id} product={product} variant="featured" onPress={() => handleProductPress(product)} style={styles.featuredCard} />
+            {flashSale.slice(0, 8).map((p) => (
+              <ProductCard key={p.id} product={p} variant="featured" onPress={() => handleProductPress(p)} style={styles.featuredCard} />
             ))}
           </ScrollView>
         </View>
@@ -226,51 +220,33 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.sectionTitle}>🔥 Daily Deals</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-            {dailyDeals.map((deal, i) => <DealCard key={deal.id || i} deal={deal} />)}
+            {dailyDeals.map((d, i) => <DealCard key={d.id || i} deal={d} />)}
           </ScrollView>
         </View>
       )}
 
       {/* Trending */}
-      <HorizontalProductRow
-        title="Trending Now"
-        icon="📈"
-        data={trending}
-      />
+      <HorizontalRow title="📈 Trending Now" data={trending} />
 
-      {/* Recommendations (logged in only) */}
+      {/* Recommendations */}
       {isAuthenticated && recommendations.length > 0 && (
-        <HorizontalProductRow
-          title="Recommended for You"
-          icon="⭐"
-          data={recommendations}
-        />
+        <HorizontalRow title="⭐ Recommended for You" data={recommendations} />
       )}
 
       {/* Featured */}
       {featured?.length > 0 && (
-        <HorizontalProductRow
-          title={t('home.featured')}
-          icon="🏆"
-          data={featured}
-        />
+        <HorizontalRow title="🏆 Featured" data={featured} />
       )}
 
-      {/* Recently Viewed (logged in only) */}
+      {/* Recently Viewed */}
       {isAuthenticated && recentlyViewed.length > 0 && (
-        <HorizontalProductRow
-          title="Recently Viewed"
-          icon="👁"
-          data={recentlyViewed}
-        />
+        <HorizontalRow title="👁 Recently Viewed" data={recentlyViewed} />
       )}
 
       {/* All Products Header */}
       <View style={styles.allProductsHeader}>
         <Text style={styles.sectionTitle}>
-          🛍️ {activeCategory
-            ? allCategories.find((c) => c.slug === activeCategory)?.label || t('home.allProducts')
-            : t('home.allProducts')}
+          🛍️ {activeCategory ? allCategories.find((c) => c.slug === activeCategory)?.label || 'Products' : 'All Products'}
         </Text>
         <Text style={styles.productCount}>{products.length} items</Text>
       </View>
@@ -278,19 +254,16 @@ export default function HomeScreen({ navigation }) {
   );
 
   const ListFooter = () => loading.loadingMore ? (
-    <View style={styles.loadingMore}>
-      <Text style={styles.loadingMoreText}>{t('common.loading')}</Text>
-    </View>
+    <View style={styles.loadingMore}><Text style={styles.loadingMoreText}>Loading...</Text></View>
   ) : null;
 
   const ListEmpty = () => {
     if (loading.products) return <SkeletonProductGrid count={6} />;
     return (
       <EmptyState
-        icon="🛍️"
-        title={t('common.noResults')}
+        icon="🛍️" title="No products found"
         message={activeCategory ? 'No products in this category yet.' : 'Check back soon!'}
-        actionLabel={activeCategory ? t('home.allProducts') : null}
+        actionLabel={activeCategory ? 'All Products' : null}
         onAction={activeCategory ? () => handleCategorySelect('') : null}
       />
     );
@@ -310,12 +283,9 @@ export default function HomeScreen({ navigation }) {
         <Text style={styles.topLogo}>VUMA</Text>
         <View style={styles.topSearch}>
           <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmit={handleSearchSubmit}
-            placeholder="Search products..."
-            showHistory={false}
-            style={styles.searchBar}
+            value={searchQuery} onChangeText={setSearchQuery}
+            onSubmit={handleSearchSubmit} placeholder="Search products..."
+            showHistory={false} style={styles.searchBar}
           />
         </View>
         <View style={styles.topIcons}>
@@ -373,8 +343,6 @@ const styles = StyleSheet.create({
   topIcon: { fontSize: 22 },
   iconBadge: { position: 'absolute', top: 0, right: 0, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, borderWidth: 1.5, borderColor: COLORS.surface },
   iconBadgeText: { color: COLORS.textWhite, fontSize: 8, fontWeight: FONTS.bold },
-  promoBanner: { backgroundColor: COLORS.primary, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.base },
-  promoText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.semiBold, textAlign: 'center' },
   section: { backgroundColor: COLORS.surface, marginBottom: SPACING.sm, paddingVertical: SPACING.base },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.base, marginBottom: SPACING.sm },
   flashTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
@@ -384,18 +352,18 @@ const styles = StyleSheet.create({
   countdownText: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
   horizontalList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
   featuredCard: { width: 170, height: 210 },
-  // Daily Deal Card
   dealCard: { width: 160, borderRadius: RADIUS.xl, overflow: 'hidden', backgroundColor: COLORS.surface, ...SHADOWS.md, marginRight: SPACING.sm },
   dealImage: { width: '100%', height: 120 },
+  dealImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
   dealBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: COLORS.danger, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
   dealBadgeText: { color: 'white', fontSize: FONTS.xs, fontWeight: FONTS.bold },
   dealInfo: { padding: SPACING.sm },
   dealName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, lineHeight: 16, marginBottom: 4 },
   dealPrice: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.primary, marginBottom: 2 },
   dealTimer: { fontSize: FONTS.xs, color: COLORS.danger, fontWeight: FONTS.semiBold },
-  flatListContent: { paddingBottom: 90 },
   allProductsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   productCount: { fontSize: FONTS.sm, color: COLORS.textMuted },
+  flatListContent: { paddingBottom: 90 },
   productItemWrap: { flex: 1, padding: SPACING.xs },
   productLeft: { paddingLeft: SPACING.sm, paddingRight: SPACING.xs },
   productRight: { paddingLeft: SPACING.xs, paddingRight: SPACING.sm },

@@ -1,6 +1,6 @@
 /**
- * VUMA Store — Products API Upgrade
- * Add trending, deals, recently viewed, recommendations, coupon
+ * VUMA Store — Products API
+ * Complete with banners, trending, deals, recently viewed, recommendations, coupons
  */
 
 import { get, post, patch, del, upload } from './client';
@@ -22,15 +22,9 @@ export const productsAPI = {
 
   getProductDetail: (productId) => get(API.PRODUCT_DETAIL(productId)),
 
-  createProduct: (data) => {
-    if (data instanceof FormData) return upload(API.PRODUCTS, data);
-    return post(API.PRODUCTS, data);
-  },
+  createProduct: (data) => post(API.PRODUCTS, data),
 
-  updateProduct: (productId, data) => {
-    if (data instanceof FormData) return upload(API.PRODUCT_DETAIL(productId), data);
-    return patch(API.PRODUCT_DETAIL(productId), data);
-  },
+  updateProduct: (productId, data) => patch(API.PRODUCT_DETAIL(productId), data),
 
   deleteProduct: (productId) => del(API.PRODUCT_DETAIL(productId)),
 
@@ -45,12 +39,13 @@ export const productsAPI = {
     return upload(API.PRODUCT_IMAGES(productId), formData, onProgress);
   },
 
+  deleteProductImage: (productId, imageId) => del(`/products/${productId}/images/${imageId}/`),
+
   uploadMultipleImages: async (productId, images) => {
     const results = [];
     for (let i = 0; i < images.length; i++) {
-      const img = images[i];
       try {
-        const result = await productsAPI.uploadProductImage(productId, img, i === 0);
+        const result = await productsAPI.uploadProductImage(productId, images[i], i === 0);
         results.push(result);
       } catch (e) {
         results.push(null);
@@ -75,8 +70,10 @@ export const productsAPI = {
 
   getProductsByCategory: (slug, page = 1) => get(API.PRODUCTS, { category: slug, page }),
 
-  // ── New features ──────────────────────────────────
+  // ── Banners ──────────────────────────────────────────
+  getBanners: () => get('/products/banners/'),
 
+  // ── Promotions ───────────────────────────────────────
   getTrending: () => get('/promotions/trending/'),
 
   getDailyDeals: () => get('/promotions/daily-deals/'),
@@ -88,4 +85,7 @@ export const productsAPI = {
   trackView: (productId) => post('/promotions/track-view/', { product_id: productId }),
 
   validateCoupon: (code, orderAmount) => post('/promotions/validate-coupon/', { code, order_amount: orderAmount }),
+
+  // ── Vendor Activity ───────────────────────────────────
+  getVendorActivity: () => get('/products/vendor-activity/'),
 };
