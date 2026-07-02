@@ -1,298 +1,412 @@
 /**
  * VUMA Store — Vendor Apply Screen
- * Fixed: keyboard issue, Tanzania phone placeholder
+ * African-style vendor registration with GPS shop location
  */
 
-import React, { useState } from 'react';
-import { t } from '../../i18n';
+import React, { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, Platform, Alert, KeyboardAvoidingView,
+  View, Text, TouchableOpacity, StyleSheet, StatusBar,
+  TextInput, Alert, Platform, Modal, FlatList,
 } from 'react-native';
-import { useSelector } from 'react-redux';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useDispatch } from 'react-redux';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
-import { selectUser } from '../../store/authSlice';
 import Button from '../../components/common/Button';
-import Input from '../../components/common/Input';
+import { post } from '../../api/client';
 
-const CATEGORIES = [
-  'Electronics', 'Fashion', 'Food & Drinks', 'Beauty',
-  'Home & Garden', 'Sports', 'Books', 'Toys', 'Health', 'Other'
+const TANZANIA_CITIES = [
+  'Dar es Salaam', 'Dodoma', 'Arusha', 'Mwanza', 'Mbeya',
+  'Morogoro', 'Tanga', 'Zanzibar', 'Tabora', 'Kigoma',
+  'Moshi', 'Iringa', 'Songea', 'Lindi', 'Mtwara', 'Other',
 ];
 
-export default function VendorApplyScreen({ navigation }) {
-  const user = useSelector(selectUser);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    storeName: '',
-    description: '',
-    phone: user?.phone || '',
-    category: '',
-    experience: '',
-    address: '',
-  });
-  const [errors, setErrors] = useState({});
-  const [businessCert, setBusinessCert] = useState(null);
-  const [idCard, setIdCard] = useState(null);
+const BUSINESS_TYPES = [
+  { value: 'individual', label: '👤 Individual Seller', desc: 'Sell as an individual' },
+  { value: 'small_business', label: '🏪 Small Business', desc: 'Registered duka/shop' },
+  { value: 'company', label: '🏢 Company', desc: 'Registered company' },
+];
 
-  const pickDocument = async (type) => {
+const EMPTY_FORM = {
+  shop_name: '',
+  contact_phone: '',
+  business_type: 'individual',
+  city: 'Dar es Salaam',
+  ward: '',
+  landmark: '',
+  building_detail: '',
+  latitude: null,
+  longitude: null,
+  gps_accuracy: null,
+  shop_description: '',
+};
+
+const CityPicker = ({ visible, onSelect, onClose }) => (
+  <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <View style={styles.pickerOverlay}>
+      <View style={styles.pickerContainer}>
+        <View style={styles.pickerHeader}>
+          <Text style={styles.pickerTitle}>Select City</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Text style={styles.pickerClose}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <FlatList
+          data={TANZANIA_CITIES}
+          keyExtractor={(item) => item}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(item); onClose(); }}>
+              <Text style={styles.pickerItemText}>📍 {item}</Text>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        />
+      </View>
+    </View>
+  </Modal>
+);
+
+export default function VendorApplyScreen({ navigation }) {
+  const [form, setFormState] = useState(EMPTY_FORM);
+  const [loading, setSaving] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [showCityPicker, setShowCityPicker] = useState(false);
+  const [step, setStep] = useState(1); // 1=business info, 2=location, 3=review
+
+  const setField = (key, value) => setFormState(prev => ({ ...prev, [key]: value }));
+
+  const getGPSLocation = async () => {
+    setGpsLoading(true);
     try {
-      const DocumentPicker = await import('expo-document-picker');
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/*', 'application/pdf'],
-        copyToCacheDirectory: true,
-      });
-      if (!result.canceled && result.assets?.[0]) {
-        const file = result.assets[0];
-        if (file.size > 10 * 1024 * 1024) {
-          Alert.alert('File too large', 'Maximum file size is 10MB.');
-          return;
-        }
-        if (type === 'business') {
-          setBusinessCert(file);
-          setErrors(p => ({ ...p, businessCert: null }));
-        } else {
-          setIdCard(file);
-          setErrors(p => ({ ...p, idCard: null }));
-        }
+      const Location = await import('expo-location');
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please allow location access.');
+        return;
       }
-    } catch (error) {
-      Alert.alert('Error', 'Could not open file picker. Please try again.');
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setFormState(prev => ({
+        ...prev,
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        gps_accuracy: loc.coords.accuracy,
+      }));
+      Alert.alert('📍 Location Captured!', `Accuracy: ±${Math.round(loc.coords.accuracy)}m`);
+    } catch {
+      Alert.alert('Error', 'Could not get GPS. Try again.');
+    } finally {
+      setGpsLoading(false);
     }
   };
 
-  const validate = () => {
-    const errs = {};
-    if (!form.storeName.trim()) errs.storeName = 'Store name is required.';
-    if (!form.description.trim()) errs.description = 'Description is required.';
-    if (!form.phone.trim()) errs.phone = 'Phone is required.';
-    if (!form.category.trim()) errs.category = 'Category is required.';
-    if (!businessCert) errs.businessCert = 'Business certificate is required.';
-    if (!idCard) errs.idCard = 'ID card or passport is required.';
-    if (!form.address.trim()) errs.address = 'Shop address is required.';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+  const validateStep1 = () => {
+    if (!form.shop_name.trim()) { Alert.alert('Required', 'Shop name is required.'); return false; }
+    if (!form.contact_phone.trim()) { Alert.alert('Required', 'Phone number is required.'); return false; }
+    return true;
   };
 
-  const handleApply = async () => {
-    if (!validate()) return;
-    setLoading(true);
+  const validateStep2 = () => {
+    if (!form.city.trim()) { Alert.alert('Required', 'City is required.'); return false; }
+    if (!form.ward.trim()) { Alert.alert('Required', 'Ward/Area is required.'); return false; }
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    setSaving(true);
     try {
-      const { upload } = await import('../../api/client');
-      const formData = new FormData();
-      formData.append('business_name', form.storeName);
-      formData.append('shop_name', form.storeName);
-      formData.append('description', form.description);
-      formData.append('contact_phone', form.phone);
-      formData.append('business_type', form.category);
-      formData.append('shop_address', form.address);
-      formData.append('business_certificate', {
-        uri: businessCert.uri,
-        name: businessCert.name || 'business_certificate.pdf',
-        type: businessCert.mimeType || 'application/pdf',
+      await post('/vendors/applications/apply/', {
+        shop_name: form.shop_name.trim(),
+        contact_phone: form.contact_phone.trim(),
+        business_type: form.business_type,
+        city: form.city,
+        ward: form.ward.trim(),
+        landmark: form.landmark.trim(),
+        building_detail: form.building_detail.trim(),
+        latitude: form.latitude,
+        longitude: form.longitude,
+        shop_description: form.shop_description.trim(),
       });
-      formData.append('id_card_front', {
-        uri: idCard.uri,
-        name: idCard.name || 'id_card.jpg',
-        type: idCard.mimeType || 'image/jpeg',
-      });
-      await upload('vendors/applications/apply/', formData);
       Alert.alert(
-        '✅ Application Submitted!',
-        'Your vendor application has been received.\n\nWe will review it within 24-48 hours and notify you by email once approved.',
+        '🎉 Application Submitted!',
+        'We will review your application and notify you within 24 hours.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
-    } catch (error) {
-      const msg = error?.message || 'Failed to submit. Please try again.';
-      Alert.alert('❌ Submission Failed', msg);
+    } catch (e) {
+      Alert.alert('Error', 'Could not submit application. Please try again.');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const DocumentUploadBox = ({ label, required, file, onPress, error, hint }) => (
-    <View style={styles.docSection}>
-      <Text style={styles.docLabel}>{label} {required && <Text style={styles.required}>*</Text>}</Text>
-      <Text style={styles.docHint}>{hint}</Text>
+  // ── Step 1: Business Info ──────────────────────────
+  const Step1 = () => (
+    <View>
+      <Text style={styles.stepTitle}>🏪 Business Information</Text>
+
+      <Text style={styles.fieldLabel}>Business Type</Text>
+      {BUSINESS_TYPES.map(bt => (
+        <TouchableOpacity
+          key={bt.value}
+          style={[styles.typeCard, form.business_type === bt.value && styles.typeCardActive]}
+          onPress={() => setField('business_type', bt.value)}
+        >
+          <Text style={styles.typeLabel}>{bt.label}</Text>
+          <Text style={styles.typeDesc}>{bt.desc}</Text>
+        </TouchableOpacity>
+      ))}
+
+      <Text style={styles.fieldLabel}>Shop / Business Name *</Text>
+      <TextInput
+        style={styles.input}
+        value={form.shop_name}
+        onChangeText={v => setField('shop_name', v)}
+        placeholder="e.g. Mama Fatuma's Duka, TechHub Tanzania"
+        placeholderTextColor={COLORS.textLight}
+      />
+
+      <Text style={styles.fieldLabel}>Phone Number *</Text>
+      <TextInput
+        style={styles.input}
+        value={form.contact_phone}
+        onChangeText={v => setField('contact_phone', v)}
+        placeholder="+255 7XX XXX XXX"
+        keyboardType="phone-pad"
+        placeholderTextColor={COLORS.textLight}
+      />
+
+      <Text style={styles.fieldLabel}>Shop Description</Text>
+      <TextInput
+        style={[styles.input, styles.textArea]}
+        value={form.shop_description}
+        onChangeText={v => setField('shop_description', v)}
+        placeholder="What do you sell? e.g. Fresh vegetables, Electronics, Clothing..."
+        multiline numberOfLines={3}
+        textAlignVertical="top"
+        placeholderTextColor={COLORS.textLight}
+      />
+
+      <Button
+        title="Next: Location →"
+        onPress={() => { if (validateStep1()) setStep(2); }}
+        fullWidth style={styles.nextBtn}
+      />
+    </View>
+  );
+
+  // ── Step 2: Location ───────────────────────────────
+  const Step2 = () => (
+    <View>
+      <Text style={styles.stepTitle}>📍 Shop Location</Text>
+
+      {/* GPS */}
       <TouchableOpacity
-        style={[styles.docBox, file && styles.docBoxFilled, error && styles.docBoxError]}
-        onPress={onPress} activeOpacity={0.7}
+        style={[styles.gpsBtn, form.latitude && styles.gpsBtnActive]}
+        onPress={getGPSLocation}
+        disabled={gpsLoading}
       >
-        {file ? (
-          <View style={styles.docFilled}>
-            <Text style={styles.docFilledIcon}>✅</Text>
-            <View style={styles.docFilledInfo}>
-              <Text style={styles.docFilledName} numberOfLines={1}>{file.name}</Text>
-              <Text style={styles.docFilledSize}>{(file.size / 1024).toFixed(0)} KB</Text>
-            </View>
-            <TouchableOpacity onPress={onPress} style={styles.docChange}>
-              <Text style={styles.docChangeText}>Change</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.docEmpty}>
-            <Text style={styles.docEmptyIcon}>📎</Text>
-            <Text style={styles.docEmptyText}>Tap to upload</Text>
-            <Text style={styles.docEmptyHint}>PDF, JPG, PNG — Max 10MB</Text>
-          </View>
-        )}
+        <Text style={styles.gpsBtnIcon}>📍</Text>
+        <View style={styles.gpsBtnContent}>
+          <Text style={styles.gpsBtnTitle}>
+            {gpsLoading ? 'Getting location...' : form.latitude ? 'GPS Location Captured ✓' : 'Pin My Shop Location'}
+          </Text>
+          {form.latitude ? (
+            <Text style={styles.gpsBtnSub}>
+              {Number(form.latitude).toFixed(5)}, {Number(form.longitude).toFixed(5)}
+              {form.gps_accuracy ? ` (±${Math.round(form.gps_accuracy)}m)` : ''}
+            </Text>
+          ) : (
+            <Text style={styles.gpsBtnSub}>Helps customers and riders find your shop</Text>
+          )}
+        </View>
       </TouchableOpacity>
-      {error && <Text style={styles.docError}>⚠️ {error}</Text>}
+
+      <Text style={styles.fieldLabel}>City *</Text>
+      <TouchableOpacity style={styles.selectorInput} onPress={() => setShowCityPicker(true)}>
+        <Text style={form.city ? styles.selectorValue : styles.selectorPlaceholder}>
+          {form.city || 'Select city...'}
+        </Text>
+        <Text>▼</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.fieldLabel}>Ward / Area *</Text>
+      <TextInput
+        style={styles.input}
+        value={form.ward}
+        onChangeText={v => setField('ward', v)}
+        placeholder="e.g. Kinondoni, Ilala, Kariakoo"
+        placeholderTextColor={COLORS.textLight}
+      />
+
+      <Text style={styles.fieldLabel}>Nearby Landmark <Text style={styles.optional}>(helps riders)</Text></Text>
+      <TextInput
+        style={styles.input}
+        value={form.landmark}
+        onChangeText={v => setField('landmark', v)}
+        placeholder="e.g. Near Kariakoo Market, Next to CRDB Bank"
+        placeholderTextColor={COLORS.textLight}
+      />
+
+      <Text style={styles.fieldLabel}>Building / Floor / Shop No. <Text style={styles.optional}>(optional)</Text></Text>
+      <TextInput
+        style={styles.input}
+        value={form.building_detail}
+        onChangeText={v => setField('building_detail', v)}
+        placeholder="e.g. Sumu Tower, Ground Floor, Shop 12"
+        placeholderTextColor={COLORS.textLight}
+      />
+
+      <View style={styles.stepBtns}>
+        <TouchableOpacity style={styles.backStepBtn} onPress={() => setStep(1)}>
+          <Text style={styles.backStepText}>← Back</Text>
+        </TouchableOpacity>
+        <Button
+          title="Review →"
+          onPress={() => { if (validateStep2()) setStep(3); }}
+          style={styles.nextBtnHalf}
+        />
+      </View>
+    </View>
+  );
+
+  // ── Step 3: Review ─────────────────────────────────
+  const Step3 = () => (
+    <View>
+      <Text style={styles.stepTitle}>✅ Review & Submit</Text>
+
+      <View style={styles.reviewCard}>
+        <Text style={styles.reviewSectionTitle}>🏪 Business</Text>
+        <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>Name: </Text>{form.shop_name}</Text>
+        <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>Phone: </Text>{form.contact_phone}</Text>
+        <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>Type: </Text>{BUSINESS_TYPES.find(b => b.value === form.business_type)?.label}</Text>
+        {form.shop_description ? <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>About: </Text>{form.shop_description}</Text> : null}
+      </View>
+
+      <View style={styles.reviewCard}>
+        <Text style={styles.reviewSectionTitle}>📍 Location</Text>
+        <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>City: </Text>{form.city}</Text>
+        <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>Ward: </Text>{form.ward}</Text>
+        {form.landmark ? <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>Landmark: </Text>{form.landmark}</Text> : null}
+        {form.building_detail ? <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>Building: </Text>{form.building_detail}</Text> : null}
+        {form.latitude ? (
+          <Text style={styles.reviewRow}><Text style={styles.reviewLabel}>GPS: </Text>✅ Captured</Text>
+        ) : (
+          <Text style={[styles.reviewRow, { color: COLORS.warning }]}>⚠️ No GPS — riders may have trouble finding you</Text>
+        )}
+      </View>
+
+      <View style={styles.termsCard}>
+        <Text style={styles.termsText}>
+          By submitting, you agree to VUMA's vendor terms. A 10% commission applies per sale.
+          We'll review your application within 24 hours.
+        </Text>
+      </View>
+
+      <View style={styles.stepBtns}>
+        <TouchableOpacity style={styles.backStepBtn} onPress={() => setStep(2)}>
+          <Text style={styles.backStepText}>← Edit</Text>
+        </TouchableOpacity>
+        <Button
+          title="Submit Application"
+          onPress={handleSubmit}
+          loading={loading}
+          style={styles.nextBtnHalf}
+        />
+      </View>
     </View>
   );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
-
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={styles.backIcon}>←</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backBtn}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🏪 Become a Vendor</Text>
-        <View style={{ width: 32 }} />
+        <Text style={styles.headerTitle}>Become a Vendor</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="always"
-      >
-        <View style={styles.benefitsCard}>
-          <Text style={styles.benefitsTitle}>Why sell on VUMA?</Text>
-          {[
-            '✅ Only 5% commission — keep 95% of sales',
-            '✅ Millions of customers across Africa & Asia',
-            '✅ Fast payouts to your account',
-            '✅ Free store setup and dashboard',
-            '✅ 24/7 seller support',
-          ].map((b, i) => (
-            <Text key={i} style={styles.benefitItem}>{b}</Text>
-          ))}
-        </View>
-
-        <Text style={styles.sectionTitle}>STORE INFORMATION</Text>
-        <View style={styles.card}>
-          <Input
-            label="Store Name" required value={form.storeName}
-            onChangeText={v => { setForm(p => ({ ...p, storeName: v })); if (errors.storeName) setErrors(p => ({ ...p, storeName: null })); }}
-            placeholder="e.g. Moha's Electronics" leftIcon="🏪" error={errors.storeName}
-          />
-          <Input
-            label="Store Description" required value={form.description}
-            onChangeText={v => { setForm(p => ({ ...p, description: v })); if (errors.description) setErrors(p => ({ ...p, description: null })); }}
-            placeholder="Describe what you sell..." leftIcon="📝" error={errors.description}
-          />
-          <Input
-            label="Phone Number" required value={form.phone}
-            onChangeText={v => { setForm(p => ({ ...p, phone: v })); if (errors.phone) setErrors(p => ({ ...p, phone: null })); }}
-            placeholder="+255 7XX XXX XXX" keyboardType="phone-pad" leftIcon="📱" error={errors.phone}
-          />
-          <Input
-            label="Years of Experience" value={form.experience}
-            onChangeText={v => setForm(p => ({ ...p, experience: v }))}
-            placeholder="e.g. 2 years" leftIcon="📅" keyboardType="numeric"
-          />
-          <Input
-            label="Shop Address" required value={form.address}
-            onChangeText={v => { setForm(p => ({ ...p, address: v })); if (errors.address) setErrors(p => ({ ...p, address: null })); }}
-            placeholder="e.g. Kariakoo, Dar es Salaam" leftIcon="📍" error={errors.address}
-          />
-        </View>
-
-        <Text style={styles.sectionTitle}>MAIN PRODUCT CATEGORY</Text>
-        <View style={styles.card}>
-          {errors.category && <Text style={styles.categoryError}>⚠️ {errors.category}</Text>}
-          <View style={styles.categoryGrid}>
-            {CATEGORIES.map(cat => (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.categoryBtn, form.category === cat && styles.categoryBtnActive]}
-                onPress={() => { setForm(p => ({ ...p, category: cat })); setErrors(p => ({ ...p, category: null })); }}
-              >
-                <Text style={[styles.categoryBtnText, form.category === cat && styles.categoryBtnTextActive]}>{cat}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>REQUIRED DOCUMENTS</Text>
-        <View style={styles.card}>
-          <View style={styles.docsNote}>
-            <Text style={styles.docsNoteText}>
-              🔒 Your documents are encrypted and used only for verification. They will not be shared publicly.
+      {/* Progress bar */}
+      <View style={styles.progressBar}>
+        {[1, 2, 3].map(s => (
+          <View key={s} style={styles.progressStep}>
+            <View style={[styles.progressDot, step >= s && styles.progressDotActive]}>
+              <Text style={[styles.progressDotText, step >= s && styles.progressDotTextActive]}>{s}</Text>
+            </View>
+            <Text style={[styles.progressLabel, step >= s && styles.progressLabelActive]}>
+              {s === 1 ? 'Business' : s === 2 ? 'Location' : 'Review'}
             </Text>
           </View>
-          <DocumentUploadBox
-            label="Business Registration Certificate" required
-            file={businessCert} onPress={() => pickDocument('business')}
-            error={errors.businessCert}
-            hint="Official business registration document from your government"
-          />
-          <View style={styles.docDivider} />
-          <DocumentUploadBox
-            label="Government-issued ID / Passport" required
-            file={idCard} onPress={() => pickDocument('id')}
-            error={errors.idCard}
-            hint="National ID card, passport, or driver's license"
-          />
-        </View>
+        ))}
+      </View>
 
-        <Button
-          title="Submit Application" onPress={handleApply}
-          loading={loading} disabled={loading} fullWidth size="lg" style={styles.submitBtn}
-        />
-        <Text style={styles.note}>
-          📋 Applications are reviewed within 24-48 hours.{'\n'}You'll receive an email notification once approved.
-        </Text>
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="always"
+        enableOnAndroid extraScrollHeight={100}
+      >
+        {step === 1 && <Step1 />}
+        {step === 2 && <Step2 />}
+        {step === 3 && <Step3 />}
         <View style={{ height: 60 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+
+      <CityPicker
+        visible={showCityPicker}
+        onSelect={city => setField('city', city)}
+        onClose={() => setShowCityPicker(false)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
-  backIcon: { fontSize: FONTS.xl, color: COLORS.textPrimary, fontWeight: FONTS.bold },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  backBtn: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold },
+  progressBar: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: COLORS.surface, paddingVertical: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
+  progressStep: { alignItems: 'center', gap: 4 },
+  progressDot: { width: 28, height: 28, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surface },
+  progressDotActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  progressDotText: { fontSize: FONTS.sm, color: COLORS.textMuted, fontWeight: FONTS.bold },
+  progressDotTextActive: { color: 'white' },
+  progressLabel: { fontSize: FONTS.xs, color: COLORS.textMuted },
+  progressLabelActive: { color: COLORS.primary, fontWeight: FONTS.semiBold },
   scroll: { padding: SPACING.base },
-  benefitsCard: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.base, borderLeftWidth: 4, borderLeftColor: COLORS.primary },
-  benefitsTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary, marginBottom: SPACING.sm },
-  benefitItem: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginBottom: 4, lineHeight: 20 },
-  sectionTitle: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.textMuted, letterSpacing: 1, marginBottom: SPACING.sm, marginTop: SPACING.sm },
-  card: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.base, ...SHADOWS.sm },
-  categoryError: { fontSize: FONTS.xs, color: COLORS.danger, marginBottom: SPACING.sm },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  categoryBtn: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface },
-  categoryBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  categoryBtnText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
-  categoryBtnTextActive: { color: COLORS.textWhite, fontWeight: FONTS.bold },
-  docsNote: { backgroundColor: COLORS.infoLight, borderRadius: RADIUS.lg, padding: SPACING.sm, marginBottom: SPACING.base },
-  docsNoteText: { fontSize: FONTS.xs, color: COLORS.infoText, lineHeight: 18 },
-  docSection: { marginBottom: SPACING.base },
-  docLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: 2 },
-  required: { color: COLORS.danger },
-  docHint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.sm },
-  docBox: { borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', borderRadius: RADIUS.lg, padding: SPACING.base, backgroundColor: COLORS.surfaceAlt },
-  docBoxFilled: { borderStyle: 'solid', borderColor: COLORS.success, backgroundColor: COLORS.successLight },
-  docBoxError: { borderColor: COLORS.danger, borderStyle: 'solid' },
-  docEmpty: { alignItems: 'center', paddingVertical: SPACING.sm },
-  docEmptyIcon: { fontSize: 32, marginBottom: SPACING.xs },
-  docEmptyText: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.primary },
-  docEmptyHint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  docFilled: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  docFilledIcon: { fontSize: 24 },
-  docFilledInfo: { flex: 1 },
-  docFilledName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.successText },
-  docFilledSize: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  docChange: { backgroundColor: COLORS.surface, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderWidth: 1, borderColor: COLORS.border },
-  docChangeText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  docError: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: SPACING.xs },
-  docDivider: { height: 1, backgroundColor: COLORS.divider, marginVertical: SPACING.base },
-  submitBtn: { marginTop: SPACING.sm, marginBottom: SPACING.base },
-  note: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center', lineHeight: 18 },
+  stepTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.base },
+  fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs, marginTop: SPACING.sm },
+  optional: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.regular },
+  input: { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.xs },
+  textArea: { minHeight: 80, textAlignVertical: 'top', paddingTop: SPACING.sm },
+  typeCard: { padding: SPACING.base, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface, marginBottom: SPACING.sm },
+  typeCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade },
+  typeLabel: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  typeDesc: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  gpsBtn: { flexDirection: 'row', alignItems: 'center', padding: SPACING.base, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade, marginBottom: SPACING.base, gap: SPACING.sm },
+  gpsBtnActive: { borderColor: COLORS.success, backgroundColor: '#E8F5E9' },
+  gpsBtnIcon: { fontSize: 28 },
+  gpsBtnContent: { flex: 1 },
+  gpsBtnTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
+  gpsBtnSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  selectorInput: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, marginBottom: SPACING.xs },
+  selectorValue: { fontSize: FONTS.base, color: COLORS.textPrimary },
+  selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
+  nextBtn: { marginTop: SPACING.xl },
+  stepBtns: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xl },
+  backStepBtn: { flex: 1, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.xl, alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.base },
+  backStepText: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  nextBtnHalf: { flex: 2 },
+  reviewCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.divider },
+  reviewSectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  reviewRow: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginBottom: 4 },
+  reviewLabel: { fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  termsCard: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.base },
+  termsText: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20 },
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  pickerContainer: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '70%', paddingBottom: Platform.OS === 'ios' ? 34 : 16 },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
+  pickerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  pickerClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
+  pickerItem: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  pickerItemText: { fontSize: FONTS.base, color: COLORS.textPrimary },
 });
