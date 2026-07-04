@@ -1,6 +1,6 @@
 /**
  * VUMA Store — Login Screen
- * Fixed: removed crash-causing navigation.reset after login
+ * Fixed: spinner always stops, clear error messages, proper navigation
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -8,14 +8,15 @@ import { t } from '../../i18n';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   KeyboardAvoidingView, Platform, StatusBar, Alert, Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   login, biometricLogin, checkBiometrics, clearError,
-  selectAuthLoading, selectAuthErrors, selectBiometrics,
+  selectAuthLoading, selectAuthErrors, selectBiometrics, selectIsAuthenticated,
 } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SCREENS } from '../../utils/constants';
-import { validateEmail, validatePassword } from '../../utils/helpers';
+import { validateEmail } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
@@ -26,11 +27,13 @@ export default function LoginScreen({ navigation }) {
   const loading = useSelector(selectAuthLoading);
   const errors = useSelector(selectAuthErrors);
   const biometrics = useSelector(selectBiometrics);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [isLoggingIn, setIsLoggingIn] = useState(false); // local loading state as backup
 
   const passwordRef = useRef(null);
 
@@ -39,33 +42,60 @@ export default function LoginScreen({ navigation }) {
     return () => dispatch(clearError());
   }, []);
 
+  // Navigate when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setIsLoggingIn(false);
+    }
+  }, [isAuthenticated]);
+
   // Show API errors
   useEffect(() => {
     if (!errors.login) return;
+    setIsLoggingIn(false);
     if (typeof errors.login === 'string') {
-      Alert.alert('Login Failed', errors.login, [
-        { text: 'Try Again', onPress: () => dispatch(clearError('login')) },
-      ]);
-    } else {
-      setFieldErrors(errors.login);
+      Alert.alert('Login Failed', errors.login);
+      dispatch(clearError('login'));
+    } else if (typeof errors.login === 'object') {
+      const msg = Object.values(errors.login).flat().join('\n');
+      Alert.alert('Login Failed', msg || 'Invalid credentials');
       dispatch(clearError('login'));
     }
   }, [errors.login]);
 
   const validate = () => {
     const errs = {};
-    const emailErr = validateEmail(email);
-    const passErr = validatePassword(password);
-    if (emailErr) errs.email = emailErr;
-    if (passErr) errs.password = passErr;
+    if (!email.trim()) errs.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(email.trim())) errs.email = 'Enter a valid email';
+    if (!password) errs.password = 'Password is required';
+    else if (password.length < 4) errs.password = 'Password too short';
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  // Fixed: no manual navigation — AppNavigator auto-switches when isAuthenticated becomes true
   const handleLogin = async () => {
     if (!validate()) return;
-    await dispatch(login({ email: email.trim(), password, rememberMe }));
+    if (isLoggingIn || loading.login) return;
+
+    setIsLoggingIn(true);
+    dispatch(clearError('login'));
+
+    try {
+      const result = await dispatch(login({
+        email: email.trim().toLowerCase(),
+        password,
+        rememberMe,
+      }));
+
+      if (login.rejected.match(result)) {
+        // Error handled by useEffect above
+        setIsLoggingIn(false);
+      }
+      // Success: AppNavigator auto-switches via isAuthenticated
+    } catch (e) {
+      setIsLoggingIn(false);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
   };
 
   const handleBiometric = async () => {
@@ -75,11 +105,7 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  const handleFieldChange = (field, value) => {
-    if (fieldErrors[field]) setFieldErrors((prev) => ({ ...prev, [field]: null }));
-    if (field === 'email') setEmail(value);
-    if (field === 'password') setPassword(value);
-  };
+  const showLoading = isLoggingIn || loading.login;
 
   return (
     <KeyboardAvoidingView
@@ -104,21 +130,39 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.title}>Welcome back 👋</Text>
           <Text style={styles.subtitle}>Login to your account</Text>
 
-          <Input
-            label="Email" required value={email}
-            onChangeText={(v) => handleFieldChange('email', v)}
-            placeholder="your@email.com" keyboardType="email-address"
-            autoCapitalize="none" leftIcon="✉️" error={fieldErrors.email}
-            returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()}
-          />
+          {/* Email */}
+          <Text style={styles.label}>Email</Text>
+          <View style={[styles.inputWrap, fieldErrors.email && styles.inputError]}>
+            <Text style={styles.inputIcon}>✉️</Text>
+            <Input
+              value={email}
+              onChangeText={(v) => { setEmail(v); setFieldErrors(p => ({...p, email: null})); }}
+              placeholder="your@email.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              style={styles.inputField}
+            />
+          </View>
+          {fieldErrors.email && <Text style={styles.fieldError}>{fieldErrors.email}</Text>}
 
-          <Input
-            label="Password" required value={password}
-            onChangeText={(v) => handleFieldChange('password', v)}
-            placeholder="Your password" isPassword leftIcon="🔒"
-            error={fieldErrors.password} inputRef={passwordRef}
-            returnKeyType="done" onSubmitEditing={handleLogin}
-          />
+          {/* Password */}
+          <Text style={styles.label}>Password</Text>
+          <View style={[styles.inputWrap, fieldErrors.password && styles.inputError]}>
+            <Text style={styles.inputIcon}>🔒</Text>
+            <Input
+              value={password}
+              onChangeText={(v) => { setPassword(v); setFieldErrors(p => ({...p, password: null})); }}
+              placeholder="Your password"
+              isPassword
+              inputRef={passwordRef}
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
+              style={styles.inputField}
+            />
+          </View>
+          {fieldErrors.password && <Text style={styles.fieldError}>{fieldErrors.password}</Text>}
 
           {/* Remember me + Forgot */}
           <View style={styles.optionsRow}>
@@ -137,17 +181,29 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <Button
-            title="Login" onPress={handleLogin}
-            loading={loading.login} disabled={loading.login}
-            fullWidth size="lg" style={styles.loginBtn}
-          />
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[styles.loginBtn, showLoading && styles.loginBtnDisabled]}
+            onPress={handleLogin}
+            disabled={showLoading}
+            activeOpacity={0.8}
+          >
+            {showLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color="#fff" size="small" />
+                <Text style={styles.loginBtnText}>Logging in...</Text>
+              </View>
+            ) : (
+              <Text style={styles.loginBtnText}>Login</Text>
+            )}
+          </TouchableOpacity>
 
           {/* Biometric */}
-          {biometrics.canUseBiometric && (
+          {biometrics.canUseBiometric && !showLoading && (
             <TouchableOpacity
-              style={styles.biometricBtn} onPress={handleBiometric}
-              disabled={loading.biometric} activeOpacity={0.8}
+              style={styles.biometricBtn}
+              onPress={handleBiometric}
+              disabled={loading.biometric}
             >
               <Text style={styles.biometricIcon}>
                 {biometrics.hasFaceID ? '😊' : '👆'}
@@ -175,7 +231,7 @@ export default function LoginScreen({ navigation }) {
         {/* Vendor CTA */}
         <TouchableOpacity
           style={styles.vendorCTA}
-          onPress={() => navigation.navigate(SCREENS.REGISTER, { isVendor: true })}
+          onPress={() => navigation.navigate('VendorRegister', { isNewAccount: true })}
         >
           <Text style={styles.vendorCTAText}>
             🏪 Want to sell on VUMA?{' '}
@@ -196,14 +252,23 @@ const styles = StyleSheet.create({
   card: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.xl, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
   title: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   subtitle: { fontSize: FONTS.base, color: COLORS.textMuted, marginBottom: SPACING.xl },
-  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg, marginTop: -SPACING.sm },
+  label: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.sm, backgroundColor: COLORS.surface, marginBottom: SPACING.sm },
+  inputError: { borderColor: COLORS.danger },
+  inputIcon: { fontSize: 16, marginRight: SPACING.xs },
+  inputField: { flex: 1, borderWidth: 0, paddingHorizontal: 0 },
+  fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: -SPACING.xs, marginBottom: SPACING.sm },
+  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
   rememberRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: COLORS.border, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
   checkboxActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkmark: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
   rememberText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
   forgotText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  loginBtn: { marginBottom: SPACING.base },
+  loginBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: SPACING.base, alignItems: 'center', marginBottom: SPACING.base },
+  loginBtnDisabled: { backgroundColor: COLORS.primaryLight, opacity: 0.8 },
+  loginBtnText: { color: COLORS.textWhite, fontSize: FONTS.base, fontWeight: FONTS.bold },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   biometricBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.sm + 4, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.primary, gap: SPACING.sm, marginBottom: SPACING.base },
   biometricIcon: { fontSize: FONTS.xl },
   biometricText: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.semiBold },
