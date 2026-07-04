@@ -1,6 +1,6 @@
 /**
  * VUMA Store — App Navigator
- * Fixed: added missing ProductList screen, guest browsing
+ * Updated: VendorRegisterScreen replaces VendorApplyScreen
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -19,15 +19,17 @@ import AuthNavigator from './AuthNavigator';
 import TabNavigator from './TabNavigator';
 import VendorNavigator from './VendorNavigator';
 
+import HomeScreen from '../screens/home/HomeScreen';
 import ProductDetailScreen from '../screens/product/ProductDetailScreen';
 import OrderDetailScreen from '../screens/order/OrderDetailScreen';
-import MobileMoneyScreen from '../screens/payment/MobileMoneyScreen';
 import CheckoutScreen from '../screens/payment/CheckoutScreen';
+import MobileMoneyScreen from '../screens/payment/MobileMoneyScreen';
 import WalletScreen from '../screens/payment/WalletScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
+import AddressScreen from '../screens/profile/AddressScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
-import VendorApplyScreen from '../screens/vendor/VendorApplyScreen';
+import VendorRegisterScreen from '../screens/vendor/VendorRegisterScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -39,9 +41,6 @@ function SplashScreen() {
   );
 }
 
-// Simple ProductList screen that shows HomeScreen filtered
-import HomeScreen from '../screens/home/HomeScreen';
-
 function MainStack({ isVendor }) {
   return (
     <Stack.Navigator
@@ -51,9 +50,10 @@ function MainStack({ isVendor }) {
         animation: 'slide_from_right',
       }}
     >
+      {/* Main tabs */}
       <Stack.Screen name="Tabs" component={isVendor ? VendorNavigator : TabNavigator} />
 
-      {/* Product screens */}
+      {/* Product */}
       <Stack.Screen
         name="ProductDetail"
         component={ProductDetailScreen}
@@ -65,10 +65,10 @@ function MainStack({ isVendor }) {
         options={{ animation: 'slide_from_right' }}
       />
 
-      {/* Order */}
+      {/* Orders */}
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
 
-      {/* Payment */}
+      {/* Payments */}
       <Stack.Screen
         name="Checkout"
         component={CheckoutScreen}
@@ -81,8 +81,13 @@ function MainStack({ isVendor }) {
         options={{ animation: 'slide_from_bottom' }}
       />
 
-      {/* Settings */}
+      {/* Profile */}
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen
+        name="Address"
+        component={AddressScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
 
       {/* Chat */}
       <Stack.Screen
@@ -94,14 +99,14 @@ function MainStack({ isVendor }) {
       {/* Notifications */}
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
 
-      {/* Vendor */}
+      {/* Vendor Registration — 3-step GPS-first registration */}
       <Stack.Screen
-        name="VendorApply"
-        component={VendorApplyScreen}
+        name="VendorRegister"
+        component={VendorRegisterScreen}
         options={{ animation: 'slide_from_bottom' }}
       />
 
-      {/* Auth screens accessible from inside main app */}
+      {/* Auth screens accessible from inside main app (e.g. guest → login) */}
       <Stack.Screen
         name="Auth"
         component={AuthNavigator}
@@ -141,6 +146,7 @@ export default function AppNavigator() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
+  // Session expiry check
   useEffect(() => {
     sessionCheckRef.current = setInterval(async () => {
       try {
@@ -168,5 +174,10 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  splash: { flex: 1, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+  splash: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

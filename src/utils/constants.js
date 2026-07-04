@@ -5,19 +5,19 @@
 
 // ─── API ──────────────────────────────────────────────
 export const API = {
- BASE_URL: __DEV__
-  ? 'http://172.30.1.39:8000/api/v1/'
-  : 'https://vumastore.store/api/v1/',
+  BASE_URL: __DEV__
+    ? 'http://172.30.1.39:8000/api/v1/'
+    : 'https://vumastore.store/api/v1/',
 
   // Auth
-REGISTER: 'users/register/',
-LOGIN: 'users/login/',
-LOGOUT: 'users/logout/',
-TOKEN_REFRESH: 'users/token/refresh/',
-PROFILE: 'users/profile/',
-PROFILE_UPDATE: 'users/profile/update/',
-PASSWORD_CHANGE: 'users/password/change/',
-ME: 'users/me/',
+  REGISTER: 'users/register/',
+  LOGIN: 'users/login/',
+  LOGOUT: 'users/logout/',
+  TOKEN_REFRESH: 'users/token/refresh/',
+  PROFILE: 'users/profile/',
+  PROFILE_UPDATE: 'users/profile/update/',
+  PASSWORD_CHANGE: 'users/password/change/',
+  ME: 'users/me/',
 
   // Products
   PRODUCTS: '/products/',
@@ -27,14 +27,21 @@ ME: 'users/me/',
   PRODUCT_MY: '/products/my-products/',
   CATEGORIES: '/products/categories/',
   CATEGORY_DETAIL: (slug) => `/products/categories/${slug}/`,
+  BANNERS: '/products/banners/',
+
+  // Mazao (Agricultural Marketplace)
+  MAZAO: '/products/mazao/',
+  MAZAO_DETAIL: (id) => `/products/mazao/${id}/`,
+  MAZAO_MY: '/products/mazao/my-products/',
+  MAZAO_FEATURED: '/products/mazao/featured/',
+  MAZAO_CROP_TYPES: '/products/mazao/crop-types/',
 
   // Orders
   ORDERS: '/orders/',
   ORDER_DETAIL: (id) => `/orders/${id}/`,
   ORDER_STATUS: (id) => `/orders/${id}/status/`,
   ORDER_CANCEL: (id) => `/orders/${id}/cancel/`,
-  ORDER_ITEM_STATUS: (orderId, itemId) =>
-    `/orders/${orderId}/items/${itemId}/status/`,
+  ORDER_ITEM_STATUS: (orderId, itemId) => `/orders/${orderId}/items/${itemId}/status/`,
   SHIPPING_ADDRESSES: '/orders/addresses/',
   ADDRESS_DETAIL: (id) => `/orders/addresses/${id}/`,
   ADDRESS_DEFAULT: (id) => `/orders/addresses/${id}/set-default/`,
@@ -47,8 +54,7 @@ ME: 'users/me/',
   TRANSACTIONS: '/payments/transactions/',
   PAYMENT_METHODS: '/payments/methods/',
   PAYMENT_METHOD_DETAIL: (id) => `/payments/methods/${id}/`,
-  PAYMENT_METHOD_DEFAULT: (id) =>
-    `/payments/methods/${id}/set-default/`,
+  PAYMENT_METHOD_DEFAULT: (id) => `/payments/methods/${id}/set-default/`,
   STRIPE_WEBHOOK: '/payments/webhook/stripe/',
 
   // Vendors
@@ -59,6 +65,14 @@ ME: 'users/me/',
   VENDOR_DASHBOARD: '/vendors/profiles/dashboard/',
   VENDOR_PAYOUTS: '/vendors/payouts/my-payouts/',
   VENDOR_PAYOUT_REQUEST: '/vendors/payouts/request/',
+
+  // Promotions
+  PROMOTIONS_TRENDING: '/promotions/trending/',
+  PROMOTIONS_DEALS: '/promotions/daily-deals/',
+  PROMOTIONS_RECENTLY_VIEWED: '/promotions/recently-viewed/',
+  PROMOTIONS_RECOMMENDATIONS: '/promotions/recommendations/',
+  PROMOTIONS_TRACK_VIEW: '/promotions/track-view/',
+  PROMOTIONS_COUPON: '/promotions/validate-coupon/',
 
   // Notifications
   NOTIFICATIONS: '/notifications/list/',
@@ -75,8 +89,8 @@ ME: 'users/me/',
   SUPPORT_TICKET_CREATE: '/chat/tickets/create/',
 
   // WebSocket
- WS_BASE: 'wss://vumastore.store',
- WS_CHAT: (roomId) => `wss://vumastore.store/ws/chat/${roomId}/`,
+  WS_BASE: 'wss://vumastore.store',
+  WS_CHAT: (roomId) => `wss://vumastore.store/ws/chat/${roomId}/`,
 };
 
 // ─── COLORS ───────────────────────────────────────────
@@ -144,7 +158,6 @@ export const COLORS = {
 
 // ─── TYPOGRAPHY ───────────────────────────────────────
 export const FONTS = {
-  // Sizes
   xs: 10,
   sm: 12,
   md: 14,
@@ -157,7 +170,6 @@ export const FONTS = {
   '5xl': 32,
   '6xl': 42,
 
-  // Weights
   regular: '400',
   medium: '500',
   semiBold: '600',
@@ -165,7 +177,6 @@ export const FONTS = {
   extraBold: '800',
   black: '900',
 
-  // Line heights
   tight: 1.2,
   normal: 1.5,
   relaxed: 1.8,
@@ -233,8 +244,8 @@ export const APP = {
   name: 'VUMA Store',
   tagline: 'Smart Shopping. Fast Delivery. Best Prices.',
   version: '1.0.0',
-  supportEmail: 'support@vumastore.com',
-  website: 'https://vumastore.com',
+  supportEmail: 'support@vumastore.store',
+  website: 'https://vumastore.store',
   currency: 'TZS',
   currencySymbol: 'TZS ',
   commissionRate: 0.10,
@@ -253,18 +264,53 @@ export const LANGUAGES = [
   { code: 'ar', name: 'العربية', flag: '🇸🇦', rtl: true },
 ];
 
-// ─── PRODUCT CATEGORIES ───────────────────────────────
+// ─── PRODUCT CATEGORIES (32 African market categories) ─
 export const CATEGORIES = [
   { id: 'all', label: 'All', icon: '🏠', slug: '' },
-  { id: 'electronics', label: 'Electronics', icon: '📱', slug: 'electronics' },
-  { id: 'fashion', label: 'Fashion', icon: '👗', slug: 'fashion' },
-  { id: 'food', label: 'Food', icon: '🍎', slug: 'food' },
+  // Tech
+  { id: 'electronics', label: 'Electronics', icon: '📺', slug: 'electronics' },
+  { id: 'phones-accessories', label: 'Phones', icon: '📱', slug: 'phones-accessories' },
+  { id: 'computers', label: 'Computers', icon: '💻', slug: 'computers' },
+  // Fashion
+  { id: 'fashion-men', label: "Men's Fashion", icon: '👔', slug: 'fashion-men' },
+  { id: 'fashion-women', label: "Women's Fashion", icon: '👗', slug: 'fashion-women' },
+  { id: 'kids-baby', label: 'Kids & Baby', icon: '👶', slug: 'kids-baby' },
+  { id: 'shoes', label: 'Shoes', icon: '👟', slug: 'shoes' },
+  { id: 'bags', label: 'Bags', icon: '👜', slug: 'bags' },
+  { id: 'jewelry-watches', label: 'Jewelry', icon: '💍', slug: 'jewelry-watches' },
+  // Beauty & Health
   { id: 'beauty', label: 'Beauty', icon: '💄', slug: 'beauty' },
-  { id: 'home', label: 'Home', icon: '🏡', slug: 'home' },
-  { id: 'sports', label: 'Sports', icon: '⚽', slug: 'sports' },
-  { id: 'books', label: 'Books', icon: '📚', slug: 'books' },
-  { id: 'toys', label: 'Toys', icon: '🧸', slug: 'toys' },
   { id: 'health', label: 'Health', icon: '💊', slug: 'health' },
+  // Home
+  { id: 'home-living', label: 'Home & Living', icon: '🏡', slug: 'home-living' },
+  { id: 'furniture', label: 'Furniture', icon: '🛋️', slug: 'furniture' },
+  { id: 'kitchen', label: 'Kitchen', icon: '🍳', slug: 'kitchen' },
+  // Food
+  { id: 'food-groceries', label: 'Groceries', icon: '🛒', slug: 'food-groceries' },
+  { id: 'fresh-produce', label: 'Fresh Produce', icon: '🥦', slug: 'fresh-produce' },
+  // Agriculture — special Mazao section
+  { id: 'mazao', label: 'Mazao 🌾', icon: '🌾', slug: 'mazao', isMazao: true },
+  { id: 'livestock', label: 'Livestock', icon: '🐄', slug: 'livestock' },
+  { id: 'agri-inputs', label: 'Agri Inputs', icon: '🌱', slug: 'agri-inputs' },
+  // Construction
+  { id: 'construction', label: 'Construction', icon: '🧱', slug: 'construction' },
+  { id: 'hardware', label: 'Hardware', icon: '🔧', slug: 'hardware' },
+  // Automotive
+  { id: 'automotive', label: 'Automotive', icon: '🚗', slug: 'automotive' },
+  // Other
+  { id: 'books', label: 'Books', icon: '📚', slug: 'books' },
+  { id: 'sports', label: 'Sports', icon: '⚽', slug: 'sports' },
+  { id: 'toys', label: 'Toys', icon: '🧸', slug: 'toys' },
+  { id: 'office', label: 'Office', icon: '🖊️', slug: 'office' },
+  { id: 'pets', label: 'Pets', icon: '🐕', slug: 'pets' },
+  { id: 'services', label: 'Services', icon: '🛠️', slug: 'services' },
+  { id: 'others', label: 'Others', icon: '📦', slug: 'others' },
+];
+
+// ─── SIZE CATEGORIES (require size selection) ─────────
+export const SIZE_CATEGORIES = [
+  'fashion-men', 'fashion-women', 'kids-baby', 'shoes',
+  'Fashion - Men', 'Fashion - Women', 'Kids & Baby', 'Shoes',
 ];
 
 // ─── ORDER STATUS ─────────────────────────────────────
@@ -300,6 +346,8 @@ export const PAYMENT_METHODS = [
   { id: 'card', label: 'Credit/Debit Card', icon: '💳' },
   { id: 'wallet', label: 'VUMA Wallet', icon: '💰' },
   { id: 'mpesa', label: 'M-Pesa', icon: '📱' },
+  { id: 'airtel', label: 'Airtel Money', icon: '📱' },
+  { id: 'halopesa', label: 'HaloPesa', icon: '📱' },
   { id: 'bank', label: 'Bank Transfer', icon: '🏦' },
 ];
 
@@ -358,6 +406,11 @@ export const SCREENS = {
   PRODUCT_LIST: 'ProductList',
   PRODUCT_DETAIL: 'ProductDetail',
 
+  // Mazao
+  MAZAO: 'Mazao',
+  MAZAO_DETAIL: 'MazaoDetail',
+  MAZAO_ADD: 'MazaoAddProduct',
+
   // Order
   ORDER_DETAIL: 'OrderDetail',
 
@@ -369,9 +422,11 @@ export const SCREENS = {
   VENDOR_DASHBOARD: 'VendorDashboard',
   VENDOR_PRODUCTS: 'VendorProducts',
   VENDOR_ORDERS: 'VendorOrders',
+  VENDOR_REGISTER: 'VendorRegister',
 
   // Profile
   SETTINGS: 'Settings',
+  ADDRESS: 'Address',
 
   // Chat
   CHAT: 'Chat',
