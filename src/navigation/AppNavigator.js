@@ -1,6 +1,6 @@
 /**
  * VUMA Store — App Navigator
- * Updated: VendorRegisterScreen replaces VendorApplyScreen
+ * Complete with all screens
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -30,6 +30,8 @@ import AddressScreen from '../screens/profile/AddressScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import VendorRegisterScreen from '../screens/vendor/VendorRegisterScreen';
+import MazaoScreen from '../screens/mazao/MazaoScreen';
+import MazaoAddProduct from '../screens/mazao/MazaoProduct';
 
 const Stack = createNativeStackNavigator();
 
@@ -50,82 +52,34 @@ function MainStack({ isVendor }) {
         animation: 'slide_from_right',
       }}
     >
-      {/* Main tabs */}
       <Stack.Screen name="Tabs" component={isVendor ? VendorNavigator : TabNavigator} />
-
-      {/* Product */}
-      <Stack.Screen
-        name="ProductDetail"
-        component={ProductDetailScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
-      <Stack.Screen
-        name="ProductList"
-        component={HomeScreen}
-        options={{ animation: 'slide_from_right' }}
-      />
-
-      {/* Orders */}
+      <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="ProductList" component={HomeScreen} />
+      <Stack.Screen name="Mazao" component={MazaoScreen} />
+      <Stack.Screen name="MazaoDetail" component={MazaoScreen} />
+      <Stack.Screen name="MazaoAddProduct" component={MazaoAddProduct} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
-
-      {/* Payments */}
-      <Stack.Screen
-        name="Checkout"
-        component={CheckoutScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
+      <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
-      <Stack.Screen
-        name="MobileMoney"
-        component={MobileMoneyScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
-
-      {/* Profile */}
+      <Stack.Screen name="MobileMoney" component={MobileMoneyScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen
-        name="Address"
-        component={AddressScreen}
-        options={{ animation: 'slide_from_right' }}
-      />
-
-      {/* Chat */}
-      <Stack.Screen
-        name="Chat"
-        component={ChatScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
-
-      {/* Notifications */}
+      <Stack.Screen name="Address" component={AddressScreen} />
+      <Stack.Screen name="Chat" component={ChatScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
-
-      {/* Vendor Registration — 3-step GPS-first registration */}
-      <Stack.Screen
-        name="VendorRegister"
-        component={VendorRegisterScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
-
-      {/* Auth screens accessible from inside main app (e.g. guest → login) */}
-      <Stack.Screen
-        name="Auth"
-        component={AuthNavigator}
-        options={{ animation: 'slide_from_bottom' }}
-      />
+      <Stack.Screen name="VendorRegister" component={VendorRegisterScreen} options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="Auth" component={AuthNavigator} options={{ animation: 'slide_from_bottom' }} />
     </Stack.Navigator>
   );
 }
 
 export default function AppNavigator() {
   const dispatch = useDispatch();
-
   const isAuthenticated = useSelector((state) => state.auth?.isAuthenticated ?? false);
   const isInitialized = useSelector((state) => state.auth?.isInitialized ?? false);
   const isApprovedVendor = useSelector((state) =>
     state.auth?.user?.role === 'vendor' && state.auth?.user?.vendor_status === 'approved'
   );
   const isVendor = useSelector((state) => state.auth?.user?.role === 'vendor');
-
   const sessionCheckRef = useRef(null);
 
   useEffect(() => { dispatch(initializeAuth()); }, []);
@@ -140,13 +94,10 @@ export default function AppNavigator() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const interval = setInterval(() => {
-      dispatch(fetchNotificationCount());
-    }, 30000);
+    const interval = setInterval(() => dispatch(fetchNotificationCount()), 30000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  // Session expiry check
   useEffect(() => {
     sessionCheckRef.current = setInterval(async () => {
       try {
@@ -174,10 +125,5 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  splash: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  splash: { flex: 1, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
 });
