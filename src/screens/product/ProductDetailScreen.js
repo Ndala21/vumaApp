@@ -293,7 +293,7 @@ export default function ProductDetailScreen({ navigation, route }) {
                 </>
               )}
             </View>
-            <Text style={styles.freeShip}>🚚 Free Shipping</Text>
+            <Text style={styles.freeShip}>🚚 Free Delivery</Text>
           </View>
           {displayProduct.rating_avg > 0 && (
             <View style={styles.ratingRow}>

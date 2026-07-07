@@ -28,12 +28,12 @@ const translations = {
     },
     home: {
       flashSale: '⚡ Flash Sale', featured: '⭐ Featured', allProducts: '🛍️ All Products',
-      freeShipping: '🚚 Free shipping on orders over', shopNow: 'Shop Now!',
+      freeShipping: '🚚 Free Delivery on orders over', shopNow: 'Shop Now!',
       searchPlaceholder: '🔍 Search products...',
     },
     products: {
       addToCart: 'Add to Cart', buyNow: 'Buy Now', outOfStock: 'Out of Stock',
-      inStock: 'In Stock', freeShipping: '🚚 Free Shipping', quantity: 'Quantity',
+      inStock: 'In Stock', freeShipping: '🚚 Free Delivery', quantity: 'Quantity',
       sold: 'sold', reviews: '⭐ Reviews', wishlist: 'Wishlist', description: 'Description',
       details: 'Details', writeReview: 'Write Review', noReviews: 'No reviews yet',
       relatedProducts: 'Related Products', share: 'Share',
@@ -43,7 +43,7 @@ const translations = {
       emptyCartMessage: 'Browse products and add items to your cart',
       startShopping: 'Start Shopping', checkout: 'Checkout', clearCart: 'Clear',
       orderSummary: 'Order Summary', subtotal: 'Subtotal', shipping: 'Shipping',
-      total: 'Total', free: 'FREE', freeShippingEarned: "🎉 You've earned Free Shipping!",
+      total: 'Total', free: 'FREE', freeShippingEarned: "🎉 You've earned Free Delivery!",
       removeItem: 'Remove Item', clearCartMessage: 'Remove all items from cart?',
     },
     orders: {

@@ -19,7 +19,7 @@ const FALLBACK_BANNERS = [
   {
     id: 'f1',
     title: '🔥 Best Prices in Tanzania',
-    subtitle: 'Free shipping on all orders!',
+    subtitle: 'Free Delivery on all orders!',
     button_text: 'Shop Now',
     link_type: 'none',
     bg: ['#FF6B00', '#FF8C33'],

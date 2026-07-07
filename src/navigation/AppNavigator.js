@@ -1,6 +1,6 @@
 /**
  * VUMA Store — App Navigator
- * Complete with all screens
+ * No onboarding, guest browsing, direct home on launch
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -29,7 +29,7 @@ import SettingsScreen from '../screens/profile/SettingsScreen';
 import AddressScreen from '../screens/profile/AddressScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
-import VendorRegisterScreen from '../screens/vendor/VendorRegisterScreen';
+import SellerRegisterScreen from '../screens/vendor/SellerRegisterScreen';
 import MazaoScreen from '../screens/mazao/MazaoScreen';
 import MazaoAddProduct from '../screens/mazao/MazaoProduct';
 
@@ -52,21 +52,40 @@ function MainStack({ isVendor }) {
         animation: 'slide_from_right',
       }}
     >
+      {/* Main tabs — guest can browse without login */}
       <Stack.Screen name="Tabs" component={isVendor ? VendorNavigator : TabNavigator} />
+
+      {/* Products */}
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="ProductList" component={HomeScreen} />
+
+      {/* Mazao */}
       <Stack.Screen name="Mazao" component={MazaoScreen} />
       <Stack.Screen name="MazaoDetail" component={MazaoScreen} />
       <Stack.Screen name="MazaoAddProduct" component={MazaoAddProduct} options={{ animation: 'slide_from_bottom' }} />
+
+      {/* Orders */}
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+
+      {/* Payments */}
       <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen name="MobileMoney" component={MobileMoneyScreen} options={{ animation: 'slide_from_bottom' }} />
+
+      {/* Profile */}
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Address" component={AddressScreen} />
+
+      {/* Chat */}
       <Stack.Screen name="Chat" component={ChatScreen} options={{ animation: 'slide_from_bottom' }} />
+
+      {/* Notifications */}
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
-      <Stack.Screen name="VendorRegister" component={VendorRegisterScreen} options={{ animation: 'slide_from_bottom' }} />
+
+      {/* Seller Registration */}
+      <Stack.Screen name="VendorRegister" component={SellerRegisterScreen} />
+
+      {/* Auth — only when guest taps login/register */}
       <Stack.Screen name="Auth" component={AuthNavigator} options={{ animation: 'slide_from_bottom' }} />
     </Stack.Navigator>
   );
@@ -111,8 +130,10 @@ export default function AppNavigator() {
     return () => { if (sessionCheckRef.current) clearInterval(sessionCheckRef.current); };
   }, []);
 
+  // Show splash while initializing
   if (!isInitialized) return <SplashScreen />;
 
+  // Always show main app — guests can browse without login
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>

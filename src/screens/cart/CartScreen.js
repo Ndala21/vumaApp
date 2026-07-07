@@ -197,7 +197,7 @@ export default function CartScreen({ navigation }) {
           <Text style={styles.freeShipText}>
             Add {formatPrice(remaining)} more for{' '}
             <Text style={styles.freeShipBold}>
-              Free Shipping!
+              Free Delivery!
             </Text>
           </Text>
         </View>
