@@ -1,18 +1,19 @@
 /**
- * VUMA Store — Login Screen
- * Fixed: keyboard opens instantly, Free Delivery, Tanzania-friendly
+ * VUMA Store — Login Screen (Final Fix)
+ * Keyboard works, spinner stops, navigation happens automatically
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  KeyboardAvoidingView, Platform, StatusBar, Alert, Dimensions,
+  KeyboardAvoidingView, Platform, StatusBar, Alert,
   ActivityIndicator, TextInput,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   login, biometricLogin, checkBiometrics, clearError,
-  selectAuthLoading, selectAuthErrors, selectBiometrics, selectIsAuthenticated,
+  selectAuthLoading, selectAuthErrors, selectBiometrics,
+  selectIsAuthenticated,
 } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../utils/constants';
 
@@ -27,69 +28,72 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
+  // Focus email on mount
   useEffect(() => {
     dispatch(checkBiometrics());
-    // Auto-focus email on mount
-    setTimeout(() => emailRef.current?.focus(), 300);
-    return () => dispatch(clearError());
+    const t = setTimeout(() => emailRef.current?.focus(), 400);
+    return () => { clearTimeout(t); dispatch(clearError()); };
   }, []);
 
+  // ── Navigation: when isAuthenticated becomes true, AppNavigator auto-switches ──
+  // No manual navigation needed — Redux state change triggers NavigationContainer re-render
   useEffect(() => {
-    if (isAuthenticated) setIsLoggingIn(false);
+    if (isAuthenticated && submitted) {
+      setLocalLoading(false);
+      setSubmitted(false);
+    }
   }, [isAuthenticated]);
 
+  // ── Show errors ──
   useEffect(() => {
     if (!errors.login) return;
-    setIsLoggingIn(false);
+    setLocalLoading(false);
+    setSubmitted(false);
     const msg = typeof errors.login === 'string'
       ? errors.login
-      : Object.values(errors.login).flat().join('\n') || 'Invalid email or password';
-    Alert.alert('Login Failed', msg);
-    dispatch(clearError('login'));
+      : Object.values(errors.login).flat().join('\n') || 'Invalid email or password.';
+    Alert.alert('Login Failed', msg, [
+      { text: 'Try Again', onPress: () => dispatch(clearError('login')) },
+    ]);
   }, [errors.login]);
 
   const validate = () => {
-    const errs = {};
-    if (!email.trim()) errs.email = 'Email is required';
-    if (!password) errs.password = 'Password is required';
-    setFieldErrors(errs);
-    return Object.keys(errs).length === 0;
+    if (!email.trim()) { Alert.alert('Required', 'Please enter your email.'); return false; }
+    if (!password) { Alert.alert('Required', 'Please enter your password.'); return false; }
+    return true;
   };
 
   const handleLogin = async () => {
-    if (!validate() || isLoggingIn || loading.login) return;
-    setIsLoggingIn(true);
+    if (localLoading || loading.login || !validate()) return;
+    setLocalLoading(true);
+    setSubmitted(true);
     dispatch(clearError('login'));
-    try {
-      const result = await dispatch(login({ email: email.trim().toLowerCase(), password, rememberMe }));
-      if (login.rejected.match(result)) setIsLoggingIn(false);
-    } catch {
-      setIsLoggingIn(false);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+    const result = await dispatch(login({
+      email: email.trim().toLowerCase(),
+      password,
+      rememberMe,
+    }));
+    // If rejected, errors.login will trigger the useEffect above
+    if (login.rejected.match(result)) {
+      setLocalLoading(false);
+      setSubmitted(false);
     }
   };
 
-  const handleBiometric = async () => {
-    const result = await dispatch(biometricLogin());
-    if (biometricLogin.rejected.match(result)) {
-      Alert.alert('Error', result.payload || 'Biometric failed.');
-    }
-  };
-
-  const showLoading = isLoggingIn || loading.login;
+  const showLoading = localLoading || loading.login;
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always"
@@ -103,67 +107,67 @@ export default function LoginScreen({ navigation }) {
 
         <View style={styles.card}>
           <Text style={styles.title}>Welcome back 👋</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
+          <Text style={styles.subtitle}>Sign in to continue shopping</Text>
 
           {/* Email */}
           <Text style={styles.label}>Email Address</Text>
-          <View style={[styles.inputWrap, fieldErrors.email && styles.inputError]}>
+          <View style={styles.inputWrap}>
             <Text style={styles.inputIcon}>✉️</Text>
             <TextInput
               ref={emailRef}
               style={styles.input}
               value={email}
-              onChangeText={(v) => { setEmail(v); setFieldErrors(p => ({ ...p, email: null })); }}
+              onChangeText={setEmail}
               placeholder="your@email.com"
               placeholderTextColor={COLORS.textLight}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
               editable={!showLoading}
             />
           </View>
-          {fieldErrors.email && <Text style={styles.fieldError}>{fieldErrors.email}</Text>}
 
           {/* Password */}
           <Text style={styles.label}>Password</Text>
-          <View style={[styles.inputWrap, fieldErrors.password && styles.inputError]}>
+          <View style={styles.inputWrap}>
             <Text style={styles.inputIcon}>🔒</Text>
             <TextInput
               ref={passwordRef}
               style={[styles.input, { flex: 1 }]}
               value={password}
-              onChangeText={(v) => { setPassword(v); setFieldErrors(p => ({ ...p, password: null })); }}
+              onChangeText={setPassword}
               placeholder="Your password"
               placeholderTextColor={COLORS.textLight}
               secureTextEntry={!showPassword}
+              autoComplete="password"
+              textContentType="password"
               returnKeyType="done"
               onSubmitEditing={handleLogin}
               editable={!showLoading}
             />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+            <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn}>
               <Text>{showPassword ? '🙈' : '👁'}</Text>
             </TouchableOpacity>
           </View>
-          {fieldErrors.password && <Text style={styles.fieldError}>{fieldErrors.password}</Text>}
 
-          {/* Remember + Forgot */}
+          {/* Options */}
           <View style={styles.optionsRow}>
-            <TouchableOpacity style={styles.rememberRow} onPress={() => setRememberMe(!rememberMe)}>
-              <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+            <TouchableOpacity style={styles.rememberRow} onPress={() => setRememberMe(v => !v)}>
+              <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
                 {rememberMe && <Text style={styles.checkmark}>✓</Text>}
               </View>
               <Text style={styles.rememberText}>Remember me</Text>
             </TouchableOpacity>
-            <TouchableOpacity>
-              <Text style={styles.forgotText}>Forgot password?</Text>
-            </TouchableOpacity>
+            <TouchableOpacity><Text style={styles.forgotText}>Forgot password?</Text></TouchableOpacity>
           </View>
 
           {/* Login Button */}
           <TouchableOpacity
-            style={[styles.loginBtn, showLoading && styles.loginBtnDisabled]}
+            style={[styles.loginBtn, showLoading && styles.loginBtnLoading]}
             onPress={handleLogin}
             disabled={showLoading}
             activeOpacity={0.85}
@@ -180,22 +184,25 @@ export default function LoginScreen({ navigation }) {
 
           {/* Biometric */}
           {biometrics.canUseBiometric && !showLoading && (
-            <TouchableOpacity style={styles.biometricBtn} onPress={handleBiometric}>
+            <TouchableOpacity
+              style={styles.biometricBtn}
+              onPress={() => dispatch(biometricLogin())}
+            >
               <Text style={styles.biometricIcon}>{biometrics.hasFaceID ? '😊' : '👆'}</Text>
               <Text style={styles.biometricText}>
-                {biometrics.hasFaceID ? 'Login with Face ID' : 'Login with Fingerprint'}
+                {biometrics.hasFaceID ? 'Sign in with Face ID' : 'Sign in with Fingerprint'}
               </Text>
             </TouchableOpacity>
           )}
 
-          <View style={styles.dividerRow}>
+          <View style={styles.divider}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>OR</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.registerBtn} onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.registerBtnText}>Create new account</Text>
+          <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.createBtnText}>Create new account</Text>
           </TouchableOpacity>
         </View>
 
@@ -215,41 +222,39 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { flexGrow: 1, paddingHorizontal: SPACING.base, paddingBottom: SPACING['2xl'] },
-  header: { alignItems: 'center', paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING['2xl'], paddingBottom: SPACING.xl },
-  logo: { fontSize: 48, fontWeight: '900', color: COLORS.primary, letterSpacing: -2 },
-  tagline: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: SPACING.xs },
-  card: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.xl, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
-  title: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
-  subtitle: { fontSize: FONTS.base, color: COLORS.textMuted, marginBottom: SPACING.xl },
-  label: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.sm, backgroundColor: COLORS.surface, marginBottom: SPACING.sm, minHeight: 50 },
-  inputError: { borderColor: COLORS.danger },
-  inputIcon: { fontSize: 16, marginRight: SPACING.xs },
-  input: { flex: 1, fontSize: FONTS.base, color: COLORS.textPrimary, paddingVertical: SPACING.sm },
-  eyeBtn: { padding: SPACING.sm },
-  fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: -SPACING.xs, marginBottom: SPACING.sm },
-  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
-  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: COLORS.border, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
-  checkboxActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkmark: { color: 'white', fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  rememberText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
-  forgotText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  loginBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: SPACING.base + 2, alignItems: 'center', marginBottom: SPACING.base },
-  loginBtnDisabled: { opacity: 0.75 },
-  loginBtnText: { color: 'white', fontSize: FONTS.base, fontWeight: FONTS.bold },
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  biometricBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.sm + 4, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.primary, gap: SPACING.sm, marginBottom: SPACING.base },
-  biometricIcon: { fontSize: FONTS.xl },
-  biometricText: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: SPACING.base, gap: SPACING.sm },
-  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.divider },
-  dividerText: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.semiBold },
-  registerBtn: { borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingVertical: SPACING.sm + 4, alignItems: 'center' },
-  registerBtnText: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
-  sellerCTA: { marginTop: SPACING.xl, alignItems: 'center', paddingVertical: SPACING.sm },
-  sellerCTAText: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center' },
-  sellerCTALink: { color: COLORS.primary, fontWeight: FONTS.bold },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  scroll: { flexGrow: 1, paddingHorizontal: 16, paddingBottom: 40 },
+  header: { alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 28 },
+  logo: { fontSize: 48, fontWeight: '900', color: '#FF6B00', letterSpacing: -2 },
+  tagline: { fontSize: 13, color: '#999', marginTop: 4 },
+  card: { backgroundColor: '#fff', borderRadius: 16, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
+  title: { fontSize: 22, fontWeight: '800', color: '#1A1A1A', marginBottom: 4 },
+  subtitle: { fontSize: 14, color: '#999', marginBottom: 24 },
+  label: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6, marginTop: 4 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#fff', marginBottom: 12, minHeight: 52 },
+  inputIcon: { fontSize: 16, marginRight: 8 },
+  input: { flex: 1, fontSize: 15, color: '#1A1A1A', paddingVertical: 14 },
+  eyeBtn: { padding: 8 },
+  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: '#E8E8E8', borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: '#FF6B00', borderColor: '#FF6B00' },
+  checkmark: { color: 'white', fontSize: 11, fontWeight: '900' },
+  rememberText: { fontSize: 13, color: '#555' },
+  forgotText: { fontSize: 13, color: '#FF6B00', fontWeight: '600' },
+  loginBtn: { backgroundColor: '#FF6B00', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 12 },
+  loginBtnLoading: { opacity: 0.8 },
+  loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  biometricBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#FF6B00', gap: 8, marginBottom: 12 },
+  biometricIcon: { fontSize: 20 },
+  biometricText: { fontSize: 14, color: '#FF6B00', fontWeight: '600' },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#EEE' },
+  dividerText: { fontSize: 12, color: '#999', fontWeight: '600' },
+  createBtn: { borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  createBtnText: { fontSize: 15, color: '#555', fontWeight: '600' },
+  sellerCTA: { marginTop: 24, alignItems: 'center', paddingVertical: 8 },
+  sellerCTAText: { fontSize: 13, color: '#999', textAlign: 'center' },
+  sellerCTALink: { color: '#FF6B00', fontWeight: '700' },
 });
