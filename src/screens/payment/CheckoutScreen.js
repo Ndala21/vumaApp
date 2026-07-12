@@ -1,574 +1,528 @@
 /**
- * VUMA Store — Checkout Screen
- * Fixed: keyboard, currency TZS, address modal
+ * VUMA Store — Tanzania Checkout Screen
+ * Mobile-first, GPS-first, fast checkout for Tanzanian users
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, Platform, Alert,
-  TextInput, Modal, ActivityIndicator,
-  KeyboardAvoidingView,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  TextInput, Alert, Platform, StatusBar, ActivityIndicator,
+  Modal, FlatList,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
-import {
-  selectCartItems, selectCartTotal, selectCartSubtotal,
-  selectCartShipping, selectIsFreeShipping,
-  selectCartItemCount, clearCartAndSave,
-} from '../../store/cartSlice';
-import {
-  createOrder, fetchAddresses, createAddress,
-  selectAddresses, selectOrdersLoading, selectOrdersErrors,
-  selectCreatedOrder, clearCreatedOrder, clearOrderError,
-} from '../../store/orderSlice';
+import { selectUser, selectIsAuthenticated } from '../../store/authSlice';
+import { selectCartItems, selectCartTotal } from '../../store/cartSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
-import { formatPrice, getEffectivePrice, validatePhone } from '../../utils/helpers';
-import { useTranslation } from '../../i18n';
 import Button from '../../components/common/Button';
-import { OverlayLoading } from '../../components/common/Loading';
+import { get, post } from '../../api/client';
 
-const CARD_WALLET = [
-  { id: 'card', label: 'Credit / Debit Card', icon: '💳', color: COLORS.secondary, lightColor: COLORS.primaryFade },
-  { id: 'wallet', label: 'VUMA Wallet', icon: '💰', color: COLORS.primary, lightColor: COLORS.primaryFade },
+// Tanzania regions
+const TZ_REGIONS = [
+  'Arusha','Dar es Salaam','Dodoma','Geita','Iringa','Kagera',
+  'Katavi','Kigoma','Kilimanjaro','Lindi','Manyara','Mara',
+  'Mbeya','Morogoro','Mtwara','Mwanza','Njombe','Pwani',
+  'Rukwa','Ruvuma','Shinyanga','Simiyu','Singida','Songwe',
+  'Tabora','Tanga','Zanzibar',
 ];
 
-const MOBILE_MONEY_PROVIDERS = [
-  { id: 'mpesa', label: 'M-Pesa', icon: '📱', color: '#00A651', lightColor: '#E8F8EF', countries: 'Tanzania · Kenya', placeholder: '+255 7XX XXX XXX' },
-  { id: 'airtel', label: 'Airtel Money', icon: '📱', color: '#E2231A', lightColor: '#FDECEA', countries: 'Tanzania · Rwanda · Uganda', placeholder: '+255 6XX XXX XXX' },
-  { id: 'halopesa', label: 'Halopesa', icon: '📱', color: '#F7941D', lightColor: '#FEF3E7', countries: 'Tanzania', placeholder: '+255 6XX XXX XXX' },
+// Common districts per region (simplified)
+const TZ_DISTRICTS = {
+  'Dar es Salaam': ['Ilala','Kinondoni','Temeke','Ubungo','Kigamboni'],
+  'Arusha': ['Arusha City','Arumeru','Karatu','Longido','Meru','Monduli','Ngorongoro'],
+  'Mwanza': ['Ilemela','Nyamagana','Buchosa','Kwimba','Magu','Misungwi','Sengerema','Ukerewe'],
+  'Dodoma': ['Dodoma City','Bahi','Chamwino','Kondoa','Kongwa','Mpwapwa'],
+  'Kilimanjaro': ['Moshi Urban','Moshi Rural','Hai','Mwanga','Rombo','Same','Siha'],
+  'Mbeya': ['Mbeya City','Chunya','Kyela','Mbarali','Mbeya Rural','Momba','Rungwe'],
+  'default': ['Select Region First'],
+};
+
+const PICKUP_POINTS = [
+  { id: '1', name: 'VUMA Kariakoo Hub', area: 'Kariakoo, Dar es Salaam', open: '8am - 8pm' },
+  { id: '2', name: 'VUMA Mwenge Station', area: 'Mwenge, Dar es Salaam', open: '8am - 7pm' },
+  { id: '3', name: 'VUMA Ubungo Point', area: 'Ubungo, Dar es Salaam', open: '8am - 7pm' },
+  { id: '4', name: 'VUMA Arusha Center', area: 'Arusha Town', open: '8am - 6pm' },
+  { id: '5', name: 'VUMA Mwanza Point', area: 'Mwanza Town', open: '8am - 6pm' },
+  { id: '6', name: 'VUMA Dodoma Hub', area: 'Dodoma City', open: '8am - 6pm' },
 ];
 
-const ALL_PAYMENT_METHODS = [...CARD_WALLET, ...MOBILE_MONEY_PROVIDERS];
-const isMobileMoney = (id) => ['mpesa', 'airtel', 'halopesa'].includes(id);
+// Simple Picker Modal
+const PickerModal = ({ visible, title, data, onSelect, onClose }) => (
+  <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <View style={styles.pickerOverlay}>
+      <View style={styles.pickerSheet}>
+        <View style={styles.pickerHeader}>
+          <Text style={styles.pickerTitle}>{title}</Text>
+          <TouchableOpacity onPress={onClose}><Text style={styles.pickerClose}>✕</Text></TouchableOpacity>
+        </View>
+        <FlatList
+          data={data}
+          keyExtractor={item => typeof item === 'string' ? item : item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(item); onClose(); }}>
+              <Text style={styles.pickerItemText}>
+                {typeof item === 'string' ? item : item.name}
+              </Text>
+              {typeof item !== 'string' && item.area && (
+                <Text style={styles.pickerItemSub}>{item.area} · {item.open}</Text>
+              )}
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        />
+      </View>
+    </View>
+  </Modal>
+);
 
 export default function CheckoutScreen({ navigation }) {
-  const { t } = useTranslation();
   const dispatch = useDispatch();
-
+  const user = useSelector(selectUser);
   const cartItems = useSelector(selectCartItems);
-  const total = useSelector(selectCartTotal);
-  const subtotal = useSelector(selectCartSubtotal);
-  const shipping = useSelector(selectCartShipping);
-  const isFreeShipping = useSelector(selectIsFreeShipping);
-  const itemCount = useSelector(selectCartItemCount);
-  const addresses = useSelector(selectAddresses);
-  const loading = useSelector(selectOrdersLoading);
-  const errors = useSelector(selectOrdersErrors);
-  const createdOrder = useSelector(selectCreatedOrder);
+  const cartTotal = useSelector(selectCartTotal);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
-  const [step, setStep] = useState(1);
-  const [selectedAddress, setSelectedAddress] = useState(null);
-  const [selectedPayment, setSelectedPayment] = useState('card');
-  const [mobilePhone, setMobilePhone] = useState('');
-  const [notes, setNotes] = useState('');
-  const [showAddAddress, setShowAddAddress] = useState(false);
-  const [newAddress, setNewAddress] = useState({
-    full_name: '', phone: '', address_line1: '', address_line2: '',
-    city: '', state: '', postal_code: '', country: 'Tanzania', is_default: false,
-  });
-  const [addressErrors, setAddressErrors] = useState({});
-  const [addressLoading, setAddressLoading] = useState(false);
+  const [deliveryType, setDeliveryType] = useState('home');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [region, setRegion] = useState('');
+  const [district, setDistrict] = useState('');
+  const [landmark, setLandmark] = useState('');
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
+  const [pickupPoint, setPickupPoint] = useState(null);
+  const [showMore, setShowMore] = useState(false);
+  const [buildingDetail, setBuildingDetail] = useState('');
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [selectedSaved, setSelectedSaved] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('mobile_money');
+  const [placing, setPlacing] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
 
-  useEffect(() => { dispatch(fetchAddresses()); }, []);
-
-  useEffect(() => {
-    if (addresses.length > 0 && !selectedAddress) {
-      setSelectedAddress(addresses.find((a) => a.is_default) || addresses[0]);
-    }
-  }, [addresses]);
+  // Pickers
+  const [showRegionPicker, setShowRegionPicker] = useState(false);
+  const [showDistrictPicker, setShowDistrictPicker] = useState(false);
+  const [showPickupPicker, setShowPickupPicker] = useState(false);
 
   useEffect(() => {
-    if (createdOrder) {
-      dispatch(clearCartAndSave());
-      dispatch(clearCreatedOrder());
-      navigation.replace('OrderDetail', { orderId: createdOrder.id, order: createdOrder });
-    }
-  }, [createdOrder]);
+    if (isAuthenticated) loadSavedAddresses();
+  }, [isAuthenticated]);
 
-  const validateAddress = () => {
-    const errs = {};
-    if (!newAddress.full_name.trim()) errs.full_name = 'Required.';
-    const phoneErr = validatePhone(newAddress.phone);
-    if (phoneErr) errs.phone = phoneErr;
-    if (!newAddress.address_line1.trim()) errs.address_line1 = 'Required.';
-    if (!newAddress.city.trim()) errs.city = 'Required.';
-    setAddressErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  const handleSaveAddress = async () => {
-    if (!validateAddress()) return;
-    setAddressLoading(true);
+  const loadSavedAddresses = async () => {
     try {
-      const result = await dispatch(createAddress(newAddress));
-      if (createAddress.fulfilled.match(result)) {
-        setSelectedAddress(result.payload);
-        setShowAddAddress(false);
-        setNewAddress({
-          full_name: '', phone: '', address_line1: '', address_line2: '',
-          city: '', state: '', postal_code: '', country: 'Tanzania', is_default: false,
-        });
+      const data = await get('/orders/addresses/');
+      setSavedAddresses(data?.results || data || []);
+    } catch {}
+  };
+
+  const getGPS = async () => {
+    setGpsLoading(true);
+    try {
+      const Location = await import('expo-location');
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Permission needed', 'Please allow location access.'); return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setLatitude(loc.coords.latitude);
+      setLongitude(loc.coords.longitude);
+      Alert.alert('📍 Location Pinned!', `Accuracy: ±${Math.round(loc.coords.accuracy)} meters\n\nYour rider will navigate to this exact location.`);
+    } catch { Alert.alert('Error', 'Could not get GPS. Try again.'); }
+    finally { setGpsLoading(false); }
+  };
+
+  const useSavedAddress = (addr) => {
+    setSelectedSaved(addr);
+    setPhone(addr.phone || phone);
+    setRegion(addr.city || '');
+    setDistrict(addr.ward || '');
+    setLandmark(addr.landmark || '');
+    if (addr.latitude) { setLatitude(addr.latitude); setLongitude(addr.longitude); }
+    setDeliveryType(addr.delivery_type || 'home');
+  };
+
+  const validate = () => {
+    if (!phone.trim() || phone.trim().length < 9) { Alert.alert('Required', 'Please enter a valid phone number.'); return false; }
+    if (deliveryType === 'home') {
+      if (!region) { Alert.alert('Required', 'Please select your region.'); return false; }
+      if (!district) { Alert.alert('Required', 'Please select your district/ward.'); return false; }
+    } else {
+      if (!pickupPoint) { Alert.alert('Required', 'Please select a pickup station.'); return false; }
+    }
+    return true;
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!validate() || placing) return;
+    setPlacing(true);
+    try {
+      const shippingAddress = deliveryType === 'pickup'
+        ? { delivery_type: 'pickup', pickup_point_id: pickupPoint.id, pickup_point_name: pickupPoint.name, phone }
+        : {
+            delivery_type: 'home',
+            full_name: user?.username || '',
+            phone, city: region, ward: district,
+            landmark, building_detail: buildingDetail,
+            latitude, longitude,
+          };
+
+      const orderData = {
+        items: cartItems.map(item => ({ product_id: item.id, quantity: item.quantity })),
+        shipping_address: shippingAddress,
+        payment_method: paymentMethod,
+        total_amount: cartTotal,
+      };
+
+      const result = await post('/orders/', orderData);
+
+      if (result.id || result.order_number) {
+        if (paymentMethod === 'mobile_money') {
+          navigation.replace('MobileMoney', {
+            orderId: result.id,
+            orderNumber: result.order_number,
+            amount: cartTotal,
+          });
+        } else {
+          navigation.replace('OrderDetail', { orderId: result.id });
+        }
       }
+    } catch (e) {
+      Alert.alert('Error', 'Could not place order. Please try again.');
     } finally {
-      setAddressLoading(false);
+      setPlacing(false);
     }
   };
 
-  const handleNextStep = () => {
-    if (step === 1 && !selectedAddress) {
-      Alert.alert('Address Required', 'Please select or add a delivery address.');
-      return;
-    }
-    if (step === 2 && isMobileMoney(selectedPayment) && !mobilePhone.trim()) {
-      Alert.alert('Phone Required', 'Please enter your mobile money phone number.');
-      return;
-    }
-    setStep((s) => Math.min(s + 1, 3));
-  };
-
-  const handlePlaceOrder = () => {
-    if (!selectedAddress) {
-      Alert.alert('Address Required', 'Please select a delivery address.');
-      return;
-    }
-    if (isMobileMoney(selectedPayment)) {
-      if (!mobilePhone.trim()) {
-        Alert.alert('Phone Required', 'Enter your mobile money phone number.');
-        return;
-      }
-      navigation.navigate('MobileMoney', {
-        provider: selectedPayment, amount: total,
-        orderId: null, currency: 'TZS', phone: mobilePhone,
-      });
-      return;
-    }
-    Alert.alert(
-      'Confirm Order',
-      `Place order for ${formatPrice(total)}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Place Order',
-          onPress: () => {
-            dispatch(createOrder({
-              items: cartItems.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
-              shipping_address: { ...selectedAddress },
-              payment_method: selectedPayment,
-              notes: notes.trim(),
-              currency: 'TZS',
-            }));
-          },
-        },
-      ]
-    );
-  };
-
-  const selectedPaymentInfo = ALL_PAYMENT_METHODS.find((m) => m.id === selectedPayment);
-
-  const StepIndicator = () => (
-    <View style={styles.steps}>
-      {['Address', 'Payment', 'Review'].map((label, index) => {
-        const stepNum = index + 1;
-        const isActive = step === stepNum;
-        const isDone = step > stepNum;
-        return (
-          <React.Fragment key={label}>
-            <TouchableOpacity style={styles.stepItem} onPress={() => step > stepNum && setStep(stepNum)}>
-              <View style={[styles.stepCircle, isActive && styles.stepCircleActive, isDone && styles.stepCircleDone]}>
-                <Text style={[styles.stepNum, (isActive || isDone) && styles.stepNumActive]}>{isDone ? '✓' : stepNum}</Text>
-              </View>
-              <Text style={[styles.stepLabel, isActive && styles.stepLabelActive]}>{label}</Text>
-            </TouchableOpacity>
-            {index < 2 && <View style={[styles.stepLine, isDone && styles.stepLineDone]} />}
-          </React.Fragment>
-        );
-      })}
-    </View>
-  );
-
-  const AddressCard = ({ address }) => (
-    <TouchableOpacity
-      style={[styles.addressCard, selectedAddress?.id === address.id && styles.addressCardActive]}
-      onPress={() => setSelectedAddress(address)}
-    >
-      <View style={styles.addressRadio}>
-        <View style={[styles.radioOuter, selectedAddress?.id === address.id && styles.radioOuterActive]}>
-          {selectedAddress?.id === address.id && <View style={styles.radioInner} />}
-        </View>
-      </View>
-      <View style={styles.addressInfo}>
-        <Text style={styles.addressName}>{address.full_name}</Text>
-        <Text style={styles.addressPhone}>{address.phone}</Text>
-        <Text style={styles.addressText}>{address.address_line1}{address.address_line2 ? `, ${address.address_line2}` : ''}</Text>
-        <Text style={styles.addressText}>{address.city}{address.state ? `, ${address.state}` : ''}, {address.country}</Text>
-        {address.is_default && (
-          <View style={styles.defaultBadge}><Text style={styles.defaultBadgeText}>✓ Default</Text></View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-
-  const AddAddressModal = () => (
-    <Modal visible={showAddAddress} animationType="slide" transparent onRequestClose={() => setShowAddAddress(false)}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>📍 New Address</Text>
-            <TouchableOpacity onPress={() => setShowAddAddress(false)}>
-              <Text style={styles.modalClose}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {[
-              { key: 'full_name', label: 'Full Name *', placeholder: 'John Doe' },
-              { key: 'phone', label: 'Phone *', placeholder: '+255 7XX XXX XXX', keyboardType: 'phone-pad' },
-              { key: 'address_line1', label: 'Address *', placeholder: '123 Kariakoo St' },
-              { key: 'address_line2', label: 'Address Line 2', placeholder: 'Apt (optional)' },
-              { key: 'city', label: 'City *', placeholder: 'Dar es Salaam' },
-              { key: 'state', label: 'Region', placeholder: 'Dar es Salaam Region' },
-              { key: 'postal_code', label: 'Postal Code', placeholder: '12345', keyboardType: 'numeric' },
-              { key: 'country', label: 'Country *', placeholder: 'Tanzania' },
-            ].map((field) => (
-              <View key={field.key}>
-                <Text style={styles.inputLabel}>{field.label}</Text>
-                <TextInput
-                  style={[styles.modalInput, addressErrors[field.key] && styles.modalInputError]}
-                  value={newAddress[field.key]}
-                  onChangeText={(v) => {
-                    setNewAddress((p) => ({ ...p, [field.key]: v }));
-                    setAddressErrors((p) => ({ ...p, [field.key]: null }));
-                  }}
-                  placeholder={field.placeholder}
-                  keyboardType={field.keyboardType || 'default'}
-                  placeholderTextColor={COLORS.textLight}
-                />
-                {addressErrors[field.key] && <Text style={styles.fieldError}>⚠️ {addressErrors[field.key]}</Text>}
-              </View>
-            ))}
-            <TouchableOpacity style={styles.defaultRow} onPress={() => setNewAddress((p) => ({ ...p, is_default: !p.is_default }))}>
-              <View style={[styles.checkbox, newAddress.is_default && styles.checkboxActive]}>
-                {newAddress.is_default && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={styles.defaultText}>Set as default address</Text>
-            </TouchableOpacity>
-          </ScrollView>
-          <Button title="Save Address" onPress={handleSaveAddress} loading={addressLoading} fullWidth style={styles.modalBtn} />
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
+  const districts = TZ_DISTRICTS[region] || TZ_DISTRICTS['default'];
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => step === 1 ? navigation.goBack() : setStep((s) => s - 1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={styles.backIcon}>←</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backBtn}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Checkout</Text>
-        <Text style={styles.headerItems}>{itemCount} items</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <StepIndicator />
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="always"
+        enableOnAndroid extraScrollHeight={100}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Order Summary */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Order Summary</Text>
+          {cartItems.map((item, i) => (
+            <View key={i} style={styles.summaryRow}>
+              <Text style={styles.summaryItem} numberOfLines={1}>{item.name} x{item.quantity}</Text>
+              <Text style={styles.summaryPrice}>TZS {(item.price * item.quantity).toLocaleString()}</Text>
+            </View>
+          ))}
+          <View style={styles.summaryTotal}>
+            <Text style={styles.summaryTotalLabel}>Total</Text>
+            <Text style={styles.summaryTotalValue}>TZS {Number(cartTotal).toLocaleString()}</Text>
+          </View>
+        </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {step === 1 && (
-          <View>
-            <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
-            {loading.addresses ? (
-              <ActivityIndicator color={COLORS.primary} style={{ padding: SPACING.xl }} />
-            ) : addresses.length === 0 ? (
-              <View style={styles.emptyAddress}>
-                <Text style={styles.emptyAddressText}>📍 No addresses saved yet.</Text>
-                <Text style={styles.emptyAddressSub}>Add your delivery address below.</Text>
-              </View>
-            ) : (
-              addresses.map((address) => <AddressCard key={address.id} address={address} />)
-            )}
-            <TouchableOpacity style={styles.addAddressBtn} onPress={() => setShowAddAddress(true)}>
-              <View style={styles.addAddressIconWrap}><Text style={styles.addAddressIcon}>+</Text></View>
-              <Text style={styles.addAddressText}>Add New Address</Text>
-            </TouchableOpacity>
+        {/* Saved Addresses */}
+        {savedAddresses.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📍 Saved Addresses</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {savedAddresses.map(addr => (
+                <TouchableOpacity
+                  key={addr.id}
+                  style={[styles.savedCard, selectedSaved?.id === addr.id && styles.savedCardActive]}
+                  onPress={() => useSavedAddress(addr)}
+                >
+                  <Text style={styles.savedLabel}>{addr.label || 'Home'}</Text>
+                  <Text style={styles.savedText} numberOfLines={2}>{addr.display_address || addr.ward}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.savedNew} onPress={() => setSelectedSaved(null)}>
+                <Text style={styles.savedNewText}>+ New</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         )}
 
-        {step === 2 && (
-          <View>
-            <Text style={styles.sectionTitle}>💳 Payment Method</Text>
-            {CARD_WALLET.map((method) => (
-              <TouchableOpacity key={method.id}
-                style={[styles.paymentCard, selectedPayment === method.id && styles.paymentCardActive]}
-                onPress={() => { setSelectedPayment(method.id); setMobilePhone(''); }}
+        {/* Delivery Type */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🚚 Delivery Method</Text>
+          <View style={styles.deliveryRow}>
+            {[
+              { value: 'home', icon: '🏠', label: 'Home Delivery' },
+              { value: 'pickup', icon: '📦', label: 'Pickup Point' },
+            ].map(dt => (
+              <TouchableOpacity
+                key={dt.value}
+                style={[styles.deliveryBtn, deliveryType === dt.value && styles.deliveryBtnActive]}
+                onPress={() => setDeliveryType(dt.value)}
               >
-                <Text style={styles.paymentIcon}>{method.icon}</Text>
-                <Text style={[styles.paymentLabel, selectedPayment === method.id && styles.paymentLabelActive]}>{method.label}</Text>
-                {selectedPayment === method.id && <Text style={styles.paymentCheck}>✓</Text>}
-              </TouchableOpacity>
-            ))}
-            {selectedPayment === 'card' && (
-              <View style={styles.cardNote}>
-                <Text style={styles.cardNoteText}>🔒 Secure payment. Your card details are never stored.</Text>
-              </View>
-            )}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>📱 MOBILE MONEY</Text>
-              <View style={styles.dividerLine} />
-            </View>
-            {MOBILE_MONEY_PROVIDERS.map((method) => (
-              <TouchableOpacity key={method.id}
-                style={[styles.paymentCard, styles.mobileMoneyCard, selectedPayment === method.id && { borderColor: method.color, backgroundColor: method.lightColor }]}
-                onPress={() => { setSelectedPayment(method.id); setMobilePhone(''); }}
-              >
-                <View style={[styles.mobileMoneyLogo, { backgroundColor: method.lightColor }]}>
-                  <Text style={[styles.mobileMoneyLogoText, { color: method.color }]}>{method.label[0]}</Text>
-                </View>
-                <View style={styles.mobileMoneyInfo}>
-                  <Text style={[styles.mobileMoneyName, selectedPayment === method.id && { color: method.color, fontWeight: FONTS.bold }]}>{method.label}</Text>
-                  <Text style={styles.mobileMoneyCountries}>{method.countries}</Text>
-                </View>
-                {selectedPayment === method.id && (
-                  <View style={[styles.mobileMoneyCheck, { backgroundColor: method.color }]}>
-                    <Text style={styles.mobileMoneyCheckText}>✓</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-            {isMobileMoney(selectedPayment) && (
-              <View style={[styles.mobilePhoneWrap, { borderColor: selectedPaymentInfo?.color || COLORS.border, backgroundColor: selectedPaymentInfo?.lightColor || COLORS.surfaceAlt }]}>
-                <View style={styles.mobilePhoneLabelRow}>
-                  <Text style={styles.mobilePhoneLabel}>📱 Phone Number</Text>
-                  <Text style={[styles.mobilePhoneProvider, { color: selectedPaymentInfo?.color }]}>{selectedPaymentInfo?.label}</Text>
-                </View>
-                <TextInput
-                  style={[styles.mobilePhoneInput, { borderColor: selectedPaymentInfo?.color || COLORS.border }]}
-                  value={mobilePhone}
-                  onChangeText={setMobilePhone}
-                  placeholder={selectedPaymentInfo?.placeholder || '+255 7XX XXX XXX'}
-                  keyboardType="phone-pad"
-                  placeholderTextColor={COLORS.textLight}
-                />
-                <Text style={styles.mobilePhoneHint}>💡 You will receive a PIN prompt on this number to confirm payment</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {step === 3 && (
-          <View>
-            <Text style={styles.sectionTitle}>📋 Order Review</Text>
-            <View style={styles.reviewCard}>
-              <View style={styles.reviewCardHeader}>
-                <Text style={styles.reviewCardTitle}>📍 Delivery Address</Text>
-                <TouchableOpacity onPress={() => setStep(1)}><Text style={styles.reviewEdit}>Edit</Text></TouchableOpacity>
-              </View>
-              {selectedAddress && (
-                <View>
-                  <Text style={styles.reviewName}>{selectedAddress.full_name}</Text>
-                  <Text style={styles.reviewDetail}>{selectedAddress.phone}</Text>
-                  <Text style={styles.reviewDetail}>{selectedAddress.address_line1}, {selectedAddress.city}, {selectedAddress.country}</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.reviewCard}>
-              <View style={styles.reviewCardHeader}>
-                <Text style={styles.reviewCardTitle}>💳 Payment Method</Text>
-                <TouchableOpacity onPress={() => setStep(2)}><Text style={styles.reviewEdit}>Edit</Text></TouchableOpacity>
-              </View>
-              <View style={styles.reviewPaymentRow}>
-                <Text style={styles.reviewPaymentIcon}>{selectedPaymentInfo?.icon}</Text>
-                <View>
-                  <Text style={styles.reviewPaymentName}>{selectedPaymentInfo?.label}</Text>
-                  {isMobileMoney(selectedPayment) && mobilePhone && <Text style={styles.reviewPaymentPhone}>{mobilePhone}</Text>}
-                </View>
-              </View>
-            </View>
-            <View style={styles.reviewCard}>
-              <Text style={styles.reviewCardTitle}>📦 Items ({itemCount})</Text>
-              {cartItems.map((item) => (
-                <View key={item.id} style={styles.orderItemRow}>
-                  <Text style={styles.orderItemName} numberOfLines={2}>{item.product.name}</Text>
-                  <Text style={styles.orderItemQty}>× {item.quantity}</Text>
-                  <Text style={styles.orderItemTotal}>{formatPrice(getEffectivePrice(item.product) * item.quantity)}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.reviewCard}>
-              <Text style={styles.reviewCardTitle}>📝 Order Notes (optional)</Text>
-              <TextInput
-                style={styles.notesInput} value={notes} onChangeText={setNotes}
-                placeholder="Add notes for vendor..." multiline numberOfLines={3}
-                placeholderTextColor={COLORS.textLight}
-              />
-            </View>
-            <View style={styles.reviewCard}>
-              <Text style={styles.reviewCardTitle}>💰 Price Summary</Text>
-              {[['Subtotal', formatPrice(subtotal)], ['Shipping', isFreeShipping ? '🎉 FREE' : formatPrice(shipping)]].map(([label, value]) => (
-                <View key={label} style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>{label}</Text>
-                  <Text style={[styles.priceValue, value === '🎉 FREE' && styles.freeShipText]}>{value}</Text>
-                </View>
-              ))}
-              <View style={styles.priceDivider} />
-              <View style={styles.priceRow}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatPrice(total)}</Text>
-              </View>
-            </View>
-            {isMobileMoney(selectedPayment) && (
-              <View style={[styles.mobileNotice, { backgroundColor: selectedPaymentInfo?.lightColor, borderColor: selectedPaymentInfo?.color }]}>
-                <Text style={styles.mobileNoticeIcon}>📲</Text>
-                <Text style={[styles.mobileNoticeText, { color: selectedPaymentInfo?.color }]}>
-                  After placing order, a PIN prompt will be sent to <Text style={styles.mobileNoticeBold}>{mobilePhone}</Text> via {selectedPaymentInfo?.label}.
+                <Text style={styles.deliveryIcon}>{dt.icon}</Text>
+                <Text style={[styles.deliveryLabel, deliveryType === dt.value && styles.deliveryLabelActive]}>
+                  {dt.label}
                 </Text>
-              </View>
-            )}
-            {errors.create && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>⚠️ {typeof errors.create === 'string' ? errors.create : 'Order failed. Please try again.'}</Text>
-                <TouchableOpacity onPress={() => dispatch(clearOrderError('create'))}>
-                  <Text style={styles.errorDismiss}>✕</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Phone — always shown */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📞 Contact</Text>
+          <Text style={styles.fieldLabel}>Phone Number *</Text>
+          <View style={styles.phoneWrap}>
+            <View style={styles.phoneFlag}><Text style={styles.phoneFlagText}>🇹🇿 +255</Text></View>
+            <TextInput
+              style={styles.phoneInput}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="7XX XXX XXX"
+              keyboardType="phone-pad"
+              maxLength={12}
+              placeholderTextColor={COLORS.textLight}
+            />
+          </View>
+        </View>
+
+        {/* Pickup Point */}
+        {deliveryType === 'pickup' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📦 Pickup Station</Text>
+            {pickupPoint ? (
+              <View style={styles.selectedPickup}>
+                <View style={styles.selectedPickupInfo}>
+                  <Text style={styles.selectedPickupName}>{pickupPoint.name}</Text>
+                  <Text style={styles.selectedPickupSub}>{pickupPoint.area} · {pickupPoint.open}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowPickupPicker(true)}>
+                  <Text style={styles.changeText}>Change</Text>
                 </TouchableOpacity>
               </View>
+            ) : (
+              <TouchableOpacity style={styles.pickupSelectBtn} onPress={() => setShowPickupPicker(true)}>
+                <Text style={styles.pickupSelectText}>Select nearest pickup station →</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
-        <View style={{ height: 120 }} />
-      </ScrollView>
 
-      <View style={styles.bottomBar}>
-        <View style={styles.bottomTotal}>
-          <Text style={styles.bottomTotalLabel}>Total</Text>
-          <Text style={styles.bottomTotalValue}>{formatPrice(total)}</Text>
-        </View>
-        {step < 3 ? (
-          <Button title="Continue →" onPress={handleNextStep} style={styles.bottomBtn} size="lg" />
-        ) : (
-          <Button
-            title={isMobileMoney(selectedPayment) ? `Pay via ${selectedPaymentInfo?.label}` : 'Place Order'}
-            onPress={handlePlaceOrder} loading={loading.create} disabled={loading.create}
-            style={[styles.bottomBtn, isMobileMoney(selectedPayment) && { backgroundColor: selectedPaymentInfo?.color }]}
-            size="lg"
-          />
+        {/* Home Delivery Address */}
+        {deliveryType === 'home' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
+
+            {/* GPS */}
+            <TouchableOpacity
+              style={[styles.gpsBtn, latitude && styles.gpsBtnDone]}
+              onPress={getGPS}
+              disabled={gpsLoading}
+            >
+              {gpsLoading
+                ? <ActivityIndicator color={COLORS.primary} size="small" />
+                : <Text style={styles.gpsBtnIcon}>📍</Text>
+              }
+              <View style={styles.gpsBtnText}>
+                <Text style={[styles.gpsBtnTitle, latitude && { color: COLORS.success }]}>
+                  {gpsLoading ? 'Getting your location...' : latitude ? '✓ Location Pinned' : 'Use My Location (GPS)'}
+                </Text>
+                <Text style={styles.gpsBtnSub}>
+                  {latitude ? `${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}` : 'Tap to pin your exact location'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Region */}
+            <Text style={styles.fieldLabel}>Region *</Text>
+            <TouchableOpacity style={styles.selector} onPress={() => setShowRegionPicker(true)}>
+              <Text style={region ? styles.selectorValue : styles.selectorPlaceholder}>
+                {region || 'Select your region...'}
+              </Text>
+              <Text style={styles.selectorArrow}>▼</Text>
+            </TouchableOpacity>
+
+            {/* District */}
+            <Text style={styles.fieldLabel}>District / Ward *</Text>
+            <TouchableOpacity
+              style={[styles.selector, !region && styles.selectorDisabled]}
+              onPress={() => region ? setShowDistrictPicker(true) : Alert.alert('', 'Please select a region first.')}
+            >
+              <Text style={district ? styles.selectorValue : styles.selectorPlaceholder}>
+                {district || (region ? 'Select district/ward...' : 'Select region first')}
+              </Text>
+              <Text style={styles.selectorArrow}>▼</Text>
+            </TouchableOpacity>
+
+            {/* Landmark */}
+            <Text style={styles.fieldLabel}>Landmark <Text style={styles.optional}>(optional — helps rider find you)</Text></Text>
+            <TextInput
+              style={styles.input}
+              value={landmark}
+              onChangeText={setLandmark}
+              placeholder="e.g. Near Shoprite, Blue gate, Kariakoo Market"
+              placeholderTextColor={COLORS.textLight}
+            />
+
+            {/* More Details Toggle */}
+            <TouchableOpacity style={styles.moreBtn} onPress={() => setShowMore(v => !v)}>
+              <Text style={styles.moreBtnText}>{showMore ? '▲ Less details' : '▼ More details (building, floor, etc.)'}</Text>
+            </TouchableOpacity>
+
+            {showMore && (
+              <>
+                <Text style={styles.fieldLabel}>Building / Floor / Room <Text style={styles.optional}>(optional)</Text></Text>
+                <TextInput
+                  style={styles.input}
+                  value={buildingDetail}
+                  onChangeText={setBuildingDetail}
+                  placeholder="e.g. Urafiki Tower, 3rd Floor, Room 4"
+                  placeholderTextColor={COLORS.textLight}
+                />
+              </>
+            )}
+          </View>
         )}
-      </View>
 
-      <AddAddressModal />
-      <OverlayLoading visible={loading.create} message="Placing order..." />
+        {/* Payment Method */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>💳 Payment Method</Text>
+          {[
+            { value: 'mobile_money', icon: '📱', label: 'Mobile Money', sub: 'M-Pesa, Airtel, Tigo, Halopesa' },
+            { value: 'wallet', icon: '💰', label: 'VUMA Wallet', sub: 'Pay from your balance' },
+          ].map(pm => (
+            <TouchableOpacity
+              key={pm.value}
+              style={[styles.paymentCard, paymentMethod === pm.value && styles.paymentCardActive]}
+              onPress={() => setPaymentMethod(pm.value)}
+            >
+              <Text style={styles.paymentIcon}>{pm.icon}</Text>
+              <View style={styles.paymentInfo}>
+                <Text style={[styles.paymentLabel, paymentMethod === pm.value && styles.paymentLabelActive]}>{pm.label}</Text>
+                <Text style={styles.paymentSub}>{pm.sub}</Text>
+              </View>
+              <View style={[styles.radio, paymentMethod === pm.value && styles.radioActive]}>
+                {paymentMethod === pm.value && <Text style={styles.radioTick}>✓</Text>}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Place Order */}
+        <View style={styles.placeOrderSection}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total to Pay</Text>
+            <Text style={styles.totalValue}>TZS {Number(cartTotal).toLocaleString()}</Text>
+          </View>
+          <Button
+            title={placing ? 'Placing Order...' : `Place Order — TZS ${Number(cartTotal).toLocaleString()}`}
+            onPress={handlePlaceOrder}
+            loading={placing}
+            fullWidth
+            style={styles.placeBtn}
+          />
+          <Text style={styles.secureText}>🔒 Secured by AzamPay · Free Delivery on all orders</Text>
+        </View>
+
+        <View style={{ height: 40 }} />
+      </KeyboardAwareScrollView>
+
+      {/* Pickers */}
+      <PickerModal visible={showRegionPicker} title="Select Region"
+        data={TZ_REGIONS}
+        onSelect={r => { setRegion(r); setDistrict(''); }}
+        onClose={() => setShowRegionPicker(false)} />
+
+      <PickerModal visible={showDistrictPicker} title={`Districts in ${region}`}
+        data={districts}
+        onSelect={d => setDistrict(d)}
+        onClose={() => setShowDistrictPicker(false)} />
+
+      <PickerModal visible={showPickupPicker} title="Select Pickup Station"
+        data={PICKUP_POINTS}
+        onSelect={p => setPickupPoint(p)}
+        onClose={() => setShowPickupPicker(false)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  scrollContent: { padding: SPACING.base, paddingBottom: SPACING['2xl'] },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
-  backIcon: { fontSize: FONTS.xl, color: COLORS.textPrimary, fontWeight: FONTS.bold },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  headerItems: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  steps: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  stepItem: { alignItems: 'center', gap: SPACING.xs },
-  stepCircle: { width: 30, height: 30, borderRadius: RADIUS.full, backgroundColor: COLORS.skeleton, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: COLORS.border },
-  stepCircleActive: { backgroundColor: COLORS.primaryFade, borderColor: COLORS.primary },
-  stepCircleDone: { backgroundColor: COLORS.primary, borderColor: COLORS.primaryDark },
-  stepNum: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.textMuted },
-  stepNumActive: { color: COLORS.primary },
-  stepLabel: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.medium },
-  stepLabelActive: { color: COLORS.primary, fontWeight: FONTS.bold },
-  stepLine: { flex: 1, height: 2, backgroundColor: COLORS.border, marginBottom: SPACING.lg, marginHorizontal: SPACING.xs },
-  stepLineDone: { backgroundColor: COLORS.primary },
-  sectionTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.base },
-  emptyAddress: { backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.xl, padding: SPACING.xl, alignItems: 'center', marginBottom: SPACING.base },
-  emptyAddressText: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
-  emptyAddressSub: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: 4 },
-  addressCard: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, borderWidth: 2, borderColor: 'transparent', ...SHADOWS.sm },
-  addressCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade },
-  addressRadio: { paddingTop: 2, marginRight: SPACING.sm },
-  radioOuter: { width: 20, height: 20, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  radioOuterActive: { borderColor: COLORS.primary },
-  radioInner: { width: 10, height: 10, borderRadius: RADIUS.full, backgroundColor: COLORS.primary },
-  addressInfo: { flex: 1, gap: 2 },
-  addressName: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  addressPhone: { fontSize: FONTS.sm, color: COLORS.textSecondary },
-  addressText: { fontSize: FONTS.sm, color: COLORS.textMuted, lineHeight: 18 },
-  defaultBadge: { alignSelf: 'flex-start', marginTop: 4, backgroundColor: COLORS.successLight, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
-  defaultBadgeText: { fontSize: FONTS.xs, color: COLORS.successText, fontWeight: FONTS.semiBold },
-  addAddressBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 2, borderColor: COLORS.primary, borderStyle: 'dashed', marginBottom: SPACING.sm },
-  addAddressIconWrap: { width: 32, height: 32, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center' },
-  addAddressIcon: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold, lineHeight: 24 },
-  addAddressText: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  paymentCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.base, backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, borderWidth: 2, borderColor: 'transparent', ...SHADOWS.sm },
+  backBtn: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold },
+  scroll: { padding: SPACING.base },
+  summaryCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
+  summaryTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  summaryItem: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary },
+  summaryPrice: { fontSize: FONTS.sm, color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
+  summaryTotal: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: COLORS.divider, marginTop: SPACING.sm, paddingTop: SPACING.sm },
+  summaryTotalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  summaryTotalValue: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.primary },
+  section: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
+  sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  savedCard: { width: 140, backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.sm, borderWidth: 1.5, borderColor: COLORS.border },
+  savedCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade },
+  savedLabel: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 4 },
+  savedText: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 16 },
+  savedNew: { width: 80, backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.sm, borderWidth: 1.5, borderColor: COLORS.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  savedNewText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
+  deliveryRow: { flexDirection: 'row', gap: SPACING.sm },
+  deliveryBtn: { flex: 1, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.xl, padding: SPACING.base, alignItems: 'center', backgroundColor: COLORS.surface },
+  deliveryBtnActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade },
+  deliveryIcon: { fontSize: 28, marginBottom: 4 },
+  deliveryLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
+  deliveryLabelActive: { color: COLORS.primary, fontWeight: FONTS.bold },
+  phoneWrap: { flexDirection: 'row', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, overflow: 'hidden' },
+  phoneFlag: { backgroundColor: COLORS.surfaceAlt, paddingHorizontal: SPACING.sm, justifyContent: 'center', borderRightWidth: 1, borderRightColor: COLORS.border },
+  phoneFlagText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  phoneInput: { flex: 1, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.lg, color: COLORS.textPrimary, letterSpacing: 1 },
+  selectedPickup: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1.5, borderColor: COLORS.primary },
+  selectedPickupInfo: { flex: 1 },
+  selectedPickupName: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  selectedPickupSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  changeText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
+  pickupSelectBtn: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1.5, borderColor: COLORS.primary, alignItems: 'center' },
+  pickupSelectText: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  gpsBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: COLORS.primary, borderRadius: RADIUS.xl, padding: SPACING.base, backgroundColor: COLORS.primaryFade, marginBottom: SPACING.sm, gap: SPACING.sm },
+  gpsBtnDone: { borderColor: COLORS.success, backgroundColor: '#E8F5E9' },
+  gpsBtnIcon: { fontSize: 26 },
+  gpsBtnText: { flex: 1 },
+  gpsBtnTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primary },
+  gpsBtnSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs, marginTop: SPACING.sm },
+  optional: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.regular },
+  selector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.background, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, marginBottom: SPACING.xs },
+  selectorDisabled: { opacity: 0.5 },
+  selectorValue: { fontSize: FONTS.base, color: COLORS.textPrimary },
+  selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
+  selectorArrow: { fontSize: FONTS.sm, color: COLORS.textMuted },
+  input: { backgroundColor: COLORS.background, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.xs },
+  moreBtn: { paddingVertical: SPACING.sm, alignItems: 'center' },
+  moreBtnText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  paymentCard: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, backgroundColor: COLORS.surface, gap: SPACING.sm },
   paymentCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade },
   paymentIcon: { fontSize: 24 },
-  paymentLabel: { flex: 1, fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
-  paymentLabelActive: { color: COLORS.primary, fontWeight: FONTS.bold },
-  paymentCheck: { fontSize: FONTS.lg, color: COLORS.primary, fontWeight: FONTS.bold },
-  cardNote: { backgroundColor: '#EFF6FF', borderRadius: RADIUS.lg, padding: SPACING.sm, marginBottom: SPACING.base },
-  cardNoteText: { fontSize: FONTS.xs, color: '#1E40AF', lineHeight: 18 },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginVertical: SPACING.base },
-  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.divider },
-  dividerText: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.textMuted, letterSpacing: 0.5 },
-  mobileMoneyCard: { position: 'relative' },
-  mobileMoneyLogo: { width: 44, height: 44, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
-  mobileMoneyLogoText: { fontSize: FONTS['2xl'], fontWeight: FONTS.black },
-  mobileMoneyInfo: { flex: 1 },
-  mobileMoneyName: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
-  mobileMoneyCountries: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  mobileMoneyCheck: { width: 24, height: 24, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
-  mobileMoneyCheckText: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  mobilePhoneWrap: { borderRadius: RADIUS.xl, padding: SPACING.base, marginTop: SPACING.xs, marginBottom: SPACING.sm, borderWidth: 2 },
-  mobilePhoneLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  mobilePhoneLabel: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textSecondary },
-  mobilePhoneProvider: { fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  mobilePhoneInput: { fontSize: FONTS.lg, color: COLORS.textPrimary, borderWidth: 1.5, borderRadius: RADIUS.lg, padding: SPACING.sm + 2, backgroundColor: COLORS.surface, letterSpacing: 1, fontWeight: FONTS.semiBold, marginBottom: SPACING.sm },
-  mobilePhoneHint: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 16 },
-  reviewCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
-  reviewCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  reviewCardTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  reviewEdit: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  reviewName: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  reviewDetail: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20 },
-  reviewPaymentRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  reviewPaymentIcon: { fontSize: 24 },
-  reviewPaymentName: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
-  reviewPaymentPhone: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: 2, letterSpacing: 0.5 },
-  orderItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, gap: SPACING.sm },
-  orderItemName: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 18 },
-  orderItemQty: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  orderItemTotal: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, minWidth: 72, textAlign: 'right' },
-  notesInput: { backgroundColor: COLORS.surfaceAlt, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, padding: SPACING.sm, fontSize: FONTS.sm, color: COLORS.textPrimary, minHeight: 80, textAlignVertical: 'top' },
-  priceRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: SPACING.sm },
-  priceLabel: { fontSize: FONTS.base, color: COLORS.textSecondary },
-  priceValue: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
-  freeShipText: { color: COLORS.success, fontWeight: FONTS.bold },
-  priceDivider: { height: 1, backgroundColor: COLORS.divider, marginVertical: SPACING.xs },
-  totalLabel: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  paymentInfo: { flex: 1 },
+  paymentLabel: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  paymentLabelActive: { color: COLORS.primary },
+  paymentSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  radio: { width: 22, height: 22, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  radioActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  radioTick: { color: 'white', fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  placeOrderSection: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, ...SHADOWS.md },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.base },
+  totalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   totalValue: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.primary },
-  mobileNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, borderWidth: 1.5 },
-  mobileNoticeIcon: { fontSize: FONTS.lg },
-  mobileNoticeText: { flex: 1, fontSize: FONTS.sm, lineHeight: 20 },
-  mobileNoticeBold: { fontWeight: FONTS.bold },
-  errorBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.dangerLight, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.sm, gap: SPACING.sm },
-  errorText: { flex: 1, fontSize: FONTS.sm, color: COLORS.dangerText, fontWeight: FONTS.medium },
-  errorDismiss: { fontSize: FONTS.base, color: COLORS.danger, fontWeight: FONTS.bold },
-  bottomBar: { flexDirection: 'row', alignItems: 'center', gap: SPACING.base, backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, paddingBottom: Platform.OS === 'ios' ? SPACING.xl : SPACING.base, borderTopWidth: 1, borderTopColor: COLORS.divider, ...SHADOWS.md },
-  bottomTotal: { flex: 1 },
-  bottomTotalLabel: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  bottomTotalValue: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.primary },
-  bottomBtn: { flex: 2 },
-  modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.xl, paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.xl, maxHeight: '90%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xl },
-  modalTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  modalClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
-  inputLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs },
-  modalInput: { backgroundColor: COLORS.surfaceAlt, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.sm },
-  modalInputError: { borderColor: COLORS.danger, backgroundColor: COLORS.dangerLight },
-  fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: -SPACING.xs, marginBottom: SPACING.sm },
-  defaultRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginVertical: SPACING.base },
-  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: COLORS.border, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
-  checkboxActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkmark: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  defaultText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
-  modalBtn: { marginTop: SPACING.sm },
+  placeBtn: { borderRadius: RADIUS.xl, marginBottom: SPACING.sm },
+  secureText: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center' },
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  pickerSheet: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '75%', paddingBottom: Platform.OS === 'ios' ? 34 : 16 },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
+  pickerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  pickerClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
+  pickerItem: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  pickerItemText: { fontSize: FONTS.base, color: COLORS.textPrimary },
+  pickerItemSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
 });
