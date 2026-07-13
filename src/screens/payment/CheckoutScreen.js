@@ -1,6 +1,7 @@
 /**
  * VUMA Store — Tanzania Checkout Screen
  * Mobile-first, GPS-first, fast checkout for Tanzanian users
+ * + Commission breakdown added
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -16,8 +17,8 @@ import { selectCartItems, selectCartTotal } from '../../store/cartSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
+import { CommissionBreakdown } from '../../components/CommissionCalculator';
 
-// Tanzania regions
 const TZ_REGIONS = [
   'Arusha','Dar es Salaam','Dodoma','Geita','Iringa','Kagera',
   'Katavi','Kigoma','Kilimanjaro','Lindi','Manyara','Mara',
@@ -26,7 +27,6 @@ const TZ_REGIONS = [
   'Tabora','Tanga','Zanzibar',
 ];
 
-// Common districts per region (simplified)
 const TZ_DISTRICTS = {
   'Dar es Salaam': ['Ilala','Kinondoni','Temeke','Ubungo','Kigamboni'],
   'Arusha': ['Arusha City','Arumeru','Karatu','Longido','Meru','Monduli','Ngorongoro'],
@@ -46,7 +46,6 @@ const PICKUP_POINTS = [
   { id: '6', name: 'VUMA Dodoma Hub', area: 'Dodoma City', open: '8am - 6pm' },
 ];
 
-// Simple Picker Modal
 const PickerModal = ({ visible, title, data, onSelect, onClose }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <View style={styles.pickerOverlay}>
@@ -60,9 +59,7 @@ const PickerModal = ({ visible, title, data, onSelect, onClose }) => (
           keyExtractor={item => typeof item === 'string' ? item : item.id}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(item); onClose(); }}>
-              <Text style={styles.pickerItemText}>
-                {typeof item === 'string' ? item : item.name}
-              </Text>
+              <Text style={styles.pickerItemText}>{typeof item === 'string' ? item : item.name}</Text>
               {typeof item !== 'string' && item.area && (
                 <Text style={styles.pickerItemSub}>{item.area} · {item.open}</Text>
               )}
@@ -97,8 +94,6 @@ export default function CheckoutScreen({ navigation }) {
   const [paymentMethod, setPaymentMethod] = useState('mobile_money');
   const [placing, setPlacing] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
-
-  // Pickers
   const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [showDistrictPicker, setShowDistrictPicker] = useState(false);
   const [showPickupPicker, setShowPickupPicker] = useState(false);
@@ -123,7 +118,7 @@ export default function CheckoutScreen({ navigation }) {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       setLatitude(loc.coords.latitude);
       setLongitude(loc.coords.longitude);
-      Alert.alert('📍 Location Pinned!', `Accuracy: ±${Math.round(loc.coords.accuracy)} meters\n\nYour rider will navigate to this exact location.`);
+      Alert.alert('📍 Location Pinned!', `Accuracy: ±${Math.round(loc.coords.accuracy)} meters`);
     } catch { Alert.alert('Error', 'Could not get GPS. Try again.'); }
     finally { setGpsLoading(false); }
   };
@@ -155,35 +150,23 @@ export default function CheckoutScreen({ navigation }) {
     try {
       const shippingAddress = deliveryType === 'pickup'
         ? { delivery_type: 'pickup', pickup_point_id: pickupPoint.id, pickup_point_name: pickupPoint.name, phone }
-        : {
-            delivery_type: 'home',
-            full_name: user?.username || '',
-            phone, city: region, ward: district,
-            landmark, building_detail: buildingDetail,
-            latitude, longitude,
-          };
+        : { delivery_type: 'home', full_name: user?.username || '', phone, city: region, ward: district, landmark, building_detail: buildingDetail, latitude, longitude };
 
-      const orderData = {
+      const result = await post('/orders/', {
         items: cartItems.map(item => ({ product_id: item.id, quantity: item.quantity })),
         shipping_address: shippingAddress,
         payment_method: paymentMethod,
         total_amount: cartTotal,
-      };
-
-      const result = await post('/orders/', orderData);
+      });
 
       if (result.id || result.order_number) {
         if (paymentMethod === 'mobile_money') {
-          navigation.replace('MobileMoney', {
-            orderId: result.id,
-            orderNumber: result.order_number,
-            amount: cartTotal,
-          });
+          navigation.replace('MobileMoney', { orderId: result.id, orderNumber: result.order_number, amount: cartTotal });
         } else {
           navigation.replace('OrderDetail', { orderId: result.id });
         }
       }
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Could not place order. Please try again.');
     } finally {
       setPlacing(false);
@@ -191,6 +174,9 @@ export default function CheckoutScreen({ navigation }) {
   };
 
   const districts = TZ_DISTRICTS[region] || TZ_DISTRICTS['default'];
+
+  // Get first item category for commission display
+  const firstItemCategory = cartItems?.[0]?.category_slug || 'others';
 
   return (
     <View style={styles.container}>
@@ -223,6 +209,15 @@ export default function CheckoutScreen({ navigation }) {
             <Text style={styles.summaryTotalValue}>TZS {Number(cartTotal).toLocaleString()}</Text>
           </View>
         </View>
+
+        {/* ── Commission Breakdown for vendors (if seller is viewing) ── */}
+        {/* This shows buyers the fee breakdown — transparency builds trust */}
+        <CommissionBreakdown
+          categorySlug={firstItemCategory}
+          price={cartTotal}
+          quantity={1}
+          style={styles.commissionCard}
+        />
 
         {/* Saved Addresses */}
         {savedAddresses.length > 0 && (
@@ -268,7 +263,7 @@ export default function CheckoutScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Phone — always shown */}
+        {/* Phone */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📞 Contact</Text>
           <Text style={styles.fieldLabel}>Phone Number *</Text>
@@ -308,21 +303,15 @@ export default function CheckoutScreen({ navigation }) {
           </View>
         )}
 
-        {/* Home Delivery Address */}
+        {/* Home Delivery */}
         {deliveryType === 'home' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
-
-            {/* GPS */}
             <TouchableOpacity
               style={[styles.gpsBtn, latitude && styles.gpsBtnDone]}
-              onPress={getGPS}
-              disabled={gpsLoading}
+              onPress={getGPS} disabled={gpsLoading}
             >
-              {gpsLoading
-                ? <ActivityIndicator color={COLORS.primary} size="small" />
-                : <Text style={styles.gpsBtnIcon}>📍</Text>
-              }
+              {gpsLoading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Text style={styles.gpsBtnIcon}>📍</Text>}
               <View style={styles.gpsBtnText}>
                 <Text style={[styles.gpsBtnTitle, latitude && { color: COLORS.success }]}>
                   {gpsLoading ? 'Getting your location...' : latitude ? '✓ Location Pinned' : 'Use My Location (GPS)'}
@@ -333,16 +322,12 @@ export default function CheckoutScreen({ navigation }) {
               </View>
             </TouchableOpacity>
 
-            {/* Region */}
             <Text style={styles.fieldLabel}>Region *</Text>
             <TouchableOpacity style={styles.selector} onPress={() => setShowRegionPicker(true)}>
-              <Text style={region ? styles.selectorValue : styles.selectorPlaceholder}>
-                {region || 'Select your region...'}
-              </Text>
+              <Text style={region ? styles.selectorValue : styles.selectorPlaceholder}>{region || 'Select your region...'}</Text>
               <Text style={styles.selectorArrow}>▼</Text>
             </TouchableOpacity>
 
-            {/* District */}
             <Text style={styles.fieldLabel}>District / Ward *</Text>
             <TouchableOpacity
               style={[styles.selector, !region && styles.selectorDisabled]}
@@ -354,17 +339,13 @@ export default function CheckoutScreen({ navigation }) {
               <Text style={styles.selectorArrow}>▼</Text>
             </TouchableOpacity>
 
-            {/* Landmark */}
-            <Text style={styles.fieldLabel}>Landmark <Text style={styles.optional}>(optional — helps rider find you)</Text></Text>
+            <Text style={styles.fieldLabel}>Landmark <Text style={styles.optional}>(optional)</Text></Text>
             <TextInput
-              style={styles.input}
-              value={landmark}
-              onChangeText={setLandmark}
+              style={styles.input} value={landmark} onChangeText={setLandmark}
               placeholder="e.g. Near Shoprite, Blue gate, Kariakoo Market"
               placeholderTextColor={COLORS.textLight}
             />
 
-            {/* More Details Toggle */}
             <TouchableOpacity style={styles.moreBtn} onPress={() => setShowMore(v => !v)}>
               <Text style={styles.moreBtnText}>{showMore ? '▲ Less details' : '▼ More details (building, floor, etc.)'}</Text>
             </TouchableOpacity>
@@ -373,9 +354,7 @@ export default function CheckoutScreen({ navigation }) {
               <>
                 <Text style={styles.fieldLabel}>Building / Floor / Room <Text style={styles.optional}>(optional)</Text></Text>
                 <TextInput
-                  style={styles.input}
-                  value={buildingDetail}
-                  onChangeText={setBuildingDetail}
+                  style={styles.input} value={buildingDetail} onChangeText={setBuildingDetail}
                   placeholder="e.g. Urafiki Tower, 3rd Floor, Room 4"
                   placeholderTextColor={COLORS.textLight}
                 />
@@ -427,21 +406,12 @@ export default function CheckoutScreen({ navigation }) {
         <View style={{ height: 40 }} />
       </KeyboardAwareScrollView>
 
-      {/* Pickers */}
       <PickerModal visible={showRegionPicker} title="Select Region"
-        data={TZ_REGIONS}
-        onSelect={r => { setRegion(r); setDistrict(''); }}
-        onClose={() => setShowRegionPicker(false)} />
-
+        data={TZ_REGIONS} onSelect={r => { setRegion(r); setDistrict(''); }} onClose={() => setShowRegionPicker(false)} />
       <PickerModal visible={showDistrictPicker} title={`Districts in ${region}`}
-        data={districts}
-        onSelect={d => setDistrict(d)}
-        onClose={() => setShowDistrictPicker(false)} />
-
+        data={districts} onSelect={d => setDistrict(d)} onClose={() => setShowDistrictPicker(false)} />
       <PickerModal visible={showPickupPicker} title="Select Pickup Station"
-        data={PICKUP_POINTS}
-        onSelect={p => setPickupPoint(p)}
-        onClose={() => setShowPickupPicker(false)} />
+        data={PICKUP_POINTS} onSelect={p => setPickupPoint(p)} onClose={() => setShowPickupPicker(false)} />
     </View>
   );
 }
@@ -460,6 +430,7 @@ const styles = StyleSheet.create({
   summaryTotal: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: COLORS.divider, marginTop: SPACING.sm, paddingTop: SPACING.sm },
   summaryTotalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   summaryTotalValue: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.primary },
+  commissionCard: { marginBottom: SPACING.sm },
   section: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
   sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
   savedCard: { width: 140, backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.sm, borderWidth: 1.5, borderColor: COLORS.border },
