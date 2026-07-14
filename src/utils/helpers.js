@@ -458,21 +458,21 @@ export const calculateCartTotals = (items) => {
       shipping: 0,
       total: 0,
       itemCount: 0,
-      isFreeShipping: false,
+      isfreeDelivery: false,
     };
   }
   const subtotal = items.reduce(
     (sum, item) => sum + getEffectivePrice(item.product) * item.quantity,
     0
   );
-  const isFreeShipping = subtotal >= APP.freeShippingThreshold;
-  const shipping = isFreeShipping ? 0 : 3000;
+  const isfreeDelivery = subtotal >= APP.freeDeliveryThreshold;
+  const shipping = isfreeDelivery ? 0 : 3000;
   return {
     subtotal,
     shipping,
     total: subtotal + shipping,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-    isFreeShipping,
+    isfreeDelivery,
   };
 };
 

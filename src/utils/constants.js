@@ -247,7 +247,7 @@ export const APP = {
   currency: 'TZS',
   currencySymbol: 'TZS ',
   commissionRate: 0.10,
-  freeShippingThreshold: 50000,
+  freeDeliveryThreshold: 50000,
   minPayoutAmount: 5000,
   maxDepositAmount: 10000000,
 };

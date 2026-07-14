@@ -10,7 +10,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import {
   selectCartItems, selectCartTotal, selectCartSubtotal,
-  selectCartShipping, selectCartItemCount, selectIsFreeShipping,
+  selectCartShipping, selectCartItemCount, selectIsfreeDelivery,
   selectCartByVendor, incrementQuantity, decrementQuantity,
   removeFromCart, clearCartAndSave, saveCart,
 } from '../../store/cartSlice';
@@ -30,14 +30,14 @@ export default function CartScreen({ navigation }) {
   const subtotal = useSelector(selectCartSubtotal);
   const shipping = useSelector(selectCartShipping);
   const itemCount = useSelector(selectCartItemCount);
-  const isFreeShipping = useSelector(selectIsFreeShipping);
+  const isfreeDelivery = useSelector(selectIsfreeDelivery);
   const cartByVendor = useSelector(selectCartByVendor);
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
   const freeShipProgress = Math.min(
-    subtotal / APP.freeShippingThreshold, 1
+    subtotal / APP.freeDeliveryThreshold, 1
   );
-  const remaining = Math.max(APP.freeShippingThreshold - subtotal, 0);
+  const remaining = Math.max(APP.freeDeliveryThreshold - subtotal, 0);
 
   const handleIncrement = useCallback((productId) => {
     dispatch(incrementQuantity(productId));
@@ -188,7 +188,7 @@ export default function CartScreen({ navigation }) {
       <Text style={styles.summaryTitle}>
         {t('cart.orderSummary')}
       </Text>
-      {!isFreeShipping && (
+      {!isfreeDelivery && (
         <View style={styles.freeShipWrap}>
           <View style={styles.freeShipBar}>
             <View style={[styles.freeShipFill,
@@ -202,23 +202,23 @@ export default function CartScreen({ navigation }) {
           </Text>
         </View>
       )}
-      {isFreeShipping && (
+      {isfreeDelivery && (
         <View style={styles.freeShipEarned}>
           <Text style={styles.freeShipEarnedText}>
-            🎉 {t('cart.freeShippingEarned')}
+            🎉 {t('cart.freeDeliveryEarned')}
           </Text>
         </View>
       )}
       {[
         [t('cart.subtotal'), formatPrice(subtotal)],
-        [t('cart.shipping'), isFreeShipping
+        [t('cart.shipping'), isfreeDelivery
           ? t('cart.free') : formatPrice(shipping)],
       ].map(([label, value]) => (
         <View key={label} style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{label}</Text>
           <Text style={[styles.summaryValue,
             label === t('cart.shipping')
-              && isFreeShipping && styles.freeShipValue]}>
+              && isfreeDelivery && styles.freeShipValue]}>
             {value}
           </Text>
         </View>

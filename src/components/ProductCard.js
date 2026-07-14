@@ -158,7 +158,7 @@ function ProductCard({ product, onPress, style, variant = 'grid' }) {
             <Text style={styles.ratingCount}>({product.rating_count})</Text>
           </View>
         )}
-        <Text style={styles.freeShip}>🚚 Free Ship</Text>
+        <Text style={styles.freeShip}>🚚 Free Delivery</Text>
         <TouchableOpacity
           style={[styles.cartBtn, isInCart && styles.cartBtnActive, outOfStock && styles.cartBtnDisabled]}
           onPress={handleAddToCart} disabled={outOfStock} activeOpacity={0.8}

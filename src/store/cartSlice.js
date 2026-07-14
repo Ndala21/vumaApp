@@ -66,7 +66,7 @@ const initialState = {
   shipping: 0,
   total: 0,
   itemCount: 0,
-  isFreeShipping: false,
+  isfreeDelivery: false,
 
   // UI states
   loading: {
@@ -89,7 +89,7 @@ const recalculate = (state) => {
   state.shipping = totals.shipping;
   state.total = totals.total;
   state.itemCount = totals.itemCount;
-  state.isFreeShipping = totals.isFreeShipping;
+  state.isfreeDelivery = totals.isfreeDelivery;
 };
 
 // ══════════════════════════════════════════════════════
@@ -409,8 +409,8 @@ export const selectCartItemCount = (state) => state.cart.itemCount;
 export const selectCartSubtotal = (state) => state.cart.subtotal;
 export const selectCartShipping = (state) => state.cart.shipping;
 export const selectCartTotal = (state) => state.cart.total;
-export const selectIsFreeShipping = (state) =>
-  state.cart.isFreeShipping;
+export const selectIsfreeDelivery = (state) =>
+  state.cart.isfreeDelivery;
 export const selectCartLoading = (state) => state.cart.loading;
 export const selectLastAdded = (state) => state.cart.lastAdded;
 export const selectWishlist = (state) => state.cart.wishlist;
