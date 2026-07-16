@@ -1,363 +1,388 @@
 /**
- * VUMA Store — Register Screen
- * Customer and vendor registration
+ * VUMA Store — Register Screen (Fixed)
+ * - Spinner always stops
+ * - Auto login after registration
+ * - Clear error messages
+ * - 15s timeout safety
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { t } from '../../i18n';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  KeyboardAvoidingView, Platform, StatusBar, Alert, Modal,
+  KeyboardAvoidingView, Platform, StatusBar, Alert,
+  ActivityIndicator, TextInput, ToastAndroid,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { register, clearError, selectAuthLoading, selectAuthErrors } from '../../store/authSlice';
-import { COLORS, FONTS, SPACING, RADIUS, SCREENS, LANGUAGES } from '../../utils/constants';
-import { validateEmail, validatePassword, validateUsername, validatePhone } from '../../utils/helpers';
-import Button from '../../components/common/Button';
-import Input from '../../components/common/Input';
+import {
+  register, clearError, selectAuthLoading,
+  selectAuthErrors, selectIsAuthenticated,
+} from '../../store/authSlice';
+import { COLORS, FONTS, SPACING, RADIUS, LANGUAGES } from '../../utils/constants';
+import { storage } from '../../utils/storage';
+import { setAuthToken } from '../../api/client';
 
-const TERMS_CONTENT = `VUMA Store — Terms of Service
-Last updated: April 2026
+const TIMEOUT_MS = 15000;
 
-1. ACCEPTANCE OF TERMS
-By using VUMA Store, you agree to these Terms of Service. If you do not agree, please do not use the app.
-
-2. USER ACCOUNTS
-• You must provide accurate information when registering.
-• You are responsible for keeping your password secure.
-• One account per person is allowed.
-
-3. PURCHASES & PAYMENTS
-• All prices are shown in your selected currency.
-• Payments are processed securely via Stripe.
-• Orders are confirmed only after payment is successful.
-
-4. RETURNS & REFUNDS
-• Items can be returned within 7 days of delivery.
-• Items must be unused and in original packaging.
-• Refunds are processed within 5-7 business days.
-
-5. VENDOR POLICY
-• Vendors must provide accurate product descriptions.
-• VUMA charges a 10% commission on all sales.
-• Vendors are responsible for shipping within agreed timeframes.
-
-6. PROHIBITED ACTIVITIES
-• Selling counterfeit or illegal products.
-• Harassing other users or vendors.
-• Attempting to hack or manipulate the platform.
-
-7. PRIVACY
-• We collect only necessary data to process orders.
-• We never sell your personal data to third parties.
-
-8. CONTACT
-For questions: support@vumastore.store
-Website: https://vumastore.store`;
-
-const PRIVACY_CONTENT = `VUMA Store — Privacy Policy
-Last updated: April 2026
-
-1. INFORMATION WE COLLECT
-• Account information (name, email, phone)
-• Order and payment information
-• Device and usage information
-
-2. HOW WE USE YOUR INFORMATION
-• To process your orders and payments
-• To send order updates and notifications
-• To improve our services
-
-3. DATA SHARING
-• We never sell your personal data
-• We share data only with payment processors (Stripe, Flutterwave)
-• We may share with shipping partners for delivery
-
-4. DATA SECURITY
-• All data is encrypted in transit and at rest
-• We use industry-standard security measures
-• Passwords are never stored in plain text
-
-5. YOUR RIGHTS
-• You can request your data at any time
-• You can delete your account from Settings
-• Contact support@vumastore.store for data requests
-
-6. COOKIES
-• We use minimal cookies for authentication
-• No advertising cookies are used
-
-7. CONTACT
-privacy@vumastore.store`;
-
-export default function RegisterScreen({ navigation, route }) {
+export default function RegisterScreen({ navigation }) {
   const dispatch = useDispatch();
-  const loading = useSelector(selectAuthLoading);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const errors = useSelector(selectAuthErrors);
-  const isVendorMode = route?.params?.isVendor || false;
 
-  const [form, setForm] = useState({
-    username: '', email: '', password: '', confirmPassword: '', phone: '', language: 'en',
+  const [form, setFormState] = useState({
+    username: '', email: '', password: '',
+    confirmPassword: '', phone: '', language: 'en',
   });
-  const [fieldErrors, setFieldErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [showLangPicker, setShowLangPicker] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
-  const emailRef = useRef(null);
+  const emailRef    = useRef(null);
   const passwordRef = useRef(null);
-  const confirmRef = useRef(null);
-  const phoneRef = useRef(null);
-
-  useEffect(() => { return () => dispatch(clearError()); }, []);
+  const phoneRef    = useRef(null);
+  const timeoutRef  = useRef(null);
+  const mountedRef  = useRef(true);
 
   useEffect(() => {
-    if (!errors.register) return;
-    if (typeof errors.register === 'string') {
-      Alert.alert('Registration Failed', errors.register, [{ text: 'OK', onPress: () => dispatch(clearError('register')) }]);
-    } else {
-      setFieldErrors(errors.register);
-      dispatch(clearError('register'));
+    return () => {
+      mountedRef.current = false;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      dispatch(clearError());
+    };
+  }, []);
+
+  // Auto-navigate after successful registration (isAuthenticated = true)
+  useEffect(() => {
+    if (isAuthenticated && isLoading) {
+      stopLoading();
+      showToast('✅ Account created! Welcome to VUMA!');
     }
+  }, [isAuthenticated]);
+
+  // Show API errors
+  useEffect(() => {
+    if (!errors.register) return;
+    stopLoading();
+    if (typeof errors.register === 'string') {
+      Alert.alert('Registration Failed', errors.register);
+    } else if (typeof errors.register === 'object') {
+      const msgs = Object.entries(errors.register)
+        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+        .join('\n');
+      Alert.alert('Registration Failed', msgs || 'Please check your details and try again.');
+      // Also set field-level errors
+      setFieldErrors(errors.register);
+    }
+    dispatch(clearError('register'));
   }, [errors.register]);
 
+  const stopLoading = () => {
+    if (mountedRef.current) setIsLoading(false);
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+  };
+
+  const showToast = (msg) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.showWithGravity(msg, ToastAndroid.LONG, ToastAndroid.CENTER);
+    }
+  };
+
   const setField = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: null }));
+    setFormState(prev => ({ ...prev, [key]: value }));
+    if (fieldErrors[key]) setFieldErrors(prev => ({ ...prev, [key]: null }));
   };
 
   const validate = () => {
     const errs = {};
-    const usernameErr = validateUsername(form.username);
-    if (usernameErr) errs.username = usernameErr;
-    const emailErr = validateEmail(form.email);
-    if (emailErr) errs.email = emailErr;
-    const passErr = validatePassword(form.password);
-    if (passErr) errs.password = passErr;
-    if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match.';
-    const phoneErr = validatePhone(form.phone);
-    if (phoneErr) errs.phone = phoneErr;
-    if (!agreedToTerms) errs.terms = 'Please agree to Terms & Conditions.';
+    if (!form.username.trim() || form.username.trim().length < 3)
+      errs.username = 'Username must be at least 3 characters';
+    if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email))
+      errs.email = 'Enter a valid email address';
+    if (!form.password || form.password.length < 6)
+      errs.password = 'Password must be at least 6 characters';
+    if (form.password !== form.confirmPassword)
+      errs.confirmPassword = 'Passwords do not match';
+    if (!agreedToTerms)
+      errs.terms = 'Please agree to Terms & Conditions';
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   const handleRegister = async () => {
+    if (isLoading) return;
     if (!validate()) return;
-    await dispatch(register({
-      username: form.username.trim(),
-      email: form.email.trim(),
-      password: form.password,
-      confirmPassword: form.confirmPassword,
-      phone: form.phone.trim(),
-      language: form.language,
-    }));
+
+    setIsLoading(true);
+    dispatch(clearError('register'));
+    setFieldErrors({});
+
+    // Safety timeout — spinner always stops
+    timeoutRef.current = setTimeout(() => {
+      if (mountedRef.current) {
+        stopLoading();
+        Alert.alert('Timeout', 'Registration is taking too long. Please check your internet and try again.');
+      }
+    }, TIMEOUT_MS);
+
+    try {
+      const result = await dispatch(register({
+        username: form.username.trim(),
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        password2: form.confirmPassword,
+        phone: form.phone.trim(),
+        language: form.language,
+      }));
+
+      if (register.fulfilled.match(result)) {
+        const { access, refresh, user } = result.payload || {};
+
+        // Explicitly save tokens
+        if (access) {
+          await Promise.all([
+            storage.setAccessToken(access),
+            refresh ? storage.setRefreshToken(refresh) : Promise.resolve(),
+            user ? storage.setUser(user) : Promise.resolve(),
+          ]);
+          setAuthToken(access);
+        }
+
+        stopLoading();
+        showToast('✅ Account created! Welcome to VUMA!');
+        // AppNavigator auto-switches via isAuthenticated → true
+
+      } else if (register.rejected.match(result)) {
+        stopLoading();
+        const payload = result.payload;
+        if (typeof payload === 'string') {
+          Alert.alert('Registration Failed', payload);
+        } else if (typeof payload === 'object' && payload) {
+          const msgs = Object.entries(payload)
+            .map(([k, v]) => `${Array.isArray(v) ? v.join(', ') : v}`)
+            .join('\n');
+          Alert.alert('Registration Failed', msgs || 'Please check your details.');
+          setFieldErrors(payload);
+        } else {
+          Alert.alert('Registration Failed', 'Please check your details and try again.');
+        }
+        dispatch(clearError('register'));
+      }
+    } catch (e) {
+      stopLoading();
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
   };
 
-  const selectedLangInfo = LANGUAGES.find((l) => l.code === form.language);
+  const FieldError = ({ field }) => fieldErrors[field] ? (
+    <Text style={styles.fieldError}>{fieldErrors[field]}</Text>
+  ) : null;
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
-
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="always"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
           <Text style={styles.logo}>VUMA</Text>
+          <View style={{ width: 40 }} />
         </View>
 
+        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.subtitle}>Join thousands of shoppers in Tanzania</Text>
+
         <View style={styles.card}>
-          <Text style={styles.title}>{isVendorMode ? '🏪 Create Vendor Account' : '👋 Create Account'}</Text>
-          <Text style={styles.subtitle}>{isVendorMode ? 'Register to start selling on VUMA' : 'Join millions of VUMA shoppers'}</Text>
+          {/* Username */}
+          <Text style={styles.label}>Username *</Text>
+          <View style={[styles.inputWrap, fieldErrors.username && styles.inputError]}>
+            <Text style={styles.inputIcon}>👤</Text>
+            <TextInput
+              style={styles.input}
+              value={form.username}
+              onChangeText={v => setField('username', v)}
+              placeholder="Choose a username"
+              placeholderTextColor="#BBB"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => emailRef.current?.focus()}
+              editable={!isLoading}
+            />
+          </View>
+          <FieldError field="username" />
 
-          <Input label="Username" required value={form.username} onChangeText={(v) => setField('username', v)}
-            placeholder="Choose a username" leftIcon="👤" error={fieldErrors.username}
-            autoCapitalize="none" returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} />
+          {/* Email */}
+          <Text style={styles.label}>Email Address *</Text>
+          <View style={[styles.inputWrap, fieldErrors.email && styles.inputError]}>
+            <Text style={styles.inputIcon}>✉️</Text>
+            <TextInput
+              ref={emailRef}
+              style={styles.input}
+              value={form.email}
+              onChangeText={v => setField('email', v)}
+              placeholder="your@email.com"
+              placeholderTextColor="#BBB"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => phoneRef.current?.focus()}
+              editable={!isLoading}
+            />
+          </View>
+          <FieldError field="email" />
 
-          <Input label="Email" required value={form.email} onChangeText={(v) => setField('email', v)}
-            placeholder="your@email.com" keyboardType="email-address" autoCapitalize="none"
-            leftIcon="✉️" error={fieldErrors.email} inputRef={emailRef}
-            returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
+          {/* Phone */}
+          <Text style={styles.label}>Phone Number</Text>
+          <View style={[styles.inputWrap, fieldErrors.phone && styles.inputError]}>
+            <Text style={styles.inputIcon}>📞</Text>
+            <TextInput
+              ref={phoneRef}
+              style={styles.input}
+              value={form.phone}
+              onChangeText={v => setField('phone', v)}
+              placeholder="+255 7XX XXX XXX"
+              placeholderTextColor="#BBB"
+              keyboardType="phone-pad"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              editable={!isLoading}
+            />
+          </View>
+          <FieldError field="phone" />
 
-          <Input label="Password" required value={form.password} onChangeText={(v) => setField('password', v)}
-            placeholder="Min. 6 characters" isPassword leftIcon="🔒" error={fieldErrors.password}
-            inputRef={passwordRef} returnKeyType="next" onSubmitEditing={() => confirmRef.current?.focus()}
-            helper="Use at least 6 characters" />
-
-          <Input label="Confirm Password" required value={form.confirmPassword}
-            onChangeText={(v) => setField('confirmPassword', v)} placeholder="Repeat your password"
-            isPassword leftIcon="🔒" error={fieldErrors.confirmPassword}
-            inputRef={confirmRef} returnKeyType="next" onSubmitEditing={() => phoneRef.current?.focus()} />
-
-          <Input label="Phone Number" value={form.phone} onChangeText={(v) => setField('phone', v)}
-            placeholder="+255 7XX XXX XXX" keyboardType="phone-pad" leftIcon="📱"
-            error={fieldErrors.phone} inputRef={phoneRef} returnKeyType="done"
-            helper="Optional — for order updates" />
-
-          {/* Language */}
-          <View style={styles.langSection}>
-            <Text style={styles.langLabel}>🌍 Language</Text>
-            <TouchableOpacity style={styles.langSelector} onPress={() => setShowLangPicker(true)}>
-              <Text style={styles.langSelectorText}>{selectedLangInfo?.flag} {selectedLangInfo?.name}</Text>
-              <Text style={styles.langArrow}>›</Text>
+          {/* Password */}
+          <Text style={styles.label}>Password *</Text>
+          <View style={[styles.inputWrap, fieldErrors.password && styles.inputError]}>
+            <Text style={styles.inputIcon}>🔒</Text>
+            <TextInput
+              ref={passwordRef}
+              style={[styles.input, { flex: 1 }]}
+              value={form.password}
+              onChangeText={v => setField('password', v)}
+              placeholder="At least 6 characters"
+              placeholderTextColor="#BBB"
+              secureTextEntry={!showPassword}
+              returnKeyType="next"
+              editable={!isLoading}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn}>
+              <Text>{showPassword ? '🙈' : '👁'}</Text>
             </TouchableOpacity>
           </View>
+          <FieldError field="password" />
 
-          {showLangPicker && (
-            <View style={styles.langPicker}>
-              {LANGUAGES.map((lang) => (
-                <TouchableOpacity key={lang.code}
-                  style={[styles.langOption, form.language === lang.code && styles.langOptionActive]}
-                  onPress={() => { setField('language', lang.code); setShowLangPicker(false); }}>
-                  <Text style={styles.langFlag}>{lang.flag}</Text>
-                  <Text style={[styles.langName, form.language === lang.code && styles.langNameActive]}>{lang.name}</Text>
-                  {form.language === lang.code && <Text style={styles.langCheck}>✓</Text>}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          {/* Confirm Password */}
+          <Text style={styles.label}>Confirm Password *</Text>
+          <View style={[styles.inputWrap, fieldErrors.confirmPassword && styles.inputError]}>
+            <Text style={styles.inputIcon}>🔒</Text>
+            <TextInput
+              style={styles.input}
+              value={form.confirmPassword}
+              onChangeText={v => setField('confirmPassword', v)}
+              placeholder="Re-enter password"
+              placeholderTextColor="#BBB"
+              secureTextEntry={!showPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleRegister}
+              editable={!isLoading}
+            />
+          </View>
+          <FieldError field="confirmPassword" />
 
           {/* Terms */}
-          <TouchableOpacity style={styles.termsRow} onPress={() => setAgreedToTerms(!agreedToTerms)} activeOpacity={0.7}>
-            <View style={[styles.checkbox, agreedToTerms && styles.checkboxActive]}>
-              {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+          <TouchableOpacity
+            style={styles.termsRow}
+            onPress={() => setAgreedToTerms(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, agreedToTerms && styles.checkboxOn]}>
+              {agreedToTerms && <Text style={styles.tick}>✓</Text>}
             </View>
             <Text style={styles.termsText}>
               I agree to VUMA's{' '}
-              <Text style={styles.termsLink} onPress={() => setShowTermsModal(true)}>
-                Terms of Service
-              </Text>
+              <Text style={styles.termsLink}>Terms & Conditions</Text>
               {' '}and{' '}
-              <Text style={styles.termsLink} onPress={() => setShowPrivacyModal(true)}>
-                Privacy Policy
-              </Text>
+              <Text style={styles.termsLink}>Privacy Policy</Text>
             </Text>
           </TouchableOpacity>
-          {fieldErrors.terms && <Text style={styles.termsError}>⚠️ {fieldErrors.terms}</Text>}
+          {fieldErrors.terms && <Text style={styles.fieldError}>{fieldErrors.terms}</Text>}
 
-          <Button
-            title={isVendorMode ? 'Create Vendor Account' : 'Create Account'}
-            onPress={handleRegister} loading={loading.register}
-            disabled={loading.register} fullWidth size="lg" style={styles.registerBtn} />
+          {/* Register Button */}
+          <TouchableOpacity
+            style={[styles.registerBtn, isLoading && styles.registerBtnLoading]}
+            onPress={handleRegister}
+            disabled={isLoading}
+            activeOpacity={0.85}
+          >
+            {isLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color="#fff" size="small" />
+                <Text style={styles.registerBtnText}>Creating account...</Text>
+              </View>
+            ) : (
+              <Text style={styles.registerBtnText}>Create Account</Text>
+            )}
+          </TouchableOpacity>
 
-          <View style={styles.loginRow}>
-            <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate(SCREENS.LOGIN)}>
-              <Text style={styles.loginLink}>Login</Text>
-            </TouchableOpacity>
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>Already have an account?</Text>
+            <View style={styles.dividerLine} />
           </View>
-        </View>
 
-        {/* Benefits */}
-        <View style={styles.benefits}>
-          {[
-            '🎁 Welcome bonus on first order',
-            '🚀 Fast delivery across Tanzania & Kenya',
-            '🔒 100% secure payments',
-            '↩️ Easy 7-day returns',
-          ].map((benefit, i) => (
-            <View key={i} style={styles.benefitItem}>
-              <Text style={styles.benefitText}>{benefit}</Text>
-            </View>
-          ))}
+          <TouchableOpacity
+            style={styles.loginBtn}
+            onPress={() => navigation.navigate('Login')}
+            disabled={isLoading}
+          >
+            <Text style={styles.loginBtnText}>Sign In</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Terms Modal */}
-      <Modal visible={showTermsModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>📄 Terms of Service</Text>
-              <TouchableOpacity onPress={() => setShowTermsModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView contentContainerStyle={{ padding: SPACING.base }}>
-              <Text style={styles.modalContent}>{TERMS_CONTENT}</Text>
-              <View style={{ height: 40 }} />
-            </ScrollView>
-            <TouchableOpacity style={styles.agreeBtn} onPress={() => { setAgreedToTerms(true); setShowTermsModal(false); }}>
-              <Text style={styles.agreeBtnText}>I Agree</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Privacy Modal */}
-      <Modal visible={showPrivacyModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>🔒 Privacy Policy</Text>
-              <TouchableOpacity onPress={() => setShowPrivacyModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView contentContainerStyle={{ padding: SPACING.base }}>
-              <Text style={styles.modalContent}>{PRIVACY_CONTENT}</Text>
-              <View style={{ height: 40 }} />
-            </ScrollView>
-            <TouchableOpacity style={styles.agreeBtn} onPress={() => { setAgreedToTerms(true); setShowPrivacyModal(false); }}>
-              <Text style={styles.agreeBtnText}>I Agree</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { flexGrow: 1, paddingHorizontal: SPACING.base, paddingBottom: SPACING['2xl'] },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.xl,
-    paddingBottom: SPACING.base,
-  },
-  backBtn: { padding: SPACING.sm, marginRight: SPACING.sm },
-  backIcon: { fontSize: FONTS.xl, color: COLORS.textPrimary, fontWeight: FONTS.bold },
-  logo: { fontSize: FONTS['3xl'], fontWeight: FONTS.black, color: COLORS.primary, letterSpacing: -1 },
-  card: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.xl, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
-  title: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
-  subtitle: { fontSize: FONTS.base, color: COLORS.textMuted, marginBottom: SPACING.xl },
-  langSection: { marginBottom: SPACING.base },
-  langLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs },
-  langSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surfaceAlt, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4 },
-  langSelectorText: { fontSize: FONTS.base, color: COLORS.textPrimary, fontWeight: FONTS.medium },
-  langArrow: { fontSize: FONTS.xl, color: COLORS.textMuted },
-  langPicker: { backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.base, overflow: 'hidden' },
-  langOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm + 2, paddingHorizontal: SPACING.base, gap: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  langOptionActive: { backgroundColor: COLORS.primaryFade },
-  langFlag: { fontSize: 22 },
-  langName: { flex: 1, fontSize: FONTS.base, color: COLORS.textSecondary },
-  langNameActive: { color: COLORS.primary, fontWeight: FONTS.bold },
-  langCheck: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.bold },
-  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.sm },
-  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: COLORS.border, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', marginTop: 2, flexShrink: 0 },
-  checkboxActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkmark: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  termsText: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20 },
-  termsLink: { color: COLORS.primary, fontWeight: FONTS.semiBold, textDecorationLine: 'underline' },
-  termsError: { fontSize: FONTS.xs, color: COLORS.danger, marginBottom: SPACING.sm, marginLeft: SPACING.lg + 4 },
-  registerBtn: { marginTop: SPACING.sm, marginBottom: SPACING.base },
-  loginRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.divider },
-  loginText: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  loginLink: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
-  benefits: { marginTop: SPACING.xl, gap: SPACING.sm },
-  benefitItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, paddingVertical: SPACING.sm + 2, paddingHorizontal: SPACING.base },
-  benefitText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
-  // Modals
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '85%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  modalTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  modalClose: { fontSize: FONTS.lg, color: COLORS.textMuted, padding: SPACING.xs },
-  modalContent: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 22 },
-  agreeBtn: { margin: SPACING.base, backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, padding: SPACING.base, alignItems: 'center' },
-  agreeBtnText: { color: COLORS.textWhite, fontSize: FONTS.base, fontWeight: FONTS.bold },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  scroll: { flexGrow: 1, paddingHorizontal: 16, paddingBottom: 40 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 20, paddingBottom: 8 },
+  backBtn: { padding: 8 },
+  backIcon: { fontSize: 22, color: '#FF6B00', fontWeight: '700' },
+  logo: { fontSize: 24, fontWeight: '900', color: '#FF6B00', letterSpacing: -1 },
+  title: { fontSize: 26, fontWeight: '800', color: '#1A1A1A', marginBottom: 4 },
+  subtitle: { fontSize: 14, color: '#999', marginBottom: 20 },
+  card: { backgroundColor: '#fff', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
+  label: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6, marginTop: 12 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#fff', minHeight: 50 },
+  inputError: { borderColor: '#DC3545' },
+  inputIcon: { fontSize: 16, marginRight: 8 },
+  input: { flex: 1, fontSize: 15, color: '#1A1A1A', paddingVertical: 12 },
+  eyeBtn: { padding: 8 },
+  fieldError: { fontSize: 12, color: '#DC3545', marginTop: 4 },
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 16, marginBottom: 4 },
+  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: '#E0E0E0', borderRadius: 4, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  checkboxOn: { backgroundColor: '#FF6B00', borderColor: '#FF6B00' },
+  tick: { color: 'white', fontSize: 11, fontWeight: '900' },
+  termsText: { flex: 1, fontSize: 13, color: '#555', lineHeight: 20 },
+  termsLink: { color: '#FF6B00', fontWeight: '600' },
+  registerBtn: { backgroundColor: '#FF6B00', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 20, shadowColor: '#FF6B00', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
+  registerBtnLoading: { opacity: 0.8, shadowOpacity: 0 },
+  registerBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#F0F0F0' },
+  dividerText: { fontSize: 12, color: '#BBB', fontWeight: '500' },
+  loginBtn: { borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  loginBtnText: { fontSize: 15, color: '#555', fontWeight: '600' },
 });

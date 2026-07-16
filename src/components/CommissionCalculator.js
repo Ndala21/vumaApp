@@ -1,7 +1,7 @@
 /**
  * VUMA Commission Calculator
- * Shows sellers exact fees before listing and at checkout
- * Tanzania-friendly, transparent, easy to understand
+ * MVP: Shows Sale Price, VUMA Fee, Net Payout only
+ * VAT hidden for MVP — modular, easy to re-enable
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
@@ -11,7 +11,10 @@ import {
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { get } from '../api/client';
 
-// ── Inline Commission Badge (for product listing forms) ──
+// Set to true when VUMA becomes VAT-registered
+const SHOW_VAT = false;
+
+// ── Commission Badge (for product listing forms) ──────
 export const CommissionBadge = memo(({ categorySlug, price, quantity = 1, style }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -20,11 +23,7 @@ export const CommissionBadge = memo(({ categorySlug, price, quantity = 1, style 
     if (!categorySlug || !price || Number(price) <= 0) { setData(null); return; }
     setLoading(true);
     try {
-      const result = await get('/payments/commission/calculate/', {
-        category: categorySlug,
-        amount: price,
-        quantity,
-      });
+      const result = await get('/payments/commission/calculate/', { category: categorySlug, amount: price, quantity });
       setData(result);
     } catch { setData(null); }
     finally { setLoading(false); }
@@ -44,17 +43,21 @@ export const CommissionBadge = memo(({ categorySlug, price, quantity = 1, style 
   return (
     <View style={[styles.badge, style]}>
       <Text style={styles.badgeTitle}>💰 Your Earnings</Text>
+
       <View style={styles.badgeRow}>
         <Text style={styles.badgeLabel}>Sale Price</Text>
         <Text style={styles.badgeValue}>TZS {Number(data.gross_sale).toLocaleString()}</Text>
       </View>
+
       <View style={styles.badgeRow}>
         <Text style={styles.badgeLabel}>VUMA Fee ({data.commission_rate}%)</Text>
         <Text style={[styles.badgeValue, { color: COLORS.danger }]}>
           - TZS {Number(data.commission_amount).toLocaleString()}
         </Text>
       </View>
-      {data.vat_on_commission > 0 && (
+
+      {/* VAT row — hidden for MVP */}
+      {SHOW_VAT && data.vat_on_commission > 0 && (
         <View style={styles.badgeRow}>
           <Text style={styles.badgeLabel}>VAT on Fee (18%)</Text>
           <Text style={[styles.badgeValue, { color: COLORS.danger }]}>
@@ -62,17 +65,20 @@ export const CommissionBadge = memo(({ categorySlug, price, quantity = 1, style 
           </Text>
         </View>
       )}
+
       <View style={styles.badgeDivider} />
+
       <View style={styles.badgeRow}>
         <Text style={styles.badgeNetLabel}>You Receive</Text>
         <Text style={styles.badgeNetValue}>TZS {Number(data.net_payout).toLocaleString()}</Text>
       </View>
+
       {data.note ? <Text style={styles.badgeNote}>{data.note}</Text> : null}
     </View>
   );
 });
 
-// ── Full Commission Breakdown Card ────────────────────
+// ── Full Commission Breakdown Card ─────────────────────
 export const CommissionBreakdown = memo(({ categorySlug, price, quantity = 1, style }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -82,11 +88,7 @@ export const CommissionBreakdown = memo(({ categorySlug, price, quantity = 1, st
     if (!categorySlug || !price || Number(price) <= 0) return;
     setLoading(true);
     try {
-      const result = await get('/payments/commission/calculate/', {
-        category: categorySlug,
-        amount: price,
-        quantity,
-      });
+      const result = await get('/payments/commission/calculate/', { category: categorySlug, amount: price, quantity });
       setData(result);
     } catch {}
     finally { setLoading(false); }
@@ -102,31 +104,35 @@ export const CommissionBreakdown = memo(({ categorySlug, price, quantity = 1, st
         <View style={styles.cardHeaderLeft}>
           <Text style={styles.cardIcon}>💳</Text>
           <View>
-            <Text style={styles.cardTitle}>Commission & Earnings</Text>
+            <Text style={styles.cardTitle}>Fee Breakdown</Text>
             {data && !loading && (
               <Text style={styles.cardSubtitle}>
-                You receive: <Text style={styles.cardNetHighlight}>TZS {Number(data.net_payout).toLocaleString()}</Text>
+                You receive:{' '}
+                <Text style={styles.cardNetHighlight}>
+                  TZS {Number(data.net_payout).toLocaleString()}
+                </Text>
               </Text>
             )}
           </View>
         </View>
-        <Text style={styles.cardArrow}>{expanded ? '▲' : '▼'}</Text>
+        {loading
+          ? <ActivityIndicator size="small" color={COLORS.primary} />
+          : <Text style={styles.cardArrow}>{expanded ? '▲' : '▼'}</Text>
+        }
       </TouchableOpacity>
-
-      {loading && (
-        <View style={styles.cardLoading}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
-          <Text style={styles.cardLoadingText}>Calculating...</Text>
-        </View>
-      )}
 
       {data && expanded && (
         <View style={styles.cardBody}>
+          {/* Sale Price */}
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Sale Price</Text>
-            <Text style={styles.breakdownValue}>TZS {Number(data.gross_sale).toLocaleString()}</Text>
+            <Text style={styles.breakdownValue}>
+              TZS {Number(data.gross_sale).toLocaleString()}
+            </Text>
           </View>
-          <View style={[styles.breakdownRow, styles.breakdownFee]}>
+
+          {/* VUMA Fee */}
+          <View style={[styles.breakdownRow, styles.breakdownFeeRow]}>
             <View>
               <Text style={styles.breakdownLabel}>VUMA Marketplace Fee</Text>
               <Text style={styles.breakdownRate}>{data.commission_rate}% of sale price</Text>
@@ -135,8 +141,10 @@ export const CommissionBreakdown = memo(({ categorySlug, price, quantity = 1, st
               - TZS {Number(data.commission_amount).toLocaleString()}
             </Text>
           </View>
-          {data.vat_on_commission > 0 && (
-            <View style={[styles.breakdownRow, styles.breakdownFee]}>
+
+          {/* VAT — hidden for MVP, shown when SHOW_VAT = true */}
+          {SHOW_VAT && data.vat_on_commission > 0 && (
+            <View style={[styles.breakdownRow, styles.breakdownFeeRow]}>
               <View>
                 <Text style={styles.breakdownLabel}>VAT on Commission</Text>
                 <Text style={styles.breakdownRate}>18% on commission only</Text>
@@ -146,16 +154,17 @@ export const CommissionBreakdown = memo(({ categorySlug, price, quantity = 1, st
               </Text>
             </View>
           )}
+
           <View style={styles.breakdownDivider} />
+
+          {/* Net Payout */}
           <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownNetLabel}>💰 Your Net Payout</Text>
-            <Text style={styles.breakdownNetValue}>TZS {Number(data.net_payout).toLocaleString()}</Text>
-          </View>
-          <View style={styles.breakdownTotal}>
-            <Text style={styles.breakdownTotalLabel}>
-              Total deducted: TZS {Number(data.total_deduction).toLocaleString()}
+            <Text style={styles.breakdownNetLabel}>💰 You Receive</Text>
+            <Text style={styles.breakdownNetValue}>
+              TZS {Number(data.net_payout).toLocaleString()}
             </Text>
           </View>
+
           {data.note ? <Text style={styles.breakdownNote}>{data.note}</Text> : null}
         </View>
       )}
@@ -163,7 +172,7 @@ export const CommissionBreakdown = memo(({ categorySlug, price, quantity = 1, st
   );
 });
 
-// ── Vendor Statement Screen ───────────────────────────
+// ── Vendor Earnings Card ───────────────────────────────
 export const VendorEarningsCard = memo(({ style }) => {
   const [statement, setStatement] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -181,7 +190,6 @@ export const VendorEarningsCard = memo(({ style }) => {
       <ActivityIndicator color={COLORS.primary} />
     </View>
   );
-
   if (!statement) return null;
 
   const s = statement.summary;
@@ -193,25 +201,32 @@ export const VendorEarningsCard = memo(({ style }) => {
       <View style={styles.earningsGrid}>
         <View style={styles.earningsStat}>
           <Text style={styles.earningsStatValue}>{s.total_transactions}</Text>
-          <Text style={styles.earningsStatLabel}>Total Sales</Text>
+          <Text style={styles.earningsStatLabel}>Total Orders</Text>
         </View>
         <View style={styles.earningsStat}>
           <Text style={styles.earningsStatValue}>{s.total_sales}</Text>
           <Text style={styles.earningsStatLabel}>Gross Revenue</Text>
         </View>
         <View style={styles.earningsStat}>
-          <Text style={[styles.earningsStatValue, { color: COLORS.danger }]}>{s.total_deductions}</Text>
-          <Text style={styles.earningsStatLabel}>Total Fees</Text>
+          <Text style={[styles.earningsStatValue, { color: COLORS.danger }]}>
+            {s.total_commission_paid}
+          </Text>
+          <Text style={styles.earningsStatLabel}>VUMA Fees</Text>
         </View>
         <View style={[styles.earningsStat, styles.earningsStatHighlight]}>
-          <Text style={[styles.earningsStatValue, { color: 'white' }]}>{s.total_net_earnings}</Text>
-          <Text style={[styles.earningsStatLabel, { color: 'rgba(255,255,255,0.8)' }]}>Net Earnings</Text>
+          <Text style={[styles.earningsStatValue, { color: 'white' }]}>
+            {s.total_net_earnings}
+          </Text>
+          <Text style={[styles.earningsStatLabel, { color: 'rgba(255,255,255,0.8)' }]}>
+            Net Earnings
+          </Text>
         </View>
       </View>
 
+      {/* Recent Transactions */}
       {statement.transactions?.length > 0 && (
         <View style={styles.txList}>
-          <Text style={styles.txListTitle}>Recent Transactions</Text>
+          <Text style={styles.txListTitle}>Recent Sales</Text>
           {statement.transactions.slice(0, 5).map((tx, i) => (
             <View key={i} style={styles.txRow}>
               <View style={styles.txInfo}>
@@ -220,11 +235,18 @@ export const VendorEarningsCard = memo(({ style }) => {
               </View>
               <View style={styles.txAmounts}>
                 <Text style={styles.txNet}>{tx.net_payout}</Text>
-                <Text style={styles.txGross}>{tx.gross_sale}</Text>
+                <Text style={styles.txGross}>{tx.gross_sale} gross</Text>
               </View>
             </View>
           ))}
         </View>
+      )}
+
+      {/* Re-enable VAT info when needed */}
+      {SHOW_VAT && (
+        <Text style={styles.vatNote}>
+          * 18% VAT applied on VUMA fees only, not on your sale price.
+        </Text>
       )}
     </View>
   );
@@ -251,20 +273,16 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: 2 },
   cardNetHighlight: { color: COLORS.success, fontWeight: FONTS.bold },
   cardArrow: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  cardLoading: { flexDirection: 'row', alignItems: 'center', padding: SPACING.base, gap: SPACING.sm },
-  cardLoadingText: { fontSize: FONTS.sm, color: COLORS.textMuted },
   cardBody: { padding: SPACING.base, paddingTop: 0, borderTopWidth: 1, borderTopColor: COLORS.divider },
   // Breakdown
   breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm },
-  breakdownFee: { backgroundColor: COLORS.dangerLight + '40', borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, marginHorizontal: -SPACING.sm },
+  breakdownFeeRow: { backgroundColor: '#FFF3F3', borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, marginHorizontal: -SPACING.sm },
   breakdownLabel: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
   breakdownRate: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   breakdownValue: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
   breakdownDivider: { height: 1.5, backgroundColor: COLORS.divider, marginVertical: SPACING.sm },
   breakdownNetLabel: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.textPrimary },
   breakdownNetValue: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.success },
-  breakdownTotal: { alignItems: 'flex-end', marginTop: 4 },
-  breakdownTotalLabel: { fontSize: FONTS.xs, color: COLORS.textMuted },
   breakdownNote: { fontSize: FONTS.xs, color: COLORS.primary, marginTop: SPACING.sm, textAlign: 'center' },
   // Earnings Card
   earningsCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, ...SHADOWS.md },
@@ -283,4 +301,5 @@ const styles = StyleSheet.create({
   txAmounts: { alignItems: 'flex-end' },
   txNet: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.success },
   txGross: { fontSize: FONTS.xs, color: COLORS.textMuted },
+  vatNote: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: SPACING.sm, textAlign: 'center' },
 });
