@@ -344,7 +344,7 @@ export default function CartScreen({ navigation }) {
             </View>
           );
         }}
-        ListFooterComponent={<View style={{ height: 200 }} />}
+        ListFooterComponent={<View style={{ height: 280 }} />}
       />
 
       <View style={styles.summary}>
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxTick: { color: 'white', fontSize: 13, fontWeight: FONTS.black },
   checkboxIndeterminate: { width: 10, height: 2, backgroundColor: COLORS.primary, borderRadius: 1 },
-  summary: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingHorizontal: SPACING.base, paddingTop: SPACING.sm, paddingBottom: Platform.OS === 'ios' ? 34 : SPACING.base, ...SHADOWS.lg },
+  summary: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingHorizontal: SPACING.base, paddingTop: SPACING.sm, paddingBottom: Platform.OS === 'ios' ? 44 : 20, ...SHADOWS.lg },
   summaryBreakdown: { gap: SPACING.xs, marginBottom: SPACING.sm },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { fontSize: FONTS.sm, color: COLORS.textMuted },
