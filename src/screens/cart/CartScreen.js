@@ -1,50 +1,70 @@
 /**
  * VUMA Store — Cart Screen (Coupang-style)
- * Checkboxes, Select All, grouped by seller, sticky summary
+ * Fixed: uses item.product.* structure, real vendor names, real images
  */
 
 import React, { useState, useCallback, useMemo, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  StatusBar, Platform, Alert, Animated, ScrollView,
+  StatusBar, Platform, Alert, Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  selectCartItems, removeFromCart, updateQuantity,
-  clearCart, selectCartTotal,
+  selectCartItems, removeFromCart, updateQuantity, clearCart,
 } from '../../store/cartSlice';
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
-import { formatPrice } from '../../utils/helpers';
-import { Image } from 'react-native';
 
-const DELIVERY_FEE = 0; // Free Delivery
+const DELIVERY_FEE = 0;
+
+// ── Get product image URL ──────────────────────────────
+function getProductImage(product) {
+  if (!product) return null;
+  // Try all common image field patterns from Django serializer
+  if (product.primary_image) return product.primary_image;
+  if (product.image) return product.image;
+  if (product.image_url) return product.image_url;
+  if (product.thumbnail) return product.thumbnail;
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const img = product.images[0];
+    return typeof img === 'string' ? img : img?.image || img?.url || img?.file || null;
+  }
+  return null;
+}
+
+// ── Get vendor/seller name ─────────────────────────────
+function getVendorName(product) {
+  if (!product) return 'VUMA Store';
+  return (
+    product.vendor_name ||
+    product.shop_name ||
+    product.vendor?.shop_name ||
+    product.vendor?.username ||
+    product.seller_name ||
+    'VUMA Store'
+  );
+}
 
 // ── Checkbox ──────────────────────────────────────────
 const Checkbox = memo(({ checked, onPress, size = 22, indeterminate = false }) => (
   <TouchableOpacity
     onPress={onPress}
-    style={[styles.checkbox, checked && styles.checkboxChecked, { width: size, height: size, borderRadius: size * 0.2 }]}
+    style={[styles.checkbox, checked && styles.checkboxChecked,
+      { width: size, height: size, borderRadius: size * 0.2 }]}
     activeOpacity={0.7}
     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
   >
     {indeterminate && !checked
       ? <View style={styles.checkboxIndeterminate} />
-      : checked
-      ? <Text style={styles.checkboxTick}>✓</Text>
-      : null
-    }
+      : checked ? <Text style={styles.checkboxTick}>✓</Text> : null}
   </TouchableOpacity>
 ));
 
 // ── Quantity Stepper ───────────────────────────────────
-const QuantityStepper = memo(({ quantity, onDecrease, onIncrease, minQty = 1 }) => (
+const QuantityStepper = memo(({ quantity, onDecrease, onIncrease }) => (
   <View style={styles.stepper}>
-    <TouchableOpacity
-      style={[styles.stepperBtn, quantity <= minQty && styles.stepperBtnDisabled]}
-      onPress={onDecrease}
-      disabled={quantity <= minQty}
-    >
+    <TouchableOpacity style={[styles.stepperBtn, quantity <= 1 && styles.stepperBtnDisabled]}
+      onPress={onDecrease} disabled={quantity <= 1}>
       <Text style={styles.stepperBtnText}>−</Text>
     </TouchableOpacity>
     <Text style={styles.stepperValue}>{quantity}</Text>
@@ -56,49 +76,63 @@ const QuantityStepper = memo(({ quantity, onDecrease, onIncrease, minQty = 1 }) 
 
 // ── Cart Item ─────────────────────────────────────────
 const CartItem = memo(({ item, selected, onToggle, onQuantityChange, onDelete }) => {
-  const itemTotal = item.price * item.quantity;
+  const product = item.product;
+  const price = Number(product.discounted_price || product.price || 0);
+  const originalPrice = Number(product.price || 0);
+  const imageUrl = getProductImage(product);
+  const itemTotal = price * item.quantity;
 
   return (
     <View style={[styles.cartItem, selected && styles.cartItemSelected]}>
       <Checkbox checked={selected} onPress={onToggle} />
 
-      <TouchableOpacity activeOpacity={0.9} style={styles.cartItemImageWrap}>
-        <Image
-          uri={item.image}
-          style={styles.cartItemImage}
-          fallbackIcon="🛍️"
-        />
-        {item.discount_percent > 0 && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountBadgeText}>-{item.discount_percent}%</Text>
+      <View style={styles.cartItemImageWrap}>
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.cartItemImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.cartItemImage, styles.cartItemImagePlaceholder]}>
+            <Text style={styles.cartItemImageIcon}>🛍️</Text>
           </View>
         )}
-      </TouchableOpacity>
+        {product.discount_percent > 0 && (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountBadgeText}>-{product.discount_percent}%</Text>
+          </View>
+        )}
+      </View>
 
       <View style={styles.cartItemInfo}>
-        <Text style={styles.cartItemName} numberOfLines={2}>{item.name}</Text>
+        <Text style={styles.cartItemName} numberOfLines={2}>
+          {product.name || 'Product'}
+        </Text>
 
-        {item.selected_size && (
-          <Text style={styles.cartItemVariant}>Size: {item.selected_size}</Text>
+        {item.selectedSize && (
+          <Text style={styles.cartItemVariant}>Size: {item.selectedSize}</Text>
         )}
-        {item.selected_color && (
-          <Text style={styles.cartItemVariant}>Color: {item.selected_color}</Text>
+        {item.selectedColor && (
+          <Text style={styles.cartItemVariant}>Color: {item.selectedColor}</Text>
         )}
 
         <View style={styles.cartItemPriceRow}>
           <Text style={styles.cartItemPrice}>TZS {itemTotal.toLocaleString()}</Text>
-          {item.original_price && item.original_price > item.price && (
-            <Text style={styles.cartItemOriginal}>TZS {(item.original_price * item.quantity).toLocaleString()}</Text>
+          {originalPrice > price && (
+            <Text style={styles.cartItemOriginal}>
+              TZS {(originalPrice * item.quantity).toLocaleString()}
+            </Text>
           )}
         </View>
 
         <View style={styles.cartItemActions}>
           <QuantityStepper
             quantity={item.quantity}
-            onDecrease={() => onQuantityChange(item.id, item.quantity - 1)}
-            onIncrease={() => onQuantityChange(item.id, item.quantity + 1)}
+            onDecrease={() => onQuantityChange(product.id, item.quantity - 1)}
+            onIncrease={() => onQuantityChange(product.id, item.quantity + 1)}
           />
-          <TouchableOpacity onPress={() => onDelete(item.id)} style={styles.deleteBtn}>
+          <TouchableOpacity onPress={() => onDelete(product.id)} style={styles.deleteBtn}>
             <Text style={styles.deleteBtnText}>🗑 Remove</Text>
           </TouchableOpacity>
         </View>
@@ -110,12 +144,8 @@ const CartItem = memo(({ item, selected, onToggle, onQuantityChange, onDelete })
 // ── Seller Group Header ───────────────────────────────
 const SellerGroupHeader = memo(({ seller, allSelected, someSelected, onToggleAll }) => (
   <View style={styles.sellerHeader}>
-    <Checkbox
-      checked={allSelected}
-      indeterminate={someSelected && !allSelected}
-      onPress={onToggleAll}
-      size={20}
-    />
+    <Checkbox checked={allSelected} indeterminate={someSelected && !allSelected}
+      onPress={onToggleAll} size={20} />
     <Text style={styles.sellerHeaderIcon}>🏪</Text>
     <Text style={styles.sellerHeaderName}>{seller}</Text>
     <View style={styles.sellerFreeDelivery}>
@@ -129,14 +159,16 @@ export default function CartScreen({ navigation }) {
   const cartItems = useSelector(selectCartItems);
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
-  // Selected item IDs
-  const [selectedIds, setSelectedIds] = useState(new Set(cartItems.map(i => i.id)));
+  // Select all by default
+  const [selectedIds, setSelectedIds] = useState(() =>
+    new Set(cartItems.map(i => i.product?.id))
+  );
 
-  // Group items by seller
+  // Group by vendor name
   const groupedBySeller = useMemo(() => {
     const groups = {};
     cartItems.forEach(item => {
-      const seller = item.shop_name || item.vendor_name || 'VUMA Store';
+      const seller = getVendorName(item.product);
       if (!groups[seller]) groups[seller] = [];
       groups[seller].push(item);
     });
@@ -145,48 +177,48 @@ export default function CartScreen({ navigation }) {
 
   const sellers = Object.keys(groupedBySeller);
 
-  // Selected items
   const selectedItems = useMemo(
-    () => cartItems.filter(i => selectedIds.has(i.id)),
+    () => cartItems.filter(i => selectedIds.has(i.product?.id)),
     [cartItems, selectedIds]
   );
 
-  // Totals
   const subtotal = useMemo(
-    () => selectedItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
-    [selectedItems]
-  );
-  const discount = useMemo(
     () => selectedItems.reduce((sum, i) => {
-      if (i.original_price && i.original_price > i.price) {
-        return sum + (i.original_price - i.price) * i.quantity;
-      }
-      return sum;
+      const price = Number(i.product?.discounted_price || i.product?.price || 0);
+      return sum + price * i.quantity;
     }, 0),
     [selectedItems]
   );
-  const total = subtotal + DELIVERY_FEE;
 
+  const discount = useMemo(
+    () => selectedItems.reduce((sum, i) => {
+      const price = Number(i.product?.discounted_price || i.product?.price || 0);
+      const original = Number(i.product?.price || 0);
+      return sum + Math.max(0, original - price) * i.quantity;
+    }, 0),
+    [selectedItems]
+  );
+
+  const total = subtotal + DELIVERY_FEE;
   const allSelected = cartItems.length > 0 && selectedIds.size === cartItems.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < cartItems.length;
 
   const toggleItem = useCallback((id) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }, []);
 
   const toggleAll = useCallback(() => {
     if (allSelected) setSelectedIds(new Set());
-    else setSelectedIds(new Set(cartItems.map(i => i.id)));
+    else setSelectedIds(new Set(cartItems.map(i => i.product?.id)));
   }, [allSelected, cartItems]);
 
   const toggleSeller = useCallback((seller) => {
     const sellerItems = groupedBySeller[seller];
-    const sellerIds = sellerItems.map(i => i.id);
+    const sellerIds = sellerItems.map(i => i.product?.id);
     const allSellerSelected = sellerIds.every(id => selectedIds.has(id));
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -196,31 +228,31 @@ export default function CartScreen({ navigation }) {
     });
   }, [groupedBySeller, selectedIds]);
 
-  const handleQuantityChange = useCallback((id, qty) => {
+  const handleQuantityChange = useCallback((productId, qty) => {
     if (qty < 1) return;
-    dispatch(updateQuantity({ id, quantity: qty }));
+    dispatch(updateQuantity({ productId, quantity: qty }));
   }, [dispatch]);
 
-  const handleDelete = useCallback((id) => {
+  const handleDelete = useCallback((productId) => {
     Alert.alert('Remove Item', 'Remove this item from cart?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove', style: 'destructive',
         onPress: () => {
-          dispatch(removeFromCart({ id }));
-          setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+          dispatch(removeFromCart(productId));
+          setSelectedIds(prev => { const next = new Set(prev); next.delete(productId); return next; });
         },
       },
     ]);
   }, [dispatch]);
 
   const handleDeleteSelected = useCallback(() => {
-    Alert.alert('Remove Selected', `Remove ${selectedIds.size} items from cart?`, [
+    Alert.alert('Remove Selected', `Remove ${selectedIds.size} items?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove', style: 'destructive',
         onPress: () => {
-          selectedIds.forEach(id => dispatch(removeFromCart({ id })));
+          selectedIds.forEach(id => dispatch(removeFromCart(id)));
           setSelectedIds(new Set());
         },
       },
@@ -239,7 +271,6 @@ export default function CartScreen({ navigation }) {
     navigation.navigate('Checkout', { items: selectedItems, total });
   }, [isAuthenticated, selectedItems, total, navigation]);
 
-  // Empty cart
   if (cartItems.length === 0) {
     return (
       <View style={styles.container}>
@@ -263,7 +294,6 @@ export default function CartScreen({ navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Cart ({cartItems.length})</Text>
         {selectedIds.size > 0 && (
@@ -273,23 +303,16 @@ export default function CartScreen({ navigation }) {
         )}
       </View>
 
-      {/* Select All Bar */}
       <View style={styles.selectAllBar}>
-        <Checkbox
-          checked={allSelected}
-          indeterminate={someSelected}
-          onPress={toggleAll}
-          size={22}
-        />
+        <Checkbox checked={allSelected} indeterminate={someSelected} onPress={toggleAll} size={22} />
         <Text style={styles.selectAllText}>
-          {allSelected ? 'Deselect All' : 'Select All'} ({cartItems.length} items)
+          {allSelected ? 'Deselect All' : 'Select All'} ({cartItems.length})
         </Text>
         {selectedIds.size > 0 && (
           <Text style={styles.selectedCount}>{selectedIds.size} selected</Text>
         )}
       </View>
 
-      {/* Cart Items grouped by seller */}
       <FlatList
         data={sellers}
         keyExtractor={seller => seller}
@@ -297,10 +320,9 @@ export default function CartScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         renderItem={({ item: seller }) => {
           const sellerItems = groupedBySeller[seller];
-          const sellerIds = sellerItems.map(i => i.id);
+          const sellerIds = sellerItems.map(i => i.product?.id);
           const allSellerSelected = sellerIds.every(id => selectedIds.has(id));
           const someSellerSelected = sellerIds.some(id => selectedIds.has(id));
-
           return (
             <View style={styles.sellerGroup}>
               <SellerGroupHeader
@@ -313,8 +335,8 @@ export default function CartScreen({ navigation }) {
                 <CartItem
                   key={item.id}
                   item={item}
-                  selected={selectedIds.has(item.id)}
-                  onToggle={() => toggleItem(item.id)}
+                  selected={selectedIds.has(item.product?.id)}
+                  onToggle={() => toggleItem(item.product?.id)}
                   onQuantityChange={handleQuantityChange}
                   onDelete={handleDelete}
                 />
@@ -325,9 +347,7 @@ export default function CartScreen({ navigation }) {
         ListFooterComponent={<View style={{ height: 200 }} />}
       />
 
-      {/* Sticky Bottom Summary */}
       <View style={styles.summary}>
-        {/* Breakdown */}
         <View style={styles.summaryBreakdown}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>
@@ -347,13 +367,11 @@ export default function CartScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Total */}
         <View style={styles.summaryTotalRow}>
           <Text style={styles.summaryTotalLabel}>Total</Text>
           <Text style={styles.summaryTotalValue}>TZS {total.toLocaleString()}</Text>
         </View>
 
-        {/* Checkout Button */}
         <TouchableOpacity
           style={[styles.checkoutBtn, selectedItems.length === 0 && styles.checkoutBtnDisabled]}
           onPress={handleCheckout}
@@ -363,8 +381,7 @@ export default function CartScreen({ navigation }) {
           <Text style={styles.checkoutBtnText}>
             {selectedItems.length === 0
               ? 'Select Items to Checkout'
-              : `Proceed to Checkout (${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''})`
-            }
+              : `Proceed to Checkout (${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''})`}
           </Text>
           {selectedItems.length > 0 && (
             <Text style={styles.checkoutBtnAmount}>TZS {total.toLocaleString()}</Text>
@@ -385,7 +402,7 @@ const styles = StyleSheet.create({
   selectedCount: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
   listContent: { padding: SPACING.sm, gap: SPACING.sm },
   sellerGroup: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, overflow: 'hidden', ...SHADOWS.sm },
-  sellerHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderBottomWidth: 1, borderBottomColor: COLORS.divider, gap: SPACING.sm, backgroundColor: COLORS.surface },
+  sellerHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderBottomWidth: 1, borderBottomColor: COLORS.divider, gap: SPACING.sm },
   sellerHeaderIcon: { fontSize: 16 },
   sellerHeaderName: { flex: 1, fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   sellerFreeDelivery: { backgroundColor: '#E8F5E9', borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
@@ -394,6 +411,8 @@ const styles = StyleSheet.create({
   cartItemSelected: { backgroundColor: '#FFFBF7' },
   cartItemImageWrap: { position: 'relative' },
   cartItemImage: { width: 90, height: 90, borderRadius: RADIUS.lg, backgroundColor: COLORS.surfaceAlt },
+  cartItemImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  cartItemImageIcon: { fontSize: 32 },
   discountBadge: { position: 'absolute', top: 4, left: 4, backgroundColor: COLORS.danger, borderRadius: RADIUS.sm, paddingHorizontal: 4, paddingVertical: 1 },
   discountBadgeText: { fontSize: FONTS.xs - 1, color: 'white', fontWeight: FONTS.bold },
   cartItemInfo: { flex: 1, gap: SPACING.xs },
@@ -405,18 +424,15 @@ const styles = StyleSheet.create({
   cartItemActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: SPACING.xs },
   deleteBtn: { padding: SPACING.xs },
   deleteBtnText: { fontSize: FONTS.xs, color: COLORS.danger, fontWeight: FONTS.medium },
-  // Stepper
   stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.lg, overflow: 'hidden' },
   stepperBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
   stepperBtnDisabled: { opacity: 0.4 },
   stepperBtnText: { fontSize: FONTS.lg, color: COLORS.textPrimary, fontWeight: FONTS.bold, lineHeight: 22 },
   stepperValue: { width: 36, textAlign: 'center', fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  // Checkbox
-  checkbox: { width: 22, height: 22, borderWidth: 2, borderColor: COLORS.border, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+  checkbox: { borderWidth: 2, borderColor: COLORS.border, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxTick: { color: 'white', fontSize: 13, fontWeight: FONTS.black },
   checkboxIndeterminate: { width: 10, height: 2, backgroundColor: COLORS.primary, borderRadius: 1 },
-  // Summary
   summary: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingHorizontal: SPACING.base, paddingTop: SPACING.sm, paddingBottom: Platform.OS === 'ios' ? 34 : SPACING.base, ...SHADOWS.lg },
   summaryBreakdown: { gap: SPACING.xs, marginBottom: SPACING.sm },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -427,11 +443,10 @@ const styles = StyleSheet.create({
   summaryTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.divider, marginBottom: SPACING.sm },
   summaryTotalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   summaryTotalValue: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.primary },
-  checkoutBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingVertical: SPACING.base, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, ...SHADOWS.primary },
-  checkoutBtnDisabled: { backgroundColor: COLORS.textLight, shadowOpacity: 0 },
+  checkoutBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingVertical: SPACING.base, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: SPACING.xl },
+  checkoutBtnDisabled: { backgroundColor: COLORS.textLight },
   checkoutBtnText: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: 'white' },
   checkoutBtnAmount: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.85)', fontWeight: FONTS.semiBold },
-  // Empty
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   emptyIcon: { fontSize: 72, marginBottom: SPACING.base },
   emptyTitle: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs },

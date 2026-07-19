@@ -1,7 +1,6 @@
 /**
  * VUMA Store — Profile Screen
- * Guest: Sign In, Create Account, Become a Seller
- * Logged in: Full menu with Logout + Delete Account + Invite & Earn
+ * Fixed: Seller Dashboard navigation uses correct screen name
  */
 
 import React, { useState } from 'react';
@@ -37,7 +36,7 @@ export default function ProfileScreen({ navigation }) {
     setShowDeleteModal(false);
     Alert.alert(
       '⚠️ Final Warning',
-      'This will permanently delete your account and all your data. This action CANNOT be undone. Are you absolutely sure?',
+      'This will permanently delete your account and all your data. This action CANNOT be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -55,6 +54,36 @@ export default function ProfileScreen({ navigation }) {
         },
       ]
     );
+  };
+
+  // ── Navigate to Seller Dashboard ──────────────────
+  const handleGoToDashboard = () => {
+    const isVendor = user?.role === 'vendor';
+    const isApproved = user?.vendor_status === 'approved';
+
+    if (!isAuthenticated) {
+      navigation.navigate('Auth', { screen: 'Login' });
+      return;
+    }
+
+    if (isVendor && isApproved) {
+      // Navigate to VendorDashboard tab inside VendorNavigator
+      // The tab is named SCREENS.VENDOR_DASHBOARD = 'VendorDashboard'
+      navigation.navigate('VendorDashboard');
+      return;
+    }
+
+    if (isVendor && !isApproved) {
+      Alert.alert(
+        '⏳ Application Pending',
+        'Your seller application is being reviewed. We will notify you once approved.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Not a vendor - go to registration
+    navigation.navigate('VendorRegister');
   };
 
   // ── GUEST SCREEN ─────────────────────────────────
@@ -119,6 +148,7 @@ export default function ProfileScreen({ navigation }) {
 
   // ── LOGGED IN SCREEN ──────────────────────────────
   const isVendor = user?.role === 'vendor';
+  const isApprovedVendor = isVendor && user?.vendor_status === 'approved';
   const initials = (user?.username || user?.email || 'U')[0].toUpperCase();
 
   const MENU_ITEMS = [
@@ -150,14 +180,17 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.userEmail}>{user?.email}</Text>
             {user?.phone ? <Text style={styles.userPhone}>📞 {user.phone}</Text> : null}
             {isVendor && (
-              <View style={styles.vendorBadge}>
-                <Text style={styles.vendorBadgeText}>🏪 Verified Seller</Text>
+              <View style={[styles.vendorBadge,
+                !isApprovedVendor && styles.vendorBadgePending]}>
+                <Text style={styles.vendorBadgeText}>
+                  {isApprovedVendor ? '🏪 Verified Seller' : '⏳ Seller Application Pending'}
+                </Text>
               </View>
             )}
           </View>
         </View>
 
-        {/* Invite & Earn Banner */}
+        {/* Referral Banner */}
         <TouchableOpacity
           style={styles.referralBanner}
           onPress={() => navigation.navigate('Referral')}
@@ -171,13 +204,30 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.referralBannerArrow}>›</Text>
         </TouchableOpacity>
 
-        {/* Vendor Dashboard shortcut */}
+        {/* Vendor Dashboard Button */}
         {isVendor && (
           <TouchableOpacity
-            style={styles.vendorDashBtn}
-            onPress={() => navigation.navigate('Tabs')}
+            style={[styles.vendorDashBtn, !isApprovedVendor && styles.vendorDashBtnPending]}
+            onPress={handleGoToDashboard}
           >
-            <Text style={styles.vendorDashText}>🏪 Go to Seller Dashboard</Text>
+            <Text style={styles.vendorDashText}>
+              {isApprovedVendor ? '🏪 Go to Seller Dashboard' : '⏳ Check Application Status'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Become Seller (for non-vendors) */}
+        {!isVendor && (
+          <TouchableOpacity
+            style={styles.becomeSellerBtn}
+            onPress={() => navigation.navigate('VendorRegister')}
+          >
+            <Text style={styles.becomeSellerIcon}>🏪</Text>
+            <View style={styles.becomeSellerText}>
+              <Text style={styles.becomeSellerTitle}>Become a VUMA Seller</Text>
+              <Text style={styles.becomeSellerSub}>Commission from 3% only · Free registration</Text>
+            </View>
+            <Text style={styles.becomeSellerArrow}>›</Text>
           </TouchableOpacity>
         )}
 
@@ -214,10 +264,7 @@ export default function ProfileScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* Delete Account */}
-        <TouchableOpacity
-          style={styles.deleteBtn}
-          onPress={() => setShowDeleteModal(true)}
-        >
+        <TouchableOpacity style={styles.deleteBtn} onPress={() => setShowDeleteModal(true)}>
           <Text style={styles.deleteIcon}>⚠️</Text>
           <Text style={styles.deleteText}>Delete Account</Text>
         </TouchableOpacity>
@@ -242,7 +289,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Delete Account Modal */}
+      {/* Delete Modal */}
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -269,7 +316,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   headerTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  // Guest
   guestHeader: { backgroundColor: COLORS.surface, alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 60 : SPACING['3xl'], paddingBottom: SPACING.xl, paddingHorizontal: SPACING.xl, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   logo: { fontSize: 40, fontWeight: '900', color: COLORS.primary, letterSpacing: -2, marginBottom: SPACING.sm },
   guestTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs },
@@ -292,7 +338,6 @@ const styles = StyleSheet.create({
   guestFeatures: { margin: SPACING.base, backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base },
   featTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textMuted, marginBottom: SPACING.sm },
   featText: { fontSize: FONTS.sm, color: COLORS.textSecondary, paddingVertical: 5 },
-  // Logged in
   userCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, padding: SPACING.base, marginBottom: SPACING.sm, gap: SPACING.base },
   avatar: { width: 60, height: 60, borderRadius: RADIUS.full, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: 'white' },
@@ -301,16 +346,23 @@ const styles = StyleSheet.create({
   userEmail: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: 2 },
   userPhone: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: 2 },
   vendorBadge: { alignSelf: 'flex-start', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 3, marginTop: 4 },
+  vendorBadgePending: { backgroundColor: '#FFF8E7' },
   vendorBadgeText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.bold },
-  // Referral Banner
   referralBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1.5, borderColor: COLORS.primary + '60', gap: SPACING.sm, ...SHADOWS.sm },
   referralBannerIcon: { fontSize: 32 },
   referralBannerText: { flex: 1 },
   referralBannerTitle: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.primary },
   referralBannerSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   referralBannerArrow: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold },
-  vendorDashBtn: { backgroundColor: COLORS.primary, margin: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, alignItems: 'center', marginBottom: SPACING.sm },
+  vendorDashBtn: { backgroundColor: COLORS.primary, marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, alignItems: 'center' },
+  vendorDashBtnPending: { backgroundColor: COLORS.warning },
   vendorDashText: { color: 'white', fontSize: FONTS.base, fontWeight: FONTS.bold },
+  becomeSellerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1B4332', marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, gap: SPACING.sm },
+  becomeSellerIcon: { fontSize: 24 },
+  becomeSellerText: { flex: 1 },
+  becomeSellerTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: 'white' },
+  becomeSellerSub: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  becomeSellerArrow: { fontSize: FONTS.xl, color: 'rgba(255,255,255,0.7)' },
   menuSection: { backgroundColor: COLORS.surface, marginBottom: SPACING.sm },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.base + 2, borderBottomWidth: 1, borderBottomColor: COLORS.divider, gap: SPACING.base },
   menuItemHighlight: { backgroundColor: '#FFF8F0' },
@@ -326,7 +378,6 @@ const styles = StyleSheet.create({
   deleteBtn: { flexDirection: 'row', alignItems: 'center', marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, padding: SPACING.base, gap: SPACING.base },
   deleteIcon: { fontSize: 16 },
   deleteText: { fontSize: FONTS.sm, color: COLORS.danger },
-  // Modals
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
   modalCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS['2xl'], padding: SPACING.xl, width: '100%', alignItems: 'center' },
   modalIcon: { fontSize: 48, marginBottom: SPACING.base },
