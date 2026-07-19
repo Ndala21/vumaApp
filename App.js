@@ -5,7 +5,41 @@ import { Provider } from 'react-redux';
 import { StyleSheet, View, Text, ScrollView } from 'react-native';
 import { store } from './src/store';
 import { i18n } from './src/i18n';
-import { useEffect, useState, Component } from 'react';
+import { useEffect, useState, useRef, Component } from 'react';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { post } from './src/api/client';
+
+// ── Configure foreground notification display ─────────
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+// ── Register device for push notifications ────────────
+async function registerForPushNotifications() {
+  if (!Device.isDevice) return null;
+  try {
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+    if (existing !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') return null;
+
+    const token = await Notifications.getExpoPushTokenAsync({
+      projectId: '621141ab-f046-4da8-9785-b0c952d0530e',
+    });
+    return token.data;
+  } catch (e) {
+    console.log('Push token error:', e);
+    return null;
+  }
+}
 
 // ── Error Boundary ────────────────────────────────────
 class ErrorBoundary extends Component {
@@ -56,19 +90,79 @@ try {
 function App() {
   const [i18nReady, setI18nReady] = useState(false);
   const [langKey, setLangKey] = useState('en');
+  const notificationListener = useRef(null);
+  const responseListener = useRef(null);
 
+  // i18n init
   useEffect(() => {
     i18n.init().then(() => {
       setLangKey(i18n.getLocale());
       setI18nReady(true);
     }).catch(e => {
       console.error('i18n init error:', e);
-      setI18nReady(true); // continue even if i18n fails
+      setI18nReady(true);
     });
     const unsubscribe = i18n.onChange((locale) => {
       setLangKey(locale + '_' + Date.now());
     });
     return unsubscribe;
+  }, []);
+
+  // Push notifications setup
+  useEffect(() => {
+    // Register token
+    registerForPushNotifications().then(async token => {
+      if (token) {
+        try {
+          await post('/users/fcm-token/', { fcm_token: token });
+          console.log('FCM token registered');
+        } catch (e) {
+          console.log('FCM token save failed:', e);
+        }
+      }
+    });
+
+    // Android notification channels
+    if (Device.osName === 'Android') {
+      Notifications.setNotificationChannelAsync('vuma_default', {
+        name: 'VUMA Notifications',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF6B00',
+        sound: 'default',
+      });
+      Notifications.setNotificationChannelAsync('vuma_orders', {
+        name: 'Order Updates',
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: 'default',
+      });
+      Notifications.setNotificationChannelAsync('vuma_promotions', {
+        name: 'Deals & Promotions',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
+
+    // Foreground notification listener
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      const { title, body } = notification.request.content;
+      console.log('📱 Notification received:', title, body);
+    });
+
+    // Notification tap handler (background/killed state)
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      console.log('👆 Notification tapped:', data);
+      // Navigation handled in AppNavigator via linking
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
   }, []);
 
   if (importErr) {
