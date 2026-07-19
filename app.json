@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.vumastore",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -28,11 +29,19 @@
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED"
       ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A"
+        }
+      },
       "versionCode": 1
     },
     "ios": {
       "bundleIdentifier": "com.vumastore",
       "supportsTablet": false,
+      "config": {
+        "googleMapsApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A"
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "VUMA uses your location to pin your delivery address and show nearby pickup points.",
         "NSLocationAlwaysUsageDescription": "VUMA uses your location for accurate delivery.",
@@ -60,9 +69,17 @@
           "locationAlwaysAndWhenInUsePermission": "Allow VUMA to use your location to pin your delivery address.",
           "locationWhenInUsePermission": "Allow VUMA to use your location for accurate delivery."
         }
+      ],
+      [
+        "react-native-maps",
+        {
+          "androidApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A",
+          "iosApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A"
+        }
       ]
     ],
     "extra": {
+      "googleMapsApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A",
       "eas": {
         "projectId": "621141ab-f046-4da8-9785-b0c952d0530e"
       }
