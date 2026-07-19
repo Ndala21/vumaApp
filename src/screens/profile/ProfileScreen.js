@@ -1,7 +1,7 @@
 /**
  * VUMA Store — Profile Screen
  * Guest: Sign In, Create Account, Become a Seller
- * Logged in: Full menu with Logout + Delete Account
+ * Logged in: Full menu with Logout + Delete Account + Invite & Earn
  */
 
 import React, { useState } from 'react';
@@ -26,7 +26,6 @@ export default function ProfileScreen({ navigation }) {
     setLoggingOut(true);
     try {
       await dispatch(logout());
-      // AppNavigator auto-switches to guest mode when isAuthenticated = false
     } catch {
       Alert.alert('Error', 'Could not log out. Please try again.');
     } finally {
@@ -95,7 +94,7 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.sellerIcon}>🏪</Text>
             <View style={styles.sellerTextWrap}>
               <Text style={styles.sellerText}>Become a Seller</Text>
-              <Text style={styles.sellerSub}>Start earning on VUMA — 10% commission only</Text>
+              <Text style={styles.sellerSub}>Start earning on VUMA — commission from 3% only</Text>
             </View>
             <Text style={styles.sellerArrow}>›</Text>
           </TouchableOpacity>
@@ -109,6 +108,7 @@ export default function ProfileScreen({ navigation }) {
             '⚡ Faster checkout every time',
             '🔔 Get deals and flash sale alerts',
             '🚚 Free Delivery on all orders',
+            '🎁 Earn rewards by inviting friends',
           ].map((f, i) => (
             <Text key={i} style={styles.featText}>{f}</Text>
           ))}
@@ -126,6 +126,7 @@ export default function ProfileScreen({ navigation }) {
     { icon: '📦', label: 'My Orders', screen: 'Orders' },
     { icon: '📍', label: 'Saved Addresses', screen: 'Address' },
     { icon: '💳', label: 'Payment Methods', screen: 'Wallet' },
+    { icon: '🎁', label: 'Invite & Earn', screen: 'Referral', highlight: true },
     { icon: '🔔', label: 'Notifications', screen: 'Notifications' },
     { icon: '💬', label: 'Help & Support', screen: 'Chat' },
     { icon: '⚙️', label: 'Settings', screen: 'Settings' },
@@ -156,6 +157,20 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
+        {/* Invite & Earn Banner */}
+        <TouchableOpacity
+          style={styles.referralBanner}
+          onPress={() => navigation.navigate('Referral')}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.referralBannerIcon}>🎁</Text>
+          <View style={styles.referralBannerText}>
+            <Text style={styles.referralBannerTitle}>Invite & Earn TZS 2,000!</Text>
+            <Text style={styles.referralBannerSub}>Invite friends to VUMA and earn rewards</Text>
+          </View>
+          <Text style={styles.referralBannerArrow}>›</Text>
+        </TouchableOpacity>
+
         {/* Vendor Dashboard shortcut */}
         {isVendor && (
           <TouchableOpacity
@@ -171,11 +186,18 @@ export default function ProfileScreen({ navigation }) {
           {MENU_ITEMS.map((item) => (
             <TouchableOpacity
               key={item.label}
-              style={styles.menuItem}
+              style={[styles.menuItem, item.highlight && styles.menuItemHighlight]}
               onPress={() => navigation.navigate(item.screen)}
             >
               <Text style={styles.menuIcon}>{item.icon}</Text>
-              <Text style={styles.menuLabel}>{item.label}</Text>
+              <Text style={[styles.menuLabel, item.highlight && styles.menuLabelHighlight]}>
+                {item.label}
+              </Text>
+              {item.highlight && (
+                <View style={styles.menuBadge}>
+                  <Text style={styles.menuBadgeText}>Earn Rewards</Text>
+                </View>
+              )}
               <Text style={styles.menuArrow}>›</Text>
             </TouchableOpacity>
           ))}
@@ -203,7 +225,7 @@ export default function ProfileScreen({ navigation }) {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Logout Confirmation Modal */}
+      {/* Logout Modal */}
       <Modal visible={showLogoutModal} transparent animationType="fade" onRequestClose={() => setShowLogoutModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -280,12 +302,23 @@ const styles = StyleSheet.create({
   userPhone: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: 2 },
   vendorBadge: { alignSelf: 'flex-start', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 3, marginTop: 4 },
   vendorBadgeText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.bold },
+  // Referral Banner
+  referralBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1.5, borderColor: COLORS.primary + '60', gap: SPACING.sm, ...SHADOWS.sm },
+  referralBannerIcon: { fontSize: 32 },
+  referralBannerText: { flex: 1 },
+  referralBannerTitle: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.primary },
+  referralBannerSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  referralBannerArrow: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold },
   vendorDashBtn: { backgroundColor: COLORS.primary, margin: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, alignItems: 'center', marginBottom: SPACING.sm },
   vendorDashText: { color: 'white', fontSize: FONTS.base, fontWeight: FONTS.bold },
   menuSection: { backgroundColor: COLORS.surface, marginBottom: SPACING.sm },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.base + 2, borderBottomWidth: 1, borderBottomColor: COLORS.divider, gap: SPACING.base },
+  menuItemHighlight: { backgroundColor: '#FFF8F0' },
   menuIcon: { fontSize: 20, width: 28 },
   menuLabel: { flex: 1, fontSize: FONTS.base, color: COLORS.textPrimary, fontWeight: FONTS.medium },
+  menuLabelHighlight: { color: COLORS.primary, fontWeight: FONTS.bold },
+  menuBadge: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
+  menuBadgeText: { fontSize: FONTS.xs, color: 'white', fontWeight: FONTS.bold },
   menuArrow: { fontSize: FONTS.xl, color: COLORS.textMuted },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, gap: SPACING.base, borderWidth: 1.5, borderColor: COLORS.primary },
   logoutIcon: { fontSize: 20 },

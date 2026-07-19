@@ -32,6 +32,7 @@ import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import SellerRegisterScreen from '../screens/vendor/SellerRegisterScreen';
 import MazaoScreen from '../screens/mazao/MazaoScreen';
 import MazaoAddProduct from '../screens/mazao/MazaoProduct';
+import ReferralScreen from '../screens/referral/ReferralScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -75,6 +76,9 @@ function MainStack({ isVendor }) {
       {/* Profile */}
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Address" component={AddressScreen} />
+
+      {/* Referral */}
+      <Stack.Screen name="Referral" component={ReferralScreen} options={{ animation: 'slide_from_bottom' }} />
 
       {/* Chat */}
       <Stack.Screen name="Chat" component={ChatScreen} options={{ animation: 'slide_from_bottom' }} />
@@ -130,10 +134,8 @@ export default function AppNavigator() {
     return () => { if (sessionCheckRef.current) clearInterval(sessionCheckRef.current); };
   }, []);
 
-  // Show splash while initializing
   if (!isInitialized) return <SplashScreen />;
 
-  // Always show main app — guests can browse without login
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
