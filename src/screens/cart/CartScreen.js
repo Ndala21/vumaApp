@@ -16,7 +16,7 @@ import {
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { formatPrice } from '../../utils/helpers';
-import ProductImage from '../../components/ProductImage';
+import { Image } from 'react-native';
 
 const DELIVERY_FEE = 0; // Free Delivery
 
@@ -63,7 +63,7 @@ const CartItem = memo(({ item, selected, onToggle, onQuantityChange, onDelete })
       <Checkbox checked={selected} onPress={onToggle} />
 
       <TouchableOpacity activeOpacity={0.9} style={styles.cartItemImageWrap}>
-        <ProductImage
+        <Image
           uri={item.image}
           style={styles.cartItemImage}
           fallbackIcon="🛍️"
