@@ -69,13 +69,6 @@
           "locationAlwaysAndWhenInUsePermission": "Allow VUMA to use your location to pin your delivery address.",
           "locationWhenInUsePermission": "Allow VUMA to use your location for accurate delivery."
         }
-      ],
-      [
-        "react-native-maps",
-        {
-          "androidApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A",
-          "iosApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A"
-        }
       ]
     ],
     "extra": {
