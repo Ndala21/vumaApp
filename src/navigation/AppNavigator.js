@@ -1,6 +1,7 @@
 /**
  * VUMA Store — App Navigator
  * No onboarding, guest browsing, direct home on launch
+ * Updated: SellerStore screen added
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -34,6 +35,9 @@ import MazaoScreen from '../screens/mazao/MazaoScreen';
 import MazaoAddProduct from '../screens/mazao/MazaoProduct';
 import ReferralScreen from '../screens/referral/ReferralScreen';
 
+// ── NEW: Seller Store ─────────────────────────────────
+import SellerStoreScreen from '../screens/vendor/SellerStoreScreen';
+
 const Stack = createNativeStackNavigator();
 
 function SplashScreen() {
@@ -59,6 +63,13 @@ function MainStack({ isVendor }) {
       {/* Products */}
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="ProductList" component={HomeScreen} />
+
+      {/* ── SELLER STORE ── tap seller badge → full store page */}
+      <Stack.Screen
+        name="SellerStore"
+        component={SellerStoreScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
 
       {/* Mazao */}
       <Stack.Screen name="Mazao" component={MazaoScreen} />

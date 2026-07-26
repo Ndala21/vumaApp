@@ -1,6 +1,7 @@
 /**
  * VUMA Store — Product Detail Screen
  * Fixed: Size selector for Fashion/Clothing/Shoes + auth modal
+ * Updated: SellerBadge + TrustSignals + SellerStore navigation
  */
 
 import { t } from '../../i18n';
@@ -30,6 +31,9 @@ import Button from '../../components/common/Button';
 import Loading, { OverlayLoading } from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
 import { CustomerSizeSelector, requiresSize } from '../../components/SizeSelector';
+
+// ── NEW: Seller Badge & Trust Signals ────────────────
+import { SellerBadge, TrustSignals } from '../../components/vendor/SellerBadge';
 
 const { width } = Dimensions.get('window');
 
@@ -103,7 +107,6 @@ export default function ProductDetailScreen({ navigation, route }) {
   }, [product?.flash_sale_end]);
 
   useEffect(() => {
-    // Reset size when product changes
     setSelectedSize(null);
     setSizeError(false);
   }, [product?.id]);
@@ -136,7 +139,6 @@ export default function ProductDetailScreen({ navigation, route }) {
   const reviews = displayProduct.reviews || [];
   const productNeedsSize = displayProduct.requires_size && displayProduct.available_sizes?.length > 0;
 
-  // ── Validate size selection ──
   const validateSize = () => {
     if (productNeedsSize && !selectedSize) {
       setSizeError(true);
@@ -185,6 +187,13 @@ export default function ProductDetailScreen({ navigation, route }) {
     try {
       await Share.share({ message: `Check out ${displayProduct.name} on VUMA Store! ${formatPrice(effectivePrice)}`, title: displayProduct.name });
     } catch {}
+  };
+
+  // Navigate to full seller store page
+  const handleSellerStore = () => {
+    const vendorId = displayProduct.vendor_info?.id || displayProduct.vendor_id;
+    if (!vendorId) return;
+    navigation.navigate('SellerStore', { vendorId });
   };
 
   const handleSubmitReview = async () => {
@@ -268,13 +277,6 @@ export default function ProductDetailScreen({ navigation, route }) {
 
         {/* Product Info */}
         <View style={styles.infoCard}>
-          {displayProduct.vendor_name && (
-            <TouchableOpacity style={styles.vendorRow}>
-              <Text style={styles.vendorIcon}>🏪</Text>
-              <Text style={styles.vendorName}>{displayProduct.vendor_name}</Text>
-              <Text style={styles.vendorArrow}>›</Text>
-            </TouchableOpacity>
-          )}
           <Text style={styles.productName}>{displayProduct.name}</Text>
           {displayProduct.category_name && (
             <View style={styles.categoryPill}>
@@ -305,6 +307,25 @@ export default function ProductDetailScreen({ navigation, route }) {
           )}
         </View>
 
+        {/* ── SELLER BADGE + TRUST SIGNALS ─────────────── */}
+        <View style={styles.card}>
+          {displayProduct.vendor_info ? (
+            <>
+              <SellerBadge
+                vendor={displayProduct.vendor_info}
+                onPress={handleSellerStore}
+              />
+              <TrustSignals vendor={displayProduct.vendor_info} />
+            </>
+          ) : (displayProduct.vendor_name || displayProduct.vendor_id) ? (
+            <TouchableOpacity style={styles.vendorRow} onPress={handleSellerStore}>
+              <Text style={styles.vendorIcon}>🏪</Text>
+              <Text style={styles.vendorName}>{displayProduct.vendor_name || 'View Store'}</Text>
+              <Text style={styles.vendorArrow}>›</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
         {/* Guest Banner */}
         {!isAuthenticated && (
           <TouchableOpacity style={styles.guestBanner} onPress={() => setShowAuthModal(true)}>
@@ -317,7 +338,7 @@ export default function ProductDetailScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
-        {/* Size Selector — only for Fashion/Clothing/Shoes */}
+        {/* Size Selector */}
         {productNeedsSize && (
           <View style={styles.card}>
             <CustomerSizeSelector
@@ -499,7 +520,7 @@ const styles = StyleSheet.create({
   discountOverlay: { position: 'absolute', top: SPACING.xl, right: SPACING.base, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.sm, paddingVertical: 4 },
   discountOverlayText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
   infoCard: { backgroundColor: COLORS.surface, padding: SPACING.base, marginBottom: SPACING.sm },
-  vendorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.sm, paddingVertical: SPACING.xs },
+  vendorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, paddingVertical: SPACING.xs },
   vendorIcon: { fontSize: FONTS.base },
   vendorName: { flex: 1, fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
   vendorArrow: { fontSize: FONTS.xl, color: COLORS.textMuted },
