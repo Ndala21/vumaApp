@@ -1,7 +1,7 @@
 /**
  * VUMA Store — App Navigator
  * No onboarding, guest browsing, direct home on launch
- * Updated: SellerStore screen added
+ * Updated: SellerStore + WelcomeGift screens added
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -35,8 +35,11 @@ import MazaoScreen from '../screens/mazao/MazaoScreen';
 import MazaoAddProduct from '../screens/mazao/MazaoProduct';
 import ReferralScreen from '../screens/referral/ReferralScreen';
 
-// ── NEW: Seller Store ─────────────────────────────────
+// ── Seller Store ──────────────────────────────────────
 import SellerStoreScreen from '../screens/vendor/SellerStoreScreen';
+
+// ── Welcome Gift ──────────────────────────────────────
+import WelcomeGiftScreen from '../screens/gift/WelcomeGiftScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -64,11 +67,18 @@ function MainStack({ isVendor }) {
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="ProductList" component={HomeScreen} />
 
-      {/* ── SELLER STORE ── tap seller badge → full store page */}
+      {/* Seller Store — tap seller badge → full store page */}
       <Stack.Screen
         name="SellerStore"
         component={SellerStoreScreen}
         options={{ animation: 'slide_from_right' }}
+      />
+
+      {/* Welcome Gift — shown after referral registration */}
+      <Stack.Screen
+        name="WelcomeGift"
+        component={WelcomeGiftScreen}
+        options={{ animation: 'slide_from_bottom' }}
       />
 
       {/* Mazao */}
