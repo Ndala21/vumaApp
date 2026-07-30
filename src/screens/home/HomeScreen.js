@@ -140,12 +140,15 @@ export default function HomeScreen({ navigation }) {
   ];
 
   // ── Horizontal product row ──
-  const HorizontalRow = ({ title, data }) => {
+  const HorizontalRow = ({ title, data, accent = COLORS.primary }) => {
     if (!data?.length) return null;
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{title}</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={[styles.sectionAccent, { backgroundColor: accent }]} />
+            <Text style={styles.sectionTitle}>{title}</Text>
+          </View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
           {data.slice(0, 8).map((product) => (
@@ -160,21 +163,30 @@ export default function HomeScreen({ navigation }) {
   const DealCard = ({ deal }) => {
     const timeLeft = deal.deal_ends_at ? secondsUntil(deal.deal_ends_at) : 0;
     return (
-      <TouchableOpacity style={styles.dealCard} onPress={() => handleProductPress(deal)} activeOpacity={0.85}>
-        {deal.primary_image ? (
-          <Image source={{ uri: deal.primary_image }} style={styles.dealImage} resizeMode="cover" />
-        ) : (
-          <View style={[styles.dealImage, styles.dealImagePlaceholder]}>
-            <Text style={{ fontSize: 36 }}>📦</Text>
+      <TouchableOpacity style={styles.dealCard} onPress={() => handleProductPress(deal)} activeOpacity={0.9}>
+        <View style={styles.dealImageWrap}>
+          {deal.primary_image ? (
+            <Image source={{ uri: deal.primary_image }} style={styles.dealImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.dealImage, styles.dealImagePlaceholder]}>
+              <Text style={{ fontSize: 32, opacity: 0.35 }}>📦</Text>
+            </View>
+          )}
+          <View style={styles.dealRibbonWrap}>
+            <View style={styles.dealRibbonBody}>
+              <Text style={styles.dealRibbonText}>-{deal.deal_discount || deal.discount_percent}%</Text>
+            </View>
+            <View style={styles.dealRibbonFold} />
           </View>
-        )}
-        <View style={styles.dealBadge}>
-          <Text style={styles.dealBadgeText}>-{deal.deal_discount || deal.discount_percent}%</Text>
         </View>
         <View style={styles.dealInfo}>
           <Text style={styles.dealName} numberOfLines={2}>{deal.name}</Text>
           <Text style={styles.dealPrice}>{formatPrice(deal.deal_price || deal.price)}</Text>
-          {timeLeft > 0 && <Text style={styles.dealTimer}>⏰ {formatCountdown(timeLeft)}</Text>}
+          {timeLeft > 0 && (
+            <View style={styles.dealTimerPill}>
+              <Text style={styles.dealTimerText}>⏱ {formatCountdown(timeLeft)}</Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -183,26 +195,32 @@ export default function HomeScreen({ navigation }) {
   const ListHeader = () => (
     <View>
       {/* ── Banners ── */}
-      <HomeBanner
-        banners={banners}
-        onBannerPress={handleBannerPress}
-        navigation={navigation}
-      />
+      <View style={styles.bannerWrap}>
+        <HomeBanner
+          banners={banners}
+          onBannerPress={handleBannerPress}
+          navigation={navigation}
+        />
+      </View>
 
-      {/* Flash Sale */}
+      {/* Flash Sale — tinted section, distinct from the rest of the feed */}
       {flashSale?.length > 0 && (
-        <View style={styles.section}>
+        <View style={[styles.section, styles.flashSection]}>
           <View style={styles.sectionHeader}>
             <View style={styles.flashTitleRow}>
-              <Text style={styles.sectionTitle}>⚡ Flash Sale</Text>
+              <Text style={styles.flashTitle}>⚡ Flash Sale</Text>
               {flashCountdown > 0 && (
                 <View style={styles.countdownBadge}>
-                  <Text style={styles.countdownText}>⏰ {formatCountdown(flashCountdown)}</Text>
+                  <Text style={styles.countdownText}>{formatCountdown(flashCountdown)}</Text>
                 </View>
               )}
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate('ProductList', { flash_sale: true })}>
-              <Text style={styles.seeAll}>See all →</Text>
+            <TouchableOpacity
+              style={styles.seeAllBtn}
+              onPress={() => navigation.navigate('ProductList', { flash_sale: true })}
+            >
+              <Text style={styles.seeAll}>See all</Text>
+              <Text style={styles.seeAllArrow}>›</Text>
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
@@ -217,7 +235,10 @@ export default function HomeScreen({ navigation }) {
       {dailyDeals.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🔥 Daily Deals</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={[styles.sectionAccent, { backgroundColor: COLORS.discount }]} />
+              <Text style={styles.sectionTitle}>Daily Deals</Text>
+            </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
             {dailyDeals.map((d, i) => <DealCard key={d.id || i} deal={d} />)}
@@ -226,35 +247,40 @@ export default function HomeScreen({ navigation }) {
       )}
 
       {/* Trending */}
-      <HorizontalRow title="📈 Trending Now" data={trending} />
+      <HorizontalRow title="Trending Now" data={trending} accent={COLORS.info} />
 
       {/* Recommendations */}
       {isAuthenticated && recommendations.length > 0 && (
-        <HorizontalRow title="⭐ Recommended for You" data={recommendations} />
+        <HorizontalRow title="Recommended for You" data={recommendations} accent={COLORS.rating} />
       )}
 
       {/* Featured */}
       {featured?.length > 0 && (
-        <HorizontalRow title="🏆 Featured" data={featured} />
+        <HorizontalRow title="Featured" data={featured} accent={COLORS.secondary} />
       )}
 
       {/* Recently Viewed */}
       {isAuthenticated && recentlyViewed.length > 0 && (
-        <HorizontalRow title="👁 Recently Viewed" data={recentlyViewed} />
+        <HorizontalRow title="Recently Viewed" data={recentlyViewed} accent={COLORS.textMuted} />
       )}
 
       {/* All Products Header */}
       <View style={styles.allProductsHeader}>
-        <Text style={styles.sectionTitle}>
-          🛍️ {activeCategory ? allCategories.find((c) => c.slug === activeCategory)?.label || 'Products' : 'All Products'}
-        </Text>
-        <Text style={styles.productCount}>{products.length} items</Text>
+        <View style={styles.sectionTitleRow}>
+          <View style={[styles.sectionAccent, { backgroundColor: COLORS.primary }]} />
+          <Text style={styles.sectionTitle}>
+            {activeCategory ? allCategories.find((c) => c.slug === activeCategory)?.label || 'Products' : 'All Products'}
+          </Text>
+        </View>
+        <View style={styles.productCountPill}>
+          <Text style={styles.productCount}>{products.length}</Text>
+        </View>
       </View>
     </View>
   );
 
   const ListFooter = () => loading.loadingMore ? (
-    <View style={styles.loadingMore}><Text style={styles.loadingMoreText}>Loading...</Text></View>
+    <View style={styles.loadingMore}><Text style={styles.loadingMoreText}>Loading more…</Text></View>
   ) : null;
 
   const ListEmpty = () => {
@@ -280,7 +306,9 @@ export default function HomeScreen({ navigation }) {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
       <View style={styles.topBar}>
-        <Text style={styles.topLogo}>VUMA</Text>
+        <View style={styles.logoBadge}>
+          <Text style={styles.logoBadgeText}>V</Text>
+        </View>
         <View style={styles.topSearch}>
           <SearchBar
             value={searchQuery} onChangeText={setSearchQuery}
@@ -334,40 +362,110 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  topBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.sm, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.xl, paddingBottom: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider, gap: SPACING.sm, ...SHADOWS.sm },
-  topLogo: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.primary, letterSpacing: -1 },
+
+  // ── Top bar ──
+  topBar: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.sm,
+    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.xl,
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1, borderBottomColor: COLORS.divider,
+    gap: SPACING.sm,
+  },
+  logoBadge: {
+    width: 34, height: 34, borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
+    ...SHADOWS.primary,
+  },
+  logoBadgeText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.black },
   topSearch: { flex: 1 },
-  searchBar: { paddingHorizontal: 0, paddingVertical: 0 },
-  topIcons: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-  iconBtn: { position: 'relative', padding: SPACING.xs },
-  topIcon: { fontSize: 22 },
-  iconBadge: { position: 'absolute', top: 0, right: 0, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, borderWidth: 1.5, borderColor: COLORS.surface },
-  iconBadgeText: { color: COLORS.textWhite, fontSize: 8, fontWeight: FONTS.bold },
+  searchBar: {
+    paddingHorizontal: 0, paddingVertical: 0,
+    backgroundColor: COLORS.surfaceSunken,
+    borderRadius: RADIUS.full,
+  },
+  topIcons: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  iconBtn: {
+    position: 'relative', width: 38, height: 38,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: RADIUS.full,
+  },
+  topIcon: { fontSize: 21 },
+  iconBadge: {
+    position: 'absolute', top: 2, right: 2, backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.full, minWidth: 16, height: 16, alignItems: 'center',
+    justifyContent: 'center', paddingHorizontal: 2, borderWidth: 1.5, borderColor: COLORS.surface,
+  },
+  iconBadgeText: { color: COLORS.textWhite, fontSize: 8.5, fontWeight: FONTS.bold },
+
+  // ── Banner wrap ──
+  bannerWrap: { backgroundColor: COLORS.surface, paddingBottom: SPACING.sm },
+
+  // ── Sections ──
   section: { backgroundColor: COLORS.surface, marginBottom: SPACING.sm, paddingVertical: SPACING.base },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.base, marginBottom: SPACING.sm },
+  flashSection: { backgroundColor: COLORS.primaryFade },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: SPACING.base, marginBottom: SPACING.sm,
+  },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionAccent: { width: 4, height: 16, borderRadius: 2 },
+  sectionTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
   flashTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  sectionTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  seeAll: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  countdownBadge: { backgroundColor: COLORS.flashSale, borderRadius: RADIUS.md, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
-  countdownText: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  flashTitle: { fontSize: FONTS.lg, fontWeight: FONTS.extraBold, color: COLORS.primaryDark, letterSpacing: FONTS.trackTight },
+  seeAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  seeAll: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  seeAllArrow: { fontSize: FONTS.lg, color: COLORS.textSecondary, fontWeight: FONTS.bold, marginTop: -1 },
+  countdownBadge: { backgroundColor: COLORS.secondary, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
+  countdownText: { color: COLORS.textWhite, fontSize: 11.5, fontWeight: FONTS.bold, letterSpacing: 0.3 },
   horizontalList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
   featuredCard: { width: 170, height: 210 },
-  dealCard: { width: 160, borderRadius: RADIUS.xl, overflow: 'hidden', backgroundColor: COLORS.surface, ...SHADOWS.md, marginRight: SPACING.sm },
-  dealImage: { width: '100%', height: 120 },
+
+  // ── Deal card ──
+  dealCard: {
+    width: 156, borderRadius: RADIUS.lg, overflow: 'hidden',
+    backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    ...SHADOWS.xs, marginRight: SPACING.sm,
+  },
+  dealImageWrap: { position: 'relative' },
+  dealImage: { width: '100%', height: 112 },
   dealImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
-  dealBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: COLORS.danger, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
-  dealBadgeText: { color: 'white', fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  dealRibbonWrap: { position: 'absolute', top: 8, left: -1 },
+  dealRibbonBody: {
+    height: 20, paddingHorizontal: 7, justifyContent: 'center',
+    backgroundColor: COLORS.discount, borderTopRightRadius: 4, borderBottomRightRadius: 4,
+  },
+  dealRibbonText: { color: COLORS.textWhite, fontSize: 10.5, fontWeight: FONTS.extraBold },
+  dealRibbonFold: {
+    width: 0, height: 0, borderTopWidth: 4, borderRightWidth: 4,
+    borderRightColor: 'transparent', borderTopColor: '#8A2607', opacity: 0.6,
+  },
   dealInfo: { padding: SPACING.sm },
-  dealName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, lineHeight: 16, marginBottom: 4 },
-  dealPrice: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.primary, marginBottom: 2 },
-  dealTimer: { fontSize: FONTS.xs, color: COLORS.danger, fontWeight: FONTS.semiBold },
-  allProductsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  productCount: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  flatListContent: { paddingBottom: 90 },
-  productItemWrap: { flex: 1, padding: SPACING.xs },
-  productLeft: { paddingLeft: SPACING.sm, paddingRight: SPACING.xs },
-  productRight: { paddingLeft: SPACING.xs, paddingRight: SPACING.sm },
+  dealName: { fontSize: FONTS.sm, fontWeight: FONTS.medium, color: COLORS.textPrimary, lineHeight: 17, marginBottom: 5, minHeight: 34 },
+  dealPrice: { fontSize: FONTS.base, fontWeight: FONTS.extraBold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight, marginBottom: 4 },
+  dealTimerPill: {
+    alignSelf: 'flex-start', backgroundColor: COLORS.dangerLight,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm,
+  },
+  dealTimerText: { fontSize: 10.5, color: COLORS.dangerText, fontWeight: FONTS.bold },
+
+  // ── All products header ──
+  allProductsHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.md,
+    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.divider,
+  },
+  productCountPill: { backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 3 },
+  productCount: { fontSize: FONTS.xs, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+
+  // ── Grid ──
+  flatListContent: { paddingBottom: 90, paddingTop: 2 },
+  productItemWrap: { flex: 1, paddingHorizontal: SPACING.xs, paddingVertical: SPACING.sm },
+  productLeft: { paddingLeft: SPACING.base, paddingRight: SPACING.xs },
+  productRight: { paddingLeft: SPACING.xs, paddingRight: SPACING.base },
   productCard: { flex: 1 },
+
   loadingMore: { padding: SPACING.xl, alignItems: 'center' },
   loadingMoreText: { fontSize: FONTS.sm, color: COLORS.textMuted },
 });

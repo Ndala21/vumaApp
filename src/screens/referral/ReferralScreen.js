@@ -19,7 +19,7 @@ const SHARE_CHANNELS = [
   { id: 'sms',       label: 'SMS',       icon: '📱', color: '#007AFF', scheme: 'sms:?body=' },
   { id: 'telegram',  label: 'Telegram',  icon: '✈️',  color: '#0088CC', scheme: 'tg://msg?text=' },
   { id: 'facebook',  label: 'Facebook',  icon: '👤', color: '#1877F2', scheme: 'fb://share?text=' },
-  { id: 'copy',      label: 'Copy Link', icon: '🔗', color: '#FF6B00', scheme: null },
+  { id: 'copy',      label: 'Copy Link', icon: '🔗', color: '#FF6A00', scheme: null },
   { id: 'more',      label: 'More',      icon: '⋯',  color: '#666',    scheme: null },
 ];
 

@@ -19,7 +19,7 @@ import {
   selectAuthLoading, selectAuthErrors, selectBiometrics,
   selectIsAuthenticated,
 } from '../../store/authSlice';
-import { COLORS, FONTS, SPACING, RADIUS } from '../../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { storage } from '../../utils/storage';
 import { setAuthToken } from '../../api/client';
 
@@ -181,9 +181,8 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
-      {/* iOS Toast */}
       {ToastComponent}
 
       <ScrollView
@@ -193,26 +192,29 @@ export default function LoginScreen({ navigation }) {
       >
         {/* Logo */}
         <View style={styles.header}>
-          <Text style={styles.logo}>VUMA</Text>
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoBadgeText}>V</Text>
+          </View>
+          <Text style={styles.logoWord}>VUMA</Text>
           <Text style={styles.tagline}>Smart Shopping. Fast Delivery.</Text>
         </View>
 
         {/* Card */}
         <View style={styles.card}>
-          <Text style={styles.title}>Welcome back 👋</Text>
+          <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>Sign in to continue shopping</Text>
 
           {/* Email */}
           <Text style={styles.label}>Email Address</Text>
           <View style={[styles.inputWrap, isLoading && styles.inputDisabled]}>
-            <Text style={styles.inputIcon}>✉️</Text>
+            <Text style={styles.inputIcon}>✉</Text>
             <TextInput
               ref={emailRef}
               style={styles.input}
               value={email}
               onChangeText={setEmail}
               placeholder="your@email.com"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={COLORS.textLight}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -234,7 +236,7 @@ export default function LoginScreen({ navigation }) {
               value={password}
               onChangeText={setPassword}
               placeholder="Your password"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={COLORS.textLight}
               secureTextEntry={!showPassword}
               autoComplete="password"
               textContentType="password"
@@ -243,7 +245,7 @@ export default function LoginScreen({ navigation }) {
               editable={!isLoading}
             />
             <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn} disabled={isLoading}>
-              <Text>{showPassword ? '🙈' : '👁'}</Text>
+              <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -265,11 +267,11 @@ export default function LoginScreen({ navigation }) {
             style={[styles.loginBtn, isLoading && styles.loginBtnLoading]}
             onPress={handleLogin}
             disabled={isLoading}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
             {isLoading ? (
               <View style={styles.loadingRow}>
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={COLORS.textWhite} size="small" />
                 <Text style={styles.loginBtnText}>Signing in...</Text>
               </View>
             ) : (
@@ -279,7 +281,7 @@ export default function LoginScreen({ navigation }) {
 
           {/* Biometric */}
           {biometrics.canUseBiometric && !isLoading && (
-            <TouchableOpacity style={styles.bioBtn} onPress={handleBiometric}>
+            <TouchableOpacity style={styles.bioBtn} onPress={handleBiometric} activeOpacity={0.85}>
               <Text style={styles.bioIcon}>{biometrics.hasFaceID ? '😊' : '👆'}</Text>
               <Text style={styles.bioText}>
                 {biometrics.hasFaceID ? 'Sign in with Face ID' : 'Sign in with Fingerprint'}
@@ -297,6 +299,7 @@ export default function LoginScreen({ navigation }) {
             style={styles.createBtn}
             onPress={() => navigation.navigate('Register')}
             disabled={isLoading}
+            activeOpacity={0.85}
           >
             <Text style={styles.createBtnText}>Create new account</Text>
           </TouchableOpacity>
@@ -307,11 +310,14 @@ export default function LoginScreen({ navigation }) {
           style={styles.sellerCTA}
           onPress={() => navigation.navigate('VendorRegister', { isNewAccount: true })}
           disabled={isLoading}
+          activeOpacity={0.8}
         >
-          <Text style={styles.sellerCTAText}>
-            🏪 Want to sell?{' '}
-            <Text style={styles.sellerLink}>Become a Seller →</Text>
-          </Text>
+          <View style={styles.sellerCTAInner}>
+            <Text style={styles.sellerCTAIcon}>🏪</Text>
+            <Text style={styles.sellerCTAText}>
+              Want to sell? <Text style={styles.sellerLink}>Become a Seller ›</Text>
+            </Text>
+          </View>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -319,40 +325,59 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  scroll: { flexGrow: 1, paddingHorizontal: 16, paddingBottom: 40 },
-  header: { alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 28 },
-  logo: { fontSize: 52, fontWeight: '900', color: '#FF6B00', letterSpacing: -2 },
-  tagline: { fontSize: 13, color: '#999', marginTop: 4, fontWeight: '500' },
-  card: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 6 },
-  title: { fontSize: 24, fontWeight: '800', color: '#1A1A1A', marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#999', marginBottom: 24 },
-  label: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6, marginTop: 4 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#fff', marginBottom: 12, minHeight: 52 },
-  inputDisabled: { backgroundColor: '#F9F9F9', opacity: 0.8 },
-  inputIcon: { fontSize: 16, marginRight: 8 },
-  input: { flex: 1, fontSize: 15, color: '#1A1A1A', paddingVertical: 14 },
-  eyeBtn: { padding: 8 },
-  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: '#E0E0E0', borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: '#FF6B00', borderColor: '#FF6B00' },
-  tick: { color: 'white', fontSize: 11, fontWeight: '900' },
-  rememberText: { fontSize: 13, color: '#555' },
-  forgotText: { fontSize: 13, color: '#FF6B00', fontWeight: '600' },
-  loginBtn: { backgroundColor: '#FF6B00', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 12, shadowColor: '#FF6B00', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-  loginBtnLoading: { opacity: 0.85, shadowOpacity: 0 },
-  loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bioBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#FF6B00', gap: 8, marginBottom: 12 },
-  bioIcon: { fontSize: 20 },
-  bioText: { fontSize: 14, color: '#FF6B00', fontWeight: '600' },
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#F0F0F0' },
-  dividerText: { fontSize: 12, color: '#BBB', fontWeight: '600' },
-  createBtn: { borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  createBtnText: { fontSize: 15, color: '#555', fontWeight: '600' },
-  sellerCTA: { marginTop: 24, alignItems: 'center', paddingVertical: 8 },
-  sellerCTAText: { fontSize: 13, color: '#999', textAlign: 'center' },
-  sellerLink: { color: '#FF6B00', fontWeight: '700' },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scroll: { flexGrow: 1, paddingHorizontal: SPACING.base, paddingBottom: SPACING['2xl'] },
+  header: { alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 44, paddingBottom: SPACING.xl },
+  logoBadge: {
+    width: 56, height: 56, borderRadius: RADIUS.xl, backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.sm, ...SHADOWS.primary,
+  },
+  logoBadgeText: { color: COLORS.textWhite, fontSize: FONTS['3xl'], fontWeight: FONTS.black },
+  logoWord: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.secondary, letterSpacing: FONTS.trackTight, marginBottom: 2 },
+  tagline: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2, fontWeight: FONTS.medium },
+  card: { backgroundColor: COLORS.surface, borderRadius: RADIUS['2xl'], padding: SPACING.xl, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.md },
+  title: { fontSize: FONTS['3xl'], fontWeight: FONTS.extraBold, color: COLORS.textPrimary, marginBottom: 4, letterSpacing: FONTS.trackTight },
+  subtitle: { fontSize: FONTS.sm, color: COLORS.textMuted, marginBottom: SPACING.xl },
+  label: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: 6, marginTop: 4 },
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg, paddingHorizontal: SPACING.md, backgroundColor: COLORS.surfaceAlt,
+    marginBottom: SPACING.md, minHeight: 52,
+  },
+  inputDisabled: { backgroundColor: COLORS.surfaceSunken, opacity: 0.75 },
+  inputIcon: { fontSize: 15, marginRight: SPACING.sm, opacity: 0.6 },
+  input: { flex: 1, fontSize: FONTS.base, color: COLORS.textPrimary, paddingVertical: SPACING.md },
+  eyeBtn: { padding: SPACING.xs },
+  eyeIcon: { fontSize: 16 },
+  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
+  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: COLORS.borderStrong, borderRadius: RADIUS.xs, alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  tick: { color: COLORS.textWhite, fontSize: 11, fontWeight: FONTS.black },
+  rememberText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
+  forgotText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  loginBtn: {
+    backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: SPACING.md + 2,
+    alignItems: 'center', marginBottom: SPACING.md, ...SHADOWS.primary,
+  },
+  loginBtnLoading: { opacity: 0.88, shadowOpacity: 0, elevation: 0 },
+  loginBtnText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.bold, letterSpacing: 0.2 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  bioBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.md,
+    borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade,
+    gap: SPACING.sm, marginBottom: SPACING.md,
+  },
+  bioIcon: { fontSize: 19 },
+  bioText: { fontSize: FONTS.sm, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: SPACING.md, gap: SPACING.sm },
+  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.divider },
+  dividerText: { fontSize: 11, color: COLORS.textLight, fontWeight: FONTS.bold, letterSpacing: 0.5 },
+  createBtn: { borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center' },
+  createBtnText: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  sellerCTA: { marginTop: SPACING.xl, alignItems: 'center', paddingVertical: SPACING.sm },
+  sellerCTAInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sellerCTAIcon: { fontSize: 14 },
+  sellerCTAText: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center' },
+  sellerLink: { color: COLORS.primary, fontWeight: FONTS.bold },
 });

@@ -1,11 +1,12 @@
 /**
  * VUMA Store — Size Selector Component
- * Reusable for both vendor (add sizes) and customer (select size)
+ * Same exports/logic (CLOTHING_SIZES, SHOE_SIZES, SIZE_CATEGORIES, requiresSize,
+ * getSizeOptions) — visual rebuild of VendorSizePicker/CustomerSizeSelector only.
  */
 
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { COLORS, FONTS, SPACING, RADIUS } from '../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 
 export const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 export const SHOE_SIZES = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46'];
@@ -33,7 +34,10 @@ export const VendorSizePicker = memo(({ categoryName, selectedSizes = [], onTogg
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Available Sizes</Text>
+      <View style={styles.sectionTitleRow}>
+        <View style={styles.sectionAccent} />
+        <Text style={styles.label}>Available Sizes</Text>
+      </View>
       <Text style={styles.hint}>Select all sizes available for this product</Text>
       <View style={styles.sizeGrid}>
         {sizes.map((size) => {
@@ -43,6 +47,7 @@ export const VendorSizePicker = memo(({ categoryName, selectedSizes = [], onTogg
               key={size}
               style={[styles.sizeBtn, selected && styles.sizeBtnActive]}
               onPress={() => onToggle(size)}
+              activeOpacity={0.8}
             >
               <Text style={[styles.sizeBtnText, selected && styles.sizeBtnTextActive]}>
                 {size}
@@ -52,9 +57,9 @@ export const VendorSizePicker = memo(({ categoryName, selectedSizes = [], onTogg
         })}
       </View>
       {selectedSizes.length > 0 && (
-        <Text style={styles.selectedText}>
-          ✅ Selected: {selectedSizes.join(', ')}
-        </Text>
+        <View style={styles.selectedPill}>
+          <Text style={styles.selectedText}>Selected: {selectedSizes.join(', ')}</Text>
+        </View>
       )}
     </View>
   );
@@ -73,8 +78,11 @@ export const CustomerSizeSelector = memo(({
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>Select Size</Text>
-        {error && <Text style={styles.errorText}>⚠️ Please select a size</Text>}
+        <View style={styles.sectionTitleRow}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.label}>Select Size</Text>
+        </View>
+        {error && <Text style={styles.errorText}>Please select a size</Text>}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.sizeRow}>
@@ -85,6 +93,7 @@ export const CustomerSizeSelector = memo(({
                 key={size}
                 style={[styles.customerSizeBtn, selected && styles.customerSizeBtnActive]}
                 onPress={() => onSelect(size)}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.customerSizeBtnText, selected && styles.customerSizeBtnTextActive]}>
                   {size}
@@ -103,19 +112,30 @@ export const CustomerSizeSelector = memo(({
 
 const styles = StyleSheet.create({
   container: { marginBottom: SPACING.base },
-  label: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: 4 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionAccent: { width: 4, height: 14, borderRadius: 2, backgroundColor: COLORS.primary },
+  label: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  hint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.sm },
+  hint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4, marginBottom: SPACING.sm },
   errorText: { fontSize: FONTS.xs, color: COLORS.danger, fontWeight: FONTS.semiBold },
   sizeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  sizeBtn: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surfaceAlt, minWidth: 48, alignItems: 'center' },
-  sizeBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  sizeBtn: {
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, borderRadius: RADIUS.lg,
+    borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surfaceAlt,
+    minWidth: 48, alignItems: 'center',
+  },
+  sizeBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary, ...SHADOWS.primary },
   sizeBtnText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
   sizeBtnTextActive: { color: COLORS.textWhite, fontWeight: FONTS.bold },
-  selectedText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.semiBold, marginTop: SPACING.sm },
+  selectedPill: { alignSelf: 'flex-start', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 4, marginTop: SPACING.sm },
+  selectedText: { fontSize: FONTS.xs, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
   sizeRow: { flexDirection: 'row', gap: SPACING.sm, paddingVertical: 4 },
-  customerSizeBtn: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderRadius: RADIUS.lg, borderWidth: 2, borderColor: COLORS.border, backgroundColor: COLORS.surface, minWidth: 52, alignItems: 'center' },
-  customerSizeBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  customerSizeBtn: {
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderRadius: RADIUS.lg,
+    borderWidth: 2, borderColor: COLORS.border, backgroundColor: COLORS.surface,
+    minWidth: 52, alignItems: 'center',
+  },
+  customerSizeBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary, ...SHADOWS.primary },
   customerSizeBtnText: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
   customerSizeBtnTextActive: { color: COLORS.textWhite, fontWeight: FONTS.bold },
   selectedSizeText: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: SPACING.xs },

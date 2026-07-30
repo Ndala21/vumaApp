@@ -45,23 +45,26 @@ const AuthModal = memo(({ visible, onClose, onLogin, onRegister }) => (
         <View style={styles.authIconWrap}>
           <Text style={styles.authIcon}>🔐</Text>
         </View>
-        <Text style={styles.authTitle}>Login Required</Text>
+        <Text style={styles.authTitle}>Login required</Text>
         <Text style={styles.authMessage}>
-          Please login or create an account to continue shopping on VUMA.
+          Log in or create an account to continue shopping on VUMA.
         </Text>
         <View style={styles.authBenefits}>
-          {['🛒 Add items to cart', '⚡ Fast checkout', '📦 Track your orders', '❤️ Save your wishlist'].map((b, i) => (
-            <Text key={i} style={styles.authBenefit}>{b}</Text>
+          {['Add items to cart', 'Fast checkout', 'Track your orders', 'Save your wishlist'].map((b, i) => (
+            <View key={i} style={styles.authBenefitRow}>
+              <Text style={styles.authBenefitCheck}>✓</Text>
+              <Text style={styles.authBenefit}>{b}</Text>
+            </View>
           ))}
         </View>
-        <TouchableOpacity style={styles.authLoginBtn} onPress={onLogin}>
-          <Text style={styles.authLoginText}>Login to My Account</Text>
+        <TouchableOpacity style={styles.authLoginBtn} onPress={onLogin} activeOpacity={0.88}>
+          <Text style={styles.authLoginText}>Log in to my account</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.authRegisterBtn} onPress={onRegister}>
-          <Text style={styles.authRegisterText}>Create New Account</Text>
+        <TouchableOpacity style={styles.authRegisterBtn} onPress={onRegister} activeOpacity={0.85}>
+          <Text style={styles.authRegisterText}>Create new account</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.authCancelBtn} onPress={onClose}>
-          <Text style={styles.authCancelText}>Cancel — Continue Browsing</Text>
+          <Text style={styles.authCancelText}>Continue browsing</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -219,14 +222,14 @@ export default function ProductDetailScreen({ navigation, route }) {
 
       <View style={styles.topActions}>
         <TouchableOpacity style={styles.topActionBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.topActionIcon}>←</Text>
+          <Text style={styles.topActionIcon}>‹</Text>
         </TouchableOpacity>
         <View style={styles.topActionRight}>
           <TouchableOpacity style={styles.topActionBtn} onPress={handleWishlist}>
             <Text style={styles.topActionIcon}>{isWishlisted ? '❤️' : '🤍'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.topActionBtn} onPress={handleShare}>
-            <Text style={styles.topActionIcon}>📤</Text>
+            <Text style={styles.topActionIcon}>↗</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.topActionBtn} onPress={() => navigation.navigate(SCREENS.CART)}>
             <Text style={styles.topActionIcon}>🛒</Text>
@@ -263,26 +266,30 @@ export default function ProductDetailScreen({ navigation, route }) {
             </View>
           )}
           {onSale && (
-            <View style={styles.flashOverlay}>
-              <Text style={styles.flashText}>⚡ FLASH SALE</Text>
-              {flashCountdown > 0 && <Text style={styles.flashCountdown}>{formatCountdown(flashCountdown)}</Text>}
+            <View style={styles.flashRibbonWrap}>
+              <View style={styles.flashRibbonBody}>
+                <Text style={styles.flashText}>⚡ FLASH SALE</Text>
+                {flashCountdown > 0 && <Text style={styles.flashCountdown}>{formatCountdown(flashCountdown)}</Text>}
+              </View>
             </View>
           )}
           {discount > 0 && !onSale && (
-            <View style={styles.discountOverlay}>
-              <Text style={styles.discountOverlayText}>-{discount}%</Text>
+            <View style={styles.discountRibbonWrap}>
+              <View style={styles.discountRibbonBody}>
+                <Text style={styles.discountOverlayText}>-{discount}%</Text>
+              </View>
             </View>
           )}
         </View>
 
         {/* Product Info */}
         <View style={styles.infoCard}>
-          <Text style={styles.productName}>{displayProduct.name}</Text>
           {displayProduct.category_name && (
             <View style={styles.categoryPill}>
               <Text style={styles.categoryText}>{displayProduct.category_name}</Text>
             </View>
           )}
+          <Text style={styles.productName}>{displayProduct.name}</Text>
           <View style={styles.priceSection}>
             <View style={styles.priceRow}>
               <Text style={styles.effectivePrice}>{formatPrice(effectivePrice)}</Text>
@@ -295,31 +302,33 @@ export default function ProductDetailScreen({ navigation, route }) {
                 </>
               )}
             </View>
-            <Text style={styles.freeShip}>🚚 Free Delivery</Text>
+            <View style={styles.freeShipPill}>
+              <Text style={styles.freeShip}>🚚 Free delivery</Text>
+            </View>
           </View>
           {displayProduct.rating_avg > 0 && (
             <View style={styles.ratingRow}>
-              <Text style={styles.ratingStarSmall}>⭐</Text>
+              <Text style={styles.ratingStarSmall}>★</Text>
               <Text style={styles.ratingValue}>{Number(displayProduct.rating_avg).toFixed(1)}</Text>
               <Text style={styles.ratingCountSmall}>({displayProduct.rating_count} reviews)</Text>
-              <Text style={styles.salesCount}>· {displayProduct.sales_count || 0} sold</Text>
+              <View style={styles.ratingDivider} />
+              <Text style={styles.salesCount}>{displayProduct.sales_count || 0} sold</Text>
             </View>
           )}
         </View>
 
-        {/* ── SELLER BADGE + TRUST SIGNALS ─────────────── */}
+        {/* Seller badge + trust signals */}
         <View style={styles.card}>
           {displayProduct.vendor_info ? (
             <>
-              <SellerBadge
-                vendor={displayProduct.vendor_info}
-                onPress={handleSellerStore}
-              />
+              <SellerBadge vendor={displayProduct.vendor_info} onPress={handleSellerStore} />
               <TrustSignals vendor={displayProduct.vendor_info} />
             </>
           ) : (displayProduct.vendor_name || displayProduct.vendor_id) ? (
-            <TouchableOpacity style={styles.vendorRow} onPress={handleSellerStore}>
-              <Text style={styles.vendorIcon}>🏪</Text>
+            <TouchableOpacity style={styles.vendorRow} onPress={handleSellerStore} activeOpacity={0.8}>
+              <View style={styles.vendorIconChip}>
+                <Text style={styles.vendorIcon}>🏪</Text>
+              </View>
               <Text style={styles.vendorName}>{displayProduct.vendor_name || 'View Store'}</Text>
               <Text style={styles.vendorArrow}>›</Text>
             </TouchableOpacity>
@@ -328,10 +337,12 @@ export default function ProductDetailScreen({ navigation, route }) {
 
         {/* Guest Banner */}
         {!isAuthenticated && (
-          <TouchableOpacity style={styles.guestBanner} onPress={() => setShowAuthModal(true)}>
-            <Text style={styles.guestBannerIcon}>👤</Text>
+          <TouchableOpacity style={styles.guestBanner} onPress={() => setShowAuthModal(true)} activeOpacity={0.85}>
+            <View style={styles.guestBannerIconChip}>
+              <Text style={styles.guestBannerIcon}>👤</Text>
+            </View>
             <View style={styles.guestBannerText}>
-              <Text style={styles.guestBannerTitle}>Login to shop on VUMA</Text>
+              <Text style={styles.guestBannerTitle}>Log in to shop on VUMA</Text>
               <Text style={styles.guestBannerSub}>Get exclusive deals and track your orders</Text>
             </View>
             <Text style={styles.guestBannerArrow}>›</Text>
@@ -353,7 +364,10 @@ export default function ProductDetailScreen({ navigation, route }) {
 
         {/* Quantity */}
         <View style={styles.card}>
-          <Text style={styles.qtyLabel}>Quantity</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.qtyLabel}>Quantity</Text>
+          </View>
           <View style={styles.qtyRow}>
             <TouchableOpacity
               style={[styles.qtyBtn, quantity <= 1 && styles.qtyBtnDisabled]}
@@ -370,8 +384,8 @@ export default function ProductDetailScreen({ navigation, route }) {
             >
               <Text style={styles.qtyBtnText}>+</Text>
             </TouchableOpacity>
-            <Text style={styles.stockText}>
-              {displayProduct.stock > 0 ? `${displayProduct.stock} available` : '❌ Out of stock'}
+            <Text style={[styles.stockText, outOfStock && styles.stockTextDanger]}>
+              {displayProduct.stock > 0 ? `${displayProduct.stock} available` : 'Out of stock'}
             </Text>
           </View>
         </View>
@@ -379,14 +393,20 @@ export default function ProductDetailScreen({ navigation, route }) {
         {/* Description */}
         {displayProduct.description && (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>📋 Description</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={styles.sectionAccent} />
+              <Text style={styles.sectionTitle}>Description</Text>
+            </View>
             <Text style={styles.description}>{displayProduct.description}</Text>
           </View>
         )}
 
         {/* Details */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>📦 Details</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Details</Text>
+          </View>
           {[
             ['SKU', displayProduct.sku],
             ['Stock', `${displayProduct.stock} units`],
@@ -403,16 +423,19 @@ export default function ProductDetailScreen({ navigation, route }) {
         {/* Reviews */}
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>⭐ Reviews ({reviews.length})</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={styles.sectionAccent} />
+              <Text style={styles.sectionTitle}>Reviews ({reviews.length})</Text>
+            </View>
             <TouchableOpacity onPress={() => setShowReviewModal(true)}>
-              <Text style={styles.writeReview}>Write Review</Text>
+              <Text style={styles.writeReview}>Write review</Text>
             </TouchableOpacity>
           </View>
           {displayProduct.rating_avg > 0 && (
             <View style={styles.ratingSummary}>
               <Text style={styles.ratingBig}>{Number(displayProduct.rating_avg).toFixed(1)}</Text>
               <View>
-                <Text style={styles.ratingStars}>{'⭐'.repeat(Math.round(displayProduct.rating_avg))}</Text>
+                <Text style={styles.ratingStars}>{'★'.repeat(Math.round(displayProduct.rating_avg))}</Text>
                 <Text style={styles.ratingCount}>{displayProduct.rating_count} reviews</Text>
               </View>
             </View>
@@ -427,10 +450,14 @@ export default function ProductDetailScreen({ navigation, route }) {
                   <Text style={styles.reviewUser}>{review.user_name || 'Customer'}</Text>
                   <Text style={styles.reviewDate}>{formatDate(review.created_at)}</Text>
                 </View>
-                <Text style={styles.reviewRating}>{'⭐'.repeat(review.rating)}</Text>
+                <Text style={styles.reviewRating}>{'★'.repeat(review.rating)}</Text>
               </View>
               {review.comment && <Text style={styles.reviewComment}>{review.comment}</Text>}
-              {review.is_verified_purchase && <Text style={styles.verifiedPurchase}>✅ Verified Purchase</Text>}
+              {review.is_verified_purchase && (
+                <View style={styles.verifiedPurchasePill}>
+                  <Text style={styles.verifiedPurchase}>✓ Verified Purchase</Text>
+                </View>
+              )}
             </View>
           ))}
           {reviews.length === 0 && <Text style={styles.noReviews}>No reviews yet. Be the first!</Text>}
@@ -475,7 +502,7 @@ export default function ProductDetailScreen({ navigation, route }) {
         <View style={styles.reviewModalOverlay}>
           <View style={styles.reviewModal}>
             <View style={styles.reviewModalHeader}>
-              <Text style={styles.reviewModalTitle}>✍️ Write a Review</Text>
+              <Text style={styles.reviewModalTitle}>Write a review</Text>
               <TouchableOpacity onPress={() => setShowReviewModal(false)}>
                 <Text style={styles.reviewModalClose}>✕</Text>
               </TouchableOpacity>
@@ -484,7 +511,7 @@ export default function ProductDetailScreen({ navigation, route }) {
             <View style={styles.starRow}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity key={star} onPress={() => setReviewRating(star)}>
-                  <Text style={[styles.starIcon, star <= reviewRating && styles.starIconActive]}>⭐</Text>
+                  <Text style={[styles.starIcon, star <= reviewRating && styles.starIconActive]}>★</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -501,107 +528,158 @@ export default function ProductDetailScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { paddingBottom: SPACING.xl },
-  animHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50, backgroundColor: COLORS.surface, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.sm, paddingHorizontal: SPACING.xl, borderBottomWidth: 1, borderBottomColor: COLORS.divider, alignItems: 'center' },
+  animHeader: {
+    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50,
+    backgroundColor: COLORS.surface, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base,
+    paddingBottom: SPACING.sm, paddingHorizontal: SPACING.xl,
+    borderBottomWidth: 1, borderBottomColor: COLORS.divider, alignItems: 'center',
+  },
   animHeaderTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  topActions: { position: 'absolute', top: Platform.OS === 'ios' ? 50 : SPACING.base, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.sm, zIndex: 100 },
+  topActions: {
+    position: 'absolute', top: Platform.OS === 'ios' ? 50 : SPACING.base, left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: SPACING.sm, zIndex: 100,
+  },
   topActionRight: { flexDirection: 'row', gap: SPACING.xs },
-  topActionBtn: { width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm },
+  topActionBtn: {
+    width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.94)',
+    alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm,
+  },
   topActionIcon: { fontSize: 18 },
-  galleryWrap: { width, height: width * 0.85, backgroundColor: COLORS.surfaceAlt, position: 'relative' },
-  galleryImage: { width, height: width * 0.85 },
-  galleryPlaceholder: { width, height: width * 0.85, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
-  placeholderEmoji: { fontSize: 80 },
+  galleryWrap: { width, height: width * 0.9, backgroundColor: COLORS.surfaceAlt, position: 'relative' },
+  galleryImage: { width, height: width * 0.9 },
+  galleryPlaceholder: { width, height: width * 0.9, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
+  placeholderEmoji: { fontSize: 76, opacity: 0.35 },
   imageDots: { position: 'absolute', bottom: SPACING.base, alignSelf: 'center', flexDirection: 'row', gap: 4 },
-  imageDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.5)' },
-  imageDotActive: { backgroundColor: COLORS.primary, width: 16 },
-  flashOverlay: { position: 'absolute', bottom: SPACING.xl, left: SPACING.base, backgroundColor: COLORS.flashSale || COLORS.danger, borderRadius: RADIUS.md, paddingHorizontal: SPACING.sm, paddingVertical: 4 },
-  flashText: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  flashCountdown: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  discountOverlay: { position: 'absolute', top: SPACING.xl, right: SPACING.base, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.sm, paddingVertical: 4 },
-  discountOverlayText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
+  imageDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.55)' },
+  imageDotActive: { backgroundColor: COLORS.primary, width: 18 },
+
+  flashRibbonWrap: { position: 'absolute', top: SPACING.xl, left: -1 },
+  flashRibbonBody: {
+    backgroundColor: COLORS.flashSale, paddingHorizontal: SPACING.md, paddingVertical: 6,
+    borderTopRightRadius: RADIUS.sm, borderBottomRightRadius: RADIUS.sm,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
+  flashText: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.extraBold },
+  flashCountdown: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold, opacity: 0.9 },
+  discountRibbonWrap: { position: 'absolute', top: SPACING.xl, left: -1 },
+  discountRibbonBody: {
+    backgroundColor: COLORS.discount, paddingHorizontal: SPACING.md, paddingVertical: 6,
+    borderTopRightRadius: RADIUS.sm, borderBottomRightRadius: RADIUS.sm,
+  },
+  discountOverlayText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.extraBold },
+
   infoCard: { backgroundColor: COLORS.surface, padding: SPACING.base, marginBottom: SPACING.sm },
-  vendorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, paddingVertical: SPACING.xs },
-  vendorIcon: { fontSize: FONTS.base },
-  vendorName: { flex: 1, fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  vendorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.xs },
+  vendorIconChip: { width: 32, height: 32, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
+  vendorIcon: { fontSize: 16 },
+  vendorName: { flex: 1, fontSize: FONTS.sm, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
   vendorArrow: { fontSize: FONTS.xl, color: COLORS.textMuted },
+
   productName: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary, lineHeight: 30, marginBottom: SPACING.sm },
-  categoryPill: { alignSelf: 'flex-start', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 3, marginBottom: SPACING.sm },
-  categoryText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  categoryPill: { alignSelf: 'flex-start', backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, marginBottom: SPACING.sm },
+  categoryText: { fontSize: 10.5, color: COLORS.textSecondary, fontWeight: FONTS.semiBold, textTransform: 'uppercase', letterSpacing: 0.4 },
   priceSection: { marginBottom: SPACING.sm },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
-  effectivePrice: { fontSize: FONTS['3xl'], fontWeight: FONTS.black, color: COLORS.primary },
-  originalPrice: { fontSize: FONTS.base, color: COLORS.textMuted, textDecorationLine: 'line-through' },
-  discountPill: { backgroundColor: COLORS.danger, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACING.sm, flexWrap: 'wrap' },
+  effectivePrice: { fontSize: FONTS['3xl'], fontWeight: FONTS.black, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
+  originalPrice: { fontSize: FONTS.base, color: COLORS.textLight, textDecorationLine: 'line-through' },
+  discountPill: { backgroundColor: COLORS.discount, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
   discountPillText: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  freeShip: { fontSize: FONTS.sm, color: COLORS.success, fontWeight: FONTS.semiBold, marginTop: SPACING.xs },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginTop: SPACING.sm },
-  ratingStarSmall: { fontSize: FONTS.sm },
+  freeShipPill: { alignSelf: 'flex-start', backgroundColor: COLORS.successLight, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, marginTop: SPACING.xs },
+  freeShip: { fontSize: FONTS.xs, color: COLORS.successText, fontWeight: FONTS.semiBold },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm },
+  ratingStarSmall: { fontSize: FONTS.sm, color: COLORS.rating },
   ratingValue: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textSecondary },
   ratingCountSmall: { fontSize: FONTS.sm, color: COLORS.textMuted },
+  ratingDivider: { width: 1, height: 12, backgroundColor: COLORS.border },
   salesCount: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  guestBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primaryFade, marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1, borderColor: COLORS.primary + '30' },
-  guestBannerIcon: { fontSize: 28, marginRight: SPACING.sm },
+
+  guestBanner: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primaryFade,
+    marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl,
+    padding: SPACING.base, borderWidth: 1, borderColor: 'rgba(255,106,0,0.2)',
+  },
+  guestBannerIconChip: { width: 40, height: 40, borderRadius: RADIUS.full, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center', marginRight: SPACING.sm },
+  guestBannerIcon: { fontSize: 19 },
   guestBannerText: { flex: 1 },
-  guestBannerTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primary },
+  guestBannerTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primaryDark },
   guestBannerSub: { fontSize: FONTS.xs, color: COLORS.textSecondary, marginTop: 2 },
   guestBannerArrow: { fontSize: FONTS.xl, color: COLORS.primary },
+
   card: { backgroundColor: COLORS.surface, padding: SPACING.base, marginBottom: SPACING.sm },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.base },
-  sectionTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
-  qtyLabel: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
+  sectionAccent: { width: 4, height: 15, borderRadius: 2, backgroundColor: COLORS.primary },
+  sectionTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  qtyLabel: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.base },
   qtyBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.primary },
-  qtyBtnDisabled: { backgroundColor: COLORS.skeleton, borderColor: COLORS.border },
+  qtyBtnDisabled: { backgroundColor: COLORS.surfaceSunken, borderColor: COLORS.border },
   qtyBtnText: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.primary, lineHeight: 22 },
   qtyValue: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary, minWidth: 32, textAlign: 'center' },
-  stockText: { fontSize: FONTS.sm, color: COLORS.textMuted, flex: 1 },
+  stockText: { fontSize: FONTS.sm, color: COLORS.textMuted, flex: 1, textAlign: 'right' },
+  stockTextDanger: { color: COLORS.danger, fontWeight: FONTS.semiBold },
   description: { fontSize: FONTS.base, color: COLORS.textSecondary, lineHeight: 24 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   detailLabel: { fontSize: FONTS.sm, color: COLORS.textMuted },
   detailValue: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
   writeReview: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  ratingSummary: { flexDirection: 'row', alignItems: 'center', gap: SPACING.base, backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.base },
-  ratingBig: { fontSize: FONTS['4xl'], fontWeight: FONTS.black, color: COLORS.primary },
-  ratingStars: { fontSize: FONTS.base },
+  ratingSummary: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.base,
+    backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.base,
+  },
+  ratingBig: { fontSize: FONTS['4xl'], fontWeight: FONTS.black, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
+  ratingStars: { fontSize: FONTS.base, color: COLORS.rating },
   ratingCount: { fontSize: FONTS.sm, color: COLORS.textMuted },
   reviewItem: { borderBottomWidth: 1, borderBottomColor: COLORS.divider, paddingVertical: SPACING.base },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.sm },
-  reviewAvatar: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  reviewAvatar: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.secondary, alignItems: 'center', justifyContent: 'center' },
   reviewAvatarText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
   reviewMeta: { flex: 1 },
   reviewUser: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   reviewDate: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  reviewRating: { fontSize: FONTS.xs },
+  reviewRating: { fontSize: FONTS.xs, color: COLORS.rating },
   reviewComment: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20, marginBottom: SPACING.xs },
-  verifiedPurchase: { fontSize: FONTS.xs, color: COLORS.success, fontWeight: FONTS.semiBold },
+  verifiedPurchasePill: { alignSelf: 'flex-start', backgroundColor: COLORS.successLight, borderRadius: RADIUS.sm, paddingHorizontal: 6, paddingVertical: 2 },
+  verifiedPurchase: { fontSize: 10.5, color: COLORS.successText, fontWeight: FONTS.semiBold },
   noReviews: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center', paddingVertical: SPACING.xl },
-  bottomBar: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, paddingBottom: Platform.OS === 'ios' ? SPACING.xl : SPACING.base, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider, ...SHADOWS.md },
+
+  bottomBar: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm,
+    paddingBottom: Platform.OS === 'ios' ? SPACING.xl : SPACING.base,
+    backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider, ...SHADOWS.lg,
+  },
   chatBtn: { width: 48, height: 48, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.primary },
-  chatBtnText: { fontSize: 22 },
+  chatBtnText: { fontSize: 21 },
   cartBtnWrap: { flex: 1 },
   addCartBtn: { flex: 1 },
   buyNowBtn: { flex: 1 },
-  authOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: SPACING.base },
-  authModal: { backgroundColor: COLORS.surface, borderRadius: RADIUS['2xl'], padding: SPACING.xl, width: '100%', maxWidth: 380, alignItems: 'center' },
+
+  authOverlay: { flex: 1, backgroundColor: 'rgba(18,22,43,0.65)', justifyContent: 'center', alignItems: 'center', padding: SPACING.base },
+  authModal: { backgroundColor: COLORS.surface, borderRadius: RADIUS['2xl'], padding: SPACING.xl, width: '100%', maxWidth: 380, alignItems: 'center', ...SHADOWS.lg },
   authIconWrap: { width: 72, height: 72, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.base },
-  authIcon: { fontSize: 36 },
+  authIcon: { fontSize: 34 },
   authTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.textPrimary, textAlign: 'center', marginBottom: SPACING.sm },
   authMessage: { fontSize: FONTS.sm, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: SPACING.base },
-  authBenefits: { width: '100%', backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.base, gap: SPACING.xs },
+  authBenefits: { width: '100%', backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.base, gap: SPACING.sm },
+  authBenefitRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  authBenefitCheck: { fontSize: 12, color: COLORS.success, fontWeight: FONTS.black },
   authBenefit: { fontSize: FONTS.sm, color: COLORS.textSecondary },
-  authLoginBtn: { width: '100%', backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingVertical: SPACING.base, alignItems: 'center', marginBottom: SPACING.sm },
+  authLoginBtn: { width: '100%', backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingVertical: SPACING.base, alignItems: 'center', marginBottom: SPACING.sm, ...SHADOWS.primary },
   authLoginText: { color: COLORS.textWhite, fontSize: FONTS.base, fontWeight: FONTS.bold },
   authRegisterBtn: { width: '100%', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, paddingVertical: SPACING.base, alignItems: 'center', marginBottom: SPACING.sm, borderWidth: 2, borderColor: COLORS.primary },
   authRegisterText: { color: COLORS.primary, fontSize: FONTS.base, fontWeight: FONTS.bold },
   authCancelBtn: { paddingVertical: SPACING.sm },
   authCancelText: { color: COLORS.textMuted, fontSize: FONTS.sm },
+
   reviewModalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay, justifyContent: 'flex-end', zIndex: 999 },
-  reviewModal: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.xl, paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.xl },
+  reviewModal: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.xl, paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.xl, ...SHADOWS.lg },
   reviewModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xl },
   reviewModalTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   reviewModalClose: { fontSize: FONTS.xl, color: COLORS.textMuted },
   reviewModalLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.sm },
   starRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
-  starIcon: { fontSize: 32, opacity: 0.3 },
+  starIcon: { fontSize: 32, opacity: 0.28, color: COLORS.rating },
   starIconActive: { opacity: 1 },
 });

@@ -1,27 +1,21 @@
 /**
  * VUMA SellerBadge Component
- * Drop into any product page or seller listing
+ * Drop into any product page or seller listing.
+ * Same exports (SellerBadge, SellerInlineBadge, TrustSignals) and same props —
+ * now pulls colors from the shared VUMA design tokens instead of a local palette.
  *
  * Usage:
  *   <SellerBadge vendor={product.vendor_info} onPress={() => nav.navigate('SellerStore', { vendorId })} />
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
-
-const C = {
-  orange: '#FF6B00', orangeL: '#FFF3E8',
-  blue:   '#1B8EF2', blueL:   '#E8F3FF',
-  green:  '#16A34A', greenL:  '#EDFAF3',
-  yellow: '#F59E0B', yellowL: '#FFFBEB',
-  text:   '#111827', textSec: '#6B7280',
-  border: '#E5E7EB', bg:      '#F8F9FA',
-};
+import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../../utils/constants';
 
 const BADGE_CONFIG = {
-  verified_seller:   { color: C.blue,   bg: C.blueL,   icon: '✓',  short: 'Verified' },
-  verified_business: { color: C.orange, bg: C.orangeL, icon: '🏢', short: 'Business' },
-  verified_agri:     { color: C.green,  bg: C.greenL,  icon: '🌾', short: 'Agri' },
-  featured:          { color: C.yellow, bg: C.yellowL, icon: '⭐', short: 'Featured' },
+  verified_seller:   { color: COLORS.info,    bg: COLORS.infoLight,    icon: '✓', short: 'Verified' },
+  verified_business: { color: COLORS.primary, bg: COLORS.primaryFade,  icon: '🏢', short: 'Business' },
+  verified_agri:     { color: COLORS.success, bg: COLORS.successLight, icon: '🌾', short: 'Agri' },
+  featured:          { color: COLORS.warning, bg: COLORS.warningLight, icon: '⭐', short: 'Featured' },
 };
 
 export const SellerBadge = ({ vendor, onPress, compact = false }) => {
@@ -34,9 +28,8 @@ export const SellerBadge = ({ vendor, onPress, compact = false }) => {
   const totalOrders = vendor.total_orders || 0;
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8}
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85}
       style={[styles.container, compact && styles.containerCompact]}>
-      {/* Logo */}
       <View style={styles.logoWrap}>
         {vendor.logo
           ? <Image source={{ uri: vendor.logo }} style={styles.logo} />
@@ -48,18 +41,17 @@ export const SellerBadge = ({ vendor, onPress, compact = false }) => {
         }
         {badges.length > 0 && (
           <View style={styles.badgeDot}>
-            <Text style={{ fontSize: 8 }}>✓</Text>
+            <Text style={styles.badgeDotIcon}>✓</Text>
           </View>
         )}
       </View>
 
-      {/* Info */}
-      <View style={{ flex: 1, marginLeft: 10 }}>
+      <View style={styles.info}>
         <View style={styles.nameRow}>
           <Text style={styles.shopName} numberOfLines={1}>{vendor.shop_name}</Text>
           {badgeCfg && (
-            <View style={[styles.badgeChip, { backgroundColor: badgeCfg.bg, borderColor: `${badgeCfg.color}30` }]}>
-              <Text style={{ fontSize: 9 }}>{badgeCfg.icon}</Text>
+            <View style={[styles.badgeChip, { backgroundColor: badgeCfg.bg }]}>
+              <Text style={styles.badgeChipIcon}>{badgeCfg.icon}</Text>
               <Text style={[styles.badgeText, { color: badgeCfg.color }]}>{badgeCfg.short}</Text>
             </View>
           )}
@@ -67,23 +59,22 @@ export const SellerBadge = ({ vendor, onPress, compact = false }) => {
         <View style={styles.statsRow}>
           {rating > 0 && (
             <View style={styles.statPill}>
-              <Text style={styles.statText}>⭐ {Number(rating).toFixed(1)}</Text>
+              <Text style={styles.statText}>★ {Number(rating).toFixed(1)}</Text>
             </View>
           )}
           {totalOrders > 0 && (
             <View style={styles.statPill}>
-              <Text style={styles.statText}>📦 {totalOrders.toLocaleString()} sold</Text>
+              <Text style={styles.statText}>{totalOrders.toLocaleString()} sold</Text>
             </View>
           )}
           {vendor.response_time && (
             <View style={styles.statPill}>
-              <Text style={styles.statText}>⚡ {vendor.response_time}</Text>
+              <Text style={styles.statText}>{vendor.response_time}</Text>
             </View>
           )}
         </View>
       </View>
 
-      {/* Arrow */}
       <Text style={styles.arrow}>›</Text>
     </TouchableOpacity>
   );
@@ -103,7 +94,7 @@ export const SellerInlineBadge = ({ badges = [], shopName }) => {
         if (!cfg) return null;
         return (
           <View key={b.id} style={[styles.inlineBadge, { backgroundColor: cfg.bg }]}>
-            <Text style={{ fontSize: 8 }}>{cfg.icon}</Text>
+            <Text style={styles.inlineBadgeIcon}>{cfg.icon}</Text>
             <Text style={[styles.inlineBadgeText, { color: cfg.color }]}>{cfg.short}</Text>
           </View>
         );
@@ -120,7 +111,9 @@ export const TrustSignals = ({ vendor }) => {
   return (
     <View style={styles.trustCard}>
       <View style={styles.trustHeader}>
-        <Text style={styles.trustIcon}>🛡️</Text>
+        <View style={styles.trustIconChip}>
+          <Text style={styles.trustIcon}>🛡</Text>
+        </View>
         <Text style={styles.trustTitle}>VUMA Verified Seller</Text>
       </View>
       <View style={styles.trustBadges}>
@@ -130,16 +123,18 @@ export const TrustSignals = ({ vendor }) => {
           return (
             <View key={b.id} style={styles.trustBadgeItem}>
               <View style={[styles.trustBadgeIconWrap, { backgroundColor: cfg.bg }]}>
-                <Text style={{ fontSize: 16 }}>{cfg.icon}</Text>
+                <Text style={styles.trustBadgeItemIcon}>{cfg.icon}</Text>
               </View>
-              <Text style={styles.trustBadgeLabel}>{b.label}</Text>
-              <Text style={styles.trustBadgeDesc} numberOfLines={2}>{b.description}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.trustBadgeLabel}>{b.label}</Text>
+                <Text style={styles.trustBadgeDesc} numberOfLines={2}>{b.description}</Text>
+              </View>
             </View>
           );
         })}
       </View>
       <Text style={styles.trustFooter}>
-        ✓ All VUMA verified sellers undergo strict identity and business verification
+        All VUMA verified sellers undergo strict identity and business verification
       </Text>
     </View>
   );
@@ -148,40 +143,51 @@ export const TrustSignals = ({ vendor }) => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: C.bg, borderRadius: 12,
-    padding: 12, borderWidth: 1, borderColor: C.border,
-    marginVertical: 8,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    marginVertical: SPACING.sm, ...SHADOWS.xs,
   },
-  containerCompact: { padding: 8, borderRadius: 8 },
-  logoWrap:   { position: 'relative' },
-  logo:       { width: 44, height: 44, borderRadius: 10 },
-  logoFallback:{ backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' },
-  logoText:   { color: '#fff', fontWeight: '800', fontSize: 18 },
-  badgeDot:   { position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: 8, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-  nameRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  shopName:   { fontSize: 14, fontWeight: '700', color: C.text, flex: 1 },
-  badgeChip:  { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, borderWidth: 1 },
-  badgeText:  { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
-  statsRow:   { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  statPill:   { backgroundColor: C.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  statText:   { fontSize: 10, color: C.textSec, fontWeight: '500' },
-  arrow:      { fontSize: 20, color: C.textSec, marginLeft: 8 },
+  containerCompact: { padding: SPACING.sm, borderRadius: RADIUS.md },
+  logoWrap: { position: 'relative' },
+  logo: { width: 44, height: 44, borderRadius: RADIUS.md },
+  logoFallback: { backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  logoText: { color: COLORS.textWhite, fontWeight: FONTS.extraBold, fontSize: 18 },
+  badgeDot: {
+    position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: 8,
+    backgroundColor: COLORS.info, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: COLORS.surface,
+  },
+  badgeDotIcon: { fontSize: 8, color: COLORS.textWhite, fontWeight: FONTS.black },
+  info: { flex: 1, marginLeft: 10 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  shopName: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.textPrimary, flex: 1 },
+  badgeChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: RADIUS.sm },
+  badgeChipIcon: { fontSize: 9 },
+  badgeText: { fontSize: 9.5, fontWeight: FONTS.bold, letterSpacing: 0.3 },
+  statsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  statPill: { backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.sm, paddingHorizontal: 7, paddingVertical: 2 },
+  statText: { fontSize: 10.5, color: COLORS.textSecondary, fontWeight: FONTS.medium },
+  arrow: { fontSize: FONTS.xl, color: COLORS.textMuted, marginLeft: SPACING.sm },
 
-  // Inline
-  inlineRow:       { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-  inlineShopName:  { fontSize: 12, fontWeight: '600', color: C.textSec },
-  inlineBadge:     { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6 },
-  inlineBadgeText: { fontSize: 9, fontWeight: '700' },
+  inlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
+  inlineShopName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
+  inlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 5, paddingVertical: 1, borderRadius: RADIUS.sm },
+  inlineBadgeIcon: { fontSize: 9 },
+  inlineBadgeText: { fontSize: 9.5, fontWeight: FONTS.bold },
 
-  // Trust Card
-  trustCard:       { backgroundColor: '#F0F9FF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#BAE6FD', marginVertical: 8 },
-  trustHeader:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  trustIcon:       { fontSize: 18 },
-  trustTitle:      { fontSize: 14, fontWeight: '700', color: C.blue },
-  trustBadges:     { gap: 10, marginBottom: 10 },
-  trustBadgeItem:  { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  trustBadgeIconWrap: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  trustBadgeLabel: { fontSize: 13, fontWeight: '700', color: C.text, marginBottom: 2 },
-  trustBadgeDesc:  { fontSize: 11, color: C.textSec, lineHeight: 15, flex: 1 },
-  trustFooter:     { fontSize: 11, color: C.textSec, lineHeight: 15 },
+  trustCard: {
+    backgroundColor: COLORS.infoLight, borderRadius: RADIUS.lg, padding: SPACING.base,
+    borderWidth: 1, borderColor: 'rgba(59,130,196,0.25)', marginVertical: SPACING.sm,
+  },
+  trustHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
+  trustIconChip: { width: 28, height: 28, borderRadius: RADIUS.md, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+  trustIcon: { fontSize: 15 },
+  trustTitle: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.infoText },
+  trustBadges: { gap: SPACING.sm + 2, marginBottom: SPACING.sm + 2 },
+  trustBadgeItem: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm + 2 },
+  trustBadgeIconWrap: { width: 36, height: 36, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
+  trustBadgeItemIcon: { fontSize: 16 },
+  trustBadgeLabel: { fontSize: FONTS.sm + 1, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
+  trustBadgeDesc: { fontSize: FONTS.xs, color: COLORS.textSecondary, lineHeight: 15 },
+  trustFooter: { fontSize: FONTS.xs, color: COLORS.infoText, lineHeight: 16 },
 });

@@ -411,7 +411,7 @@ export default function MazaoAddProduct({ navigation, route }) {
           <Switch
             value={form.is_seasonal}
             onValueChange={v => setField('is_seasonal', v)}
-            trackColor={{ true: '#1B4332' }}
+            trackColor={{ true: '#0E3B2C' }}
           />
         </View>
 
@@ -445,7 +445,7 @@ export default function MazaoAddProduct({ navigation, route }) {
         >
           <Text style={styles.gpsBtnIcon}>📍</Text>
           <View style={styles.gpsBtnContent}>
-            <Text style={[styles.gpsBtnTitle, form.farm_latitude && { color: '#1B4332' }]}>
+            <Text style={[styles.gpsBtnTitle, form.farm_latitude && { color: '#0E3B2C' }]}>
               {gpsLoading ? 'Getting location...' : form.farm_latitude ? '✓ Farm Location Pinned' : 'Pin My Farm Location'}
             </Text>
             <Text style={styles.gpsBtnSub}>
@@ -480,7 +480,7 @@ export default function MazaoAddProduct({ navigation, route }) {
             <Text style={styles.switchLabel}>Offers Pickup</Text>
             <Text style={styles.switchSub}>Buyers can collect from your farm</Text>
           </View>
-          <Switch value={form.offers_pickup} onValueChange={v => setField('offers_pickup', v)} trackColor={{ true: '#1B4332' }} />
+          <Switch value={form.offers_pickup} onValueChange={v => setField('offers_pickup', v)} trackColor={{ true: '#0E3B2C' }} />
         </View>
 
         <View style={styles.switchRow}>
@@ -488,7 +488,7 @@ export default function MazaoAddProduct({ navigation, route }) {
             <Text style={styles.switchLabel}>Offers Delivery</Text>
             <Text style={styles.switchSub}>You can deliver to buyers</Text>
           </View>
-          <Switch value={form.offers_delivery} onValueChange={v => setField('offers_delivery', v)} trackColor={{ true: '#1B4332' }} />
+          <Switch value={form.offers_delivery} onValueChange={v => setField('offers_delivery', v)} trackColor={{ true: '#0E3B2C' }} />
         </View>
 
         {form.offers_delivery && (
@@ -505,7 +505,7 @@ export default function MazaoAddProduct({ navigation, route }) {
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Product Available Now</Text>
-          <Switch value={form.is_available} onValueChange={v => setField('is_available', v)} trackColor={{ true: '#1B4332' }} />
+          <Switch value={form.is_available} onValueChange={v => setField('is_available', v)} trackColor={{ true: '#0E3B2C' }} />
         </View>
 
         <Button
@@ -560,17 +560,17 @@ export default function MazaoAddProduct({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1B4332', paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0E3B2C', paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base },
   backBtn: { fontSize: FONTS.xl, color: 'white', fontWeight: FONTS.bold },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: 'white' },
   scroll: { padding: SPACING.base },
-  imageUpload: { height: 160, borderWidth: 2, borderColor: '#52B788', borderStyle: 'dashed', borderRadius: RADIUS.xl, overflow: 'hidden', marginBottom: SPACING.base, backgroundColor: '#D8F3DC' },
+  imageUpload: { height: 160, borderWidth: 2, borderColor: '#0E9F6E', borderStyle: 'dashed', borderRadius: RADIUS.xl, overflow: 'hidden', marginBottom: SPACING.base, backgroundColor: '#E3F9F0' },
   imagePreview: { width: '100%', height: '100%' },
   imageUploadEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
   imageUploadIcon: { fontSize: 36 },
-  imageUploadText: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: '#1B4332' },
+  imageUploadText: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: '#0E3B2C' },
   imageUploadSub: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: '#1B4332', marginTop: SPACING.base, marginBottom: SPACING.sm, paddingBottom: SPACING.xs, borderBottomWidth: 2, borderBottomColor: '#D8F3DC' },
+  sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: '#0E3B2C', marginTop: SPACING.base, marginBottom: SPACING.sm, paddingBottom: SPACING.xs, borderBottomWidth: 2, borderBottomColor: '#E3F9F0' },
   fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs, marginTop: SPACING.sm },
   input: { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   textArea: { minHeight: 80, textAlignVertical: 'top', paddingTop: SPACING.sm },
@@ -582,22 +582,22 @@ const styles = StyleSheet.create({
   gradeChip: { padding: SPACING.sm, borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface },
   gradeChipText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
   sellingRow: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: SPACING.sm },
-  sellingChip: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs + 2, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: '#52B788', backgroundColor: COLORS.surface },
-  sellingChipActive: { backgroundColor: '#1B4332', borderColor: '#1B4332' },
-  sellingChipText: { fontSize: FONTS.xs, color: '#1B4332', fontWeight: FONTS.semiBold },
+  sellingChip: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs + 2, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: '#0E9F6E', backgroundColor: COLORS.surface },
+  sellingChipActive: { backgroundColor: '#0E3B2C', borderColor: '#0E3B2C' },
+  sellingChipText: { fontSize: FONTS.xs, color: '#0E3B2C', fontWeight: FONTS.semiBold },
   sellingChipTextActive: { color: 'white' },
   rowFields: { flexDirection: 'row', gap: SPACING.sm },
   halfField: { flex: 1 },
-  gpsBtn: { flexDirection: 'row', alignItems: 'center', padding: SPACING.base, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: '#52B788', backgroundColor: '#D8F3DC', marginVertical: SPACING.sm, gap: SPACING.sm },
-  gpsBtnActive: { borderColor: '#1B4332', backgroundColor: '#B7E4C7' },
+  gpsBtn: { flexDirection: 'row', alignItems: 'center', padding: SPACING.base, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: '#0E9F6E', backgroundColor: '#E3F9F0', marginVertical: SPACING.sm, gap: SPACING.sm },
+  gpsBtnActive: { borderColor: '#0E3B2C', backgroundColor: '#BEEDD9' },
   gpsBtnIcon: { fontSize: 28 },
   gpsBtnContent: { flex: 1 },
-  gpsBtnTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: '#52B788' },
+  gpsBtnTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: '#0E9F6E' },
   gpsBtnSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   switchLabel: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
   switchSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  submitBtn: { marginTop: SPACING.xl, backgroundColor: '#1B4332' },
+  submitBtn: { marginTop: SPACING.xl, backgroundColor: '#0E3B2C' },
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   pickerContainer: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '75%', paddingBottom: Platform.OS === 'ios' ? 34 : 16 },
   pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },

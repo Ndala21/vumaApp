@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.border,
     paddingBottom: Platform.OS === 'ios' ? 20 : 4,
     elevation: 12,
-    shadowColor: '#000',
+    shadowColor: COLORS.secondary,
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.08,
     shadowRadius: 8,

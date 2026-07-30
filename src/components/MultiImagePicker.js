@@ -62,22 +62,24 @@ export const MultiImagePicker = memo(({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.label}>Product Images</Text>
-        <Text style={styles.count}>{images.length}/{MAX_IMAGES}</Text>
+        <View style={styles.sectionTitleRow}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.label}>Product Images</Text>
+        </View>
+        <View style={styles.countPill}>
+          <Text style={styles.count}>{images.length}/{MAX_IMAGES}</Text>
+        </View>
       </View>
-      <Text style={styles.hint}>First image is the main image. Tap ⭐ to set as main.</Text>
+      <Text style={styles.hint}>First image is the main image. Tap the star to set as main.</Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRow}>
-        {/* Add button */}
         {images.length < MAX_IMAGES && (
-          <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
+          <TouchableOpacity style={styles.addBtn} onPress={handleAdd} activeOpacity={0.8}>
             <Text style={styles.addIcon}>📷</Text>
-            <Text style={styles.addText}>Add</Text>
-            <Text style={styles.addSubtext}>Photo</Text>
+            <Text style={styles.addText}>Add Photo</Text>
           </TouchableOpacity>
         )}
 
-        {/* Image thumbnails */}
         {images.map((img, index) => {
           const uri = img.uri || img.image_url || img.url;
           const isPrimary = index === 0 || img.is_primary;
@@ -87,35 +89,29 @@ export const MultiImagePicker = memo(({
             <View key={index} style={styles.imageWrap}>
               <Image source={{ uri }} style={styles.thumbnail} resizeMode="cover" />
 
-              {/* Uploading overlay */}
               {isUploading && (
                 <View style={styles.uploadingOverlay}>
                   <Text style={styles.uploadingText}>📤</Text>
                 </View>
               )}
 
-              {/* Primary badge */}
               {isPrimary && (
                 <View style={styles.primaryBadge}>
                   <Text style={styles.primaryBadgeText}>MAIN</Text>
                 </View>
               )}
 
-              {/* Actions */}
               <View style={styles.imageActions}>
                 {!isPrimary && onSetPrimary && (
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => onSetPrimary(index)}
-                  >
-                    <Text style={{ fontSize: 12 }}>⭐</Text>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => onSetPrimary(index)}>
+                    <Text style={styles.actionBtnIcon}>⭐</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.deleteActionBtn]}
                   onPress={() => onRemove(index)}
                 >
-                  <Text style={{ fontSize: 12 }}>✕</Text>
+                  <Text style={styles.actionBtnIconWhite}>✕</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -125,7 +121,7 @@ export const MultiImagePicker = memo(({
 
       {uploading && (
         <View style={styles.uploadingBar}>
-          <Text style={styles.uploadingBarText}>📤 Uploading images...</Text>
+          <Text style={styles.uploadingBarText}>Uploading images...</Text>
         </View>
       )}
     </View>
@@ -135,23 +131,31 @@ export const MultiImagePicker = memo(({
 const styles = StyleSheet.create({
   container: { marginBottom: SPACING.base },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionAccent: { width: 4, height: 14, borderRadius: 2, backgroundColor: COLORS.primary },
   label: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
-  count: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  hint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.sm },
+  countPill: { backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 2 },
+  count: { fontSize: FONTS.xs, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  hint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4, marginBottom: SPACING.sm },
   imageRow: { gap: SPACING.sm, paddingVertical: 4, paddingRight: SPACING.sm },
-  addBtn: { width: 90, height: 90, borderWidth: 2, borderColor: COLORS.primary, borderStyle: 'dashed', borderRadius: RADIUS.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primaryFade, gap: 2 },
+  addBtn: {
+    width: 92, height: 92, borderWidth: 2, borderColor: COLORS.primary, borderStyle: 'dashed',
+    borderRadius: RADIUS.lg, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.primaryFade, gap: 4,
+  },
   addIcon: { fontSize: 24 },
-  addText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.bold },
-  addSubtext: { fontSize: FONTS.xs - 1, color: COLORS.primary },
-  imageWrap: { width: 90, height: 90, borderRadius: RADIUS.lg, overflow: 'hidden', position: 'relative', ...SHADOWS.sm },
+  addText: { fontSize: 10.5, color: COLORS.primaryDark, fontWeight: FONTS.bold, textAlign: 'center' },
+  imageWrap: { width: 92, height: 92, borderRadius: RADIUS.lg, overflow: 'hidden', position: 'relative', borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.xs },
   thumbnail: { width: '100%', height: '100%' },
-  uploadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  uploadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.scrim, alignItems: 'center', justifyContent: 'center' },
   uploadingText: { fontSize: 24 },
-  primaryBadge: { position: 'absolute', top: 4, left: 4, backgroundColor: COLORS.primary, borderRadius: RADIUS.sm, paddingHorizontal: 4, paddingVertical: 1 },
-  primaryBadgeText: { fontSize: 8, color: 'white', fontWeight: FONTS.bold },
-  imageActions: { position: 'absolute', bottom: 4, right: 4, flexDirection: 'row', gap: 3 },
-  actionBtn: { width: 22, height: 22, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center' },
-  deleteActionBtn: { backgroundColor: 'rgba(220,53,69,0.9)' },
+  primaryBadge: { position: 'absolute', top: 5, left: 5, backgroundColor: COLORS.primary, borderRadius: RADIUS.sm, paddingHorizontal: 5, paddingVertical: 2 },
+  primaryBadgeText: { fontSize: 8, color: COLORS.textWhite, fontWeight: FONTS.bold, letterSpacing: 0.3 },
+  imageActions: { position: 'absolute', bottom: 5, right: 5, flexDirection: 'row', gap: 4 },
+  actionBtn: { width: 23, height: 23, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center' },
+  actionBtnIcon: { fontSize: 11 },
+  actionBtnIconWhite: { fontSize: 11, color: COLORS.textWhite },
+  deleteActionBtn: { backgroundColor: COLORS.danger },
   uploadingBar: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.lg, padding: SPACING.sm, alignItems: 'center', marginTop: SPACING.sm },
-  uploadingBarText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  uploadingBarText: { fontSize: FONTS.sm, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
 });

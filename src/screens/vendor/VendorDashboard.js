@@ -72,9 +72,9 @@ export default function VendorDashboard({ navigation }) {
   if (loading) return <Loading fullScreen />;
   if (error) return <FullScreenError error={error} onRetry={loadDashboard} />;
 
-  const StatCard = ({ icon, label, value, subValue, color = COLORS.primary, style }) => (
+const StatCard = ({ icon, label, value, subValue, color = COLORS.primary, style }) => (
     <View style={[styles.statCard, style]}>
-      <View style={[styles.statIconWrap, { backgroundColor: color + '20' }]}>
+      <View style={[styles.statIconWrap, { backgroundColor: color + '18' }]}>
         <Text style={styles.statIcon}>{icon}</Text>
       </View>
       <Text style={styles.statValue}>{value}</Text>
@@ -87,6 +87,7 @@ export default function VendorDashboard({ navigation }) {
     <TouchableOpacity
       style={styles.recentOrder}
       onPress={() => navigation.navigate('OrderDetail', { orderId: order.id, order })}
+      activeOpacity={0.75}
     >
       <View style={styles.recentOrderLeft}>
         <Text style={styles.recentOrderNum}>#{order.order_number}</Text>
@@ -111,16 +112,19 @@ export default function VendorDashboard({ navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.secondary} />
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hello, {user?.username} 👋</Text>
-          <Text style={styles.shopName}>🏪 {user?.shop_name || 'My Store'}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>Hello, {user?.username}</Text>
+          <View style={styles.shopRow}>
+            <View style={styles.shopDot} />
+            <Text style={styles.shopName}>{user?.shop_name || 'My Store'}</Text>
+          </View>
         </View>
         <View style={styles.headerIcons}>
           <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIconBtn}>
             <Text style={styles.headerIcon}>🔔</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerIconBtn}>
-            <Text style={styles.headerIcon}>⚙️</Text>
+            <Text style={styles.headerIcon}>⚙</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -134,12 +138,19 @@ export default function VendorDashboard({ navigation }) {
         <View style={styles.earningsBanner}>
           <Text style={styles.earningsLabel}>{t('vendor.totalEarnings')}</Text>
           <Text style={styles.earningsAmount}>{formatPrice(dashboard?.total_earnings || 0)}</Text>
-          <Text style={styles.earningsSub}>
-            Available: {formatPrice(dashboard?.available_for_payout || 0)}
-            {' '}· Pending: {formatPrice(dashboard?.pending_earnings || 0)}
-          </Text>
+          <View style={styles.earningsSplitRow}>
+            <View style={styles.earningsSplitItem}>
+              <Text style={styles.earningsSplitLabel}>Available</Text>
+              <Text style={styles.earningsSplitValue}>{formatPrice(dashboard?.available_for_payout || 0)}</Text>
+            </View>
+            <View style={styles.earningsSplitDivider} />
+            <View style={styles.earningsSplitItem}>
+              <Text style={styles.earningsSplitLabel}>Pending</Text>
+              <Text style={styles.earningsSplitValue}>{formatPrice(dashboard?.pending_earnings || 0)}</Text>
+            </View>
+          </View>
           {(dashboard?.available_for_payout || 0) > 0 && (
-            <TouchableOpacity style={styles.payoutBtn} onPress={handleRequestPayout}>
+            <TouchableOpacity style={styles.payoutBtn} onPress={handleRequestPayout} activeOpacity={0.85}>
               <Text style={styles.payoutBtnText}>{t('vendor.requestPayout')}</Text>
             </TouchableOpacity>
           )}
@@ -153,15 +164,18 @@ export default function VendorDashboard({ navigation }) {
           <StatCard icon="👥" label="Customers" value={formatNumber(dashboard?.total_customers || 0)} color={COLORS.success} style={styles.statHalf} />
         </View>
 
-        {/* ── Commission & Earnings Statement ── */}
+        {/* Commission & Earnings Statement */}
         <View style={styles.commissionSection}>
-          <Text style={styles.commissionSectionTitle}>💰 Commission & Earnings</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.commissionSectionTitle}>Commission & Earnings</Text>
+          </View>
           <VendorEarningsCard style={styles.earningsCard} />
         </View>
 
         {/* This Month */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📈 This Month</Text>
+          <Text style={styles.cardTitle}>This Month</Text>
           <View style={styles.monthlyStats}>
             {[
               ['Revenue', formatPrice(dashboard?.monthly_revenue || 0), COLORS.primary],
@@ -178,7 +192,7 @@ export default function VendorDashboard({ navigation }) {
 
         {/* Quick Actions */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>⚡ Quick Actions</Text>
+          <Text style={styles.cardTitle}>Quick Actions</Text>
           <View style={styles.quickActions}>
             {[
               { icon: '➕', label: t('vendor.addProduct'), color: COLORS.primary, onPress: () => navigation.navigate('VendorProducts', { action: 'add' }) },
@@ -186,8 +200,8 @@ export default function VendorDashboard({ navigation }) {
               { icon: '📦', label: t('vendor.myProducts'), color: COLORS.warning, onPress: () => navigation.navigate('VendorProducts') },
               { icon: '💬', label: 'Messages', color: COLORS.success, onPress: () => navigation.navigate('Chat') },
             ].map((action) => (
-              <TouchableOpacity key={action.label} style={styles.quickAction} onPress={action.onPress}>
-                <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
+              <TouchableOpacity key={action.label} style={styles.quickAction} onPress={action.onPress} activeOpacity={0.8}>
+                <View style={[styles.quickActionIcon, { backgroundColor: action.color + '16' }]}>
                   <Text style={styles.quickActionEmoji}>{action.icon}</Text>
                 </View>
                 <Text style={styles.quickActionLabel}>{action.label}</Text>
@@ -202,7 +216,7 @@ export default function VendorDashboard({ navigation }) {
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{t('vendor.customerOrders')}</Text>
               <TouchableOpacity onPress={() => navigation.navigate('VendorOrders')}>
-                <Text style={styles.seeAll}>See all →</Text>
+                <Text style={styles.seeAll}>See all ›</Text>
               </TouchableOpacity>
             </View>
             {dashboard.recent_orders.slice(0, 5).map((order) => (
@@ -214,9 +228,9 @@ export default function VendorDashboard({ navigation }) {
         {/* Low Stock Warning */}
         {dashboard?.low_stock_products?.length > 0 && (
           <View style={[styles.card, styles.warningCard]}>
-            <Text style={styles.cardTitle}>⚠️ Low Stock Alert</Text>
+            <Text style={styles.cardTitle}>Low Stock Alert</Text>
             {dashboard.low_stock_products.map((product) => (
-              <TouchableOpacity key={product.id} style={styles.lowStockItem} onPress={() => navigation.navigate('VendorProducts')}>
+              <TouchableOpacity key={product.id} style={styles.lowStockItem} onPress={() => navigation.navigate('VendorProducts')} activeOpacity={0.75}>
                 <Text style={styles.lowStockName} numberOfLines={1}>{product.name}</Text>
                 <Text style={styles.lowStockCount}>{product.stock} left</Text>
               </TouchableOpacity>
@@ -226,7 +240,7 @@ export default function VendorDashboard({ navigation }) {
 
         {/* Store Info */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>🏪 Store Info</Text>
+          <Text style={styles.cardTitle}>Store Info</Text>
           {[
             ['Status', user?.vendor_status],
             ['Member Since', formatDate(user?.approved_at)],
@@ -251,51 +265,64 @@ export default function VendorDashboard({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { paddingBottom: SPACING.xl },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.secondary, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base },
-  greeting: { fontSize: FONTS.base, color: 'rgba(255,255,255,0.8)' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.secondary, paddingHorizontal: SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base,
+  },
+  headerLeft: {},
+  greeting: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.65)' },
+  shopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  shopDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primary },
   shopName: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textWhite },
   headerIcons: { flexDirection: 'row', gap: SPACING.sm },
-  headerIconBtn: { width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  headerIcon: { fontSize: 18 },
+  headerIconBtn: { width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  headerIcon: { fontSize: 17, color: COLORS.textWhite },
   earningsBanner: { backgroundColor: COLORS.secondary, paddingHorizontal: SPACING.xl, paddingBottom: SPACING['2xl'], paddingTop: SPACING.sm, alignItems: 'center' },
-  earningsLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.7)', marginBottom: SPACING.xs },
-  earningsAmount: { fontSize: 42, fontWeight: FONTS.black, color: COLORS.textWhite, letterSpacing: -1, marginBottom: SPACING.xs },
-  earningsSub: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.6)', textAlign: 'center' },
-  payoutBtn: { marginTop: SPACING.base, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.sm },
+  earningsLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.6)', marginBottom: 4, fontWeight: FONTS.medium },
+  earningsAmount: { fontSize: 40, fontWeight: FONTS.black, color: COLORS.textWhite, letterSpacing: FONTS.trackTight, marginBottom: SPACING.md },
+  earningsSplitRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: RADIUS.lg, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.lg },
+  earningsSplitItem: { alignItems: 'center', paddingHorizontal: SPACING.md },
+  earningsSplitLabel: { fontSize: 10.5, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  earningsSplitValue: { fontSize: FONTS.sm, color: COLORS.textWhite, fontWeight: FONTS.bold },
+  earningsSplitDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.15)' },
+  payoutBtn: { marginTop: SPACING.base, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.sm + 2, ...SHADOWS.primary },
   payoutBtnText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: SPACING.sm, gap: SPACING.sm },
-  statCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, alignItems: 'flex-start', ...SHADOWS.sm },
+  statCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, alignItems: 'flex-start', borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.xs },
   statHalf: { flex: 1, minWidth: '45%' },
   statIconWrap: { width: 40, height: 40, borderRadius: RADIUS.lg, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.sm },
-  statIcon: { fontSize: 20 },
-  statValue: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.textPrimary },
+  statIcon: { fontSize: 19 },
+  statValue: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
   statLabel: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   statSub: { fontSize: FONTS.xs, color: COLORS.textLight, marginTop: 2 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
+  sectionAccent: { width: 4, height: 15, borderRadius: 2, backgroundColor: COLORS.primary },
   commissionSection: { margin: SPACING.sm, marginTop: 0 },
-  commissionSectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  commissionSectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   earningsCard: {},
-  card: { backgroundColor: COLORS.surface, margin: SPACING.sm, marginTop: 0, borderRadius: RADIUS.xl, padding: SPACING.base, ...SHADOWS.sm },
+  card: { backgroundColor: COLORS.surface, margin: SPACING.sm, marginTop: 0, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.xs },
   warningCard: { borderLeftWidth: 4, borderLeftColor: COLORS.warning },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.base },
   cardTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.base },
   seeAll: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
   monthlyStats: { flexDirection: 'row', justifyContent: 'space-between' },
   monthlyStat: { alignItems: 'center', flex: 1 },
-  monthlyValue: { fontSize: FONTS.xl, fontWeight: FONTS.bold },
+  monthlyValue: { fontSize: FONTS.xl, fontWeight: FONTS.bold, letterSpacing: FONTS.trackTight },
   monthlyLabel: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2, textAlign: 'center' },
   quickActions: { flexDirection: 'row', justifyContent: 'space-between' },
   quickAction: { alignItems: 'center', gap: SPACING.xs, flex: 1 },
   quickActionIcon: { width: 52, height: 52, borderRadius: RADIUS.xl, alignItems: 'center', justifyContent: 'center' },
-  quickActionEmoji: { fontSize: 24 },
+  quickActionEmoji: { fontSize: 23 },
   quickActionLabel: { fontSize: FONTS.xs, color: COLORS.textSecondary, fontWeight: FONTS.medium, textAlign: 'center' },
-  recentOrder: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  recentOrder: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm + 2, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   recentOrderLeft: { gap: 2 },
   recentOrderNum: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
   recentOrderDate: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  recentOrderRight: { alignItems: 'flex-end', gap: 3 },
-  recentOrderAmount: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
+  recentOrderRight: { alignItems: 'flex-end', gap: 4 },
+  recentOrderAmount: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
   recentOrderStatus: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: RADIUS.full },
-  recentOrderStatusText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold, textTransform: 'capitalize' },
+  recentOrderStatusText: { fontSize: 10.5, fontWeight: FONTS.semiBold, textTransform: 'capitalize' },
   lowStockItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   lowStockName: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary },
   lowStockCount: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.danger },

@@ -1,25 +1,41 @@
 /**
  * VUMA Store — Loading Component
- * Various loading states
+ * Various loading states. Same exports/props as before — visual rebuild
+ * plus a subtle shimmer pulse on skeletons (additive, no API change).
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   ActivityIndicator,
   Text,
   StyleSheet,
+  Animated,
 } from 'react-native';
-import { COLORS, FONTS, SPACING, RADIUS } from '../../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+
+// ── Shimmer wrapper — subtle pulse, no new deps ───────
+function Shimmer({ style }) {
+  const pulse = useRef(new Animated.Value(0.5)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.5, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  return <Animated.View style={[style, { opacity: pulse }]} />;
+}
 
 // ── Full Screen Loading ────────────────────────────────
 export function FullScreenLoading({ message = 'Loading...' }) {
   return (
     <View style={styles.fullScreen}>
       <ActivityIndicator size="large" color={COLORS.primary} />
-      {message && (
-        <Text style={styles.message}>{message}</Text>
-      )}
+      {message && <Text style={styles.message}>{message}</Text>}
     </View>
   );
 }
@@ -33,9 +49,7 @@ export function InlineLoading({
   return (
     <View style={styles.inline}>
       <ActivityIndicator size={size} color={color} />
-      {message && (
-        <Text style={styles.inlineMessage}>{message}</Text>
-      )}
+      {message && <Text style={styles.inlineMessage}>{message}</Text>}
     </View>
   );
 }
@@ -44,21 +58,11 @@ export function InlineLoading({
 export function SkeletonCard({ style }) {
   return (
     <View style={[styles.skeletonCard, style]}>
-      <View style={styles.skeletonImage} />
+      <Shimmer style={styles.skeletonImage} />
       <View style={styles.skeletonBody}>
-        <View style={[styles.skeletonLine, { width: '80%' }]} />
-        <View
-          style={[
-            styles.skeletonLine,
-            { width: '50%', marginTop: 6 },
-          ]}
-        />
-        <View
-          style={[
-            styles.skeletonLine,
-            { width: '30%', marginTop: 6 },
-          ]}
-        />
+        <Shimmer style={[styles.skeletonLine, { width: '80%' }]} />
+        <Shimmer style={[styles.skeletonLine, { width: '50%', marginTop: 7 }]} />
+        <Shimmer style={[styles.skeletonLine, { width: '30%', marginTop: 7 }]} />
       </View>
     </View>
   );
@@ -79,15 +83,10 @@ export function SkeletonProductGrid({ count = 6 }) {
 export function SkeletonListItem() {
   return (
     <View style={styles.skeletonListItem}>
-      <View style={styles.skeletonAvatar} />
+      <Shimmer style={styles.skeletonAvatar} />
       <View style={styles.skeletonListBody}>
-        <View style={[styles.skeletonLine, { width: '70%' }]} />
-        <View
-          style={[
-            styles.skeletonLine,
-            { width: '40%', marginTop: 6 },
-          ]}
-        />
+        <Shimmer style={[styles.skeletonLine, { width: '70%' }]} />
+        <Shimmer style={[styles.skeletonLine, { width: '40%', marginTop: 7 }]} />
       </View>
     </View>
   );
@@ -99,13 +98,8 @@ export function OverlayLoading({ visible, message = '' }) {
   return (
     <View style={styles.overlay}>
       <View style={styles.overlayCard}>
-        <ActivityIndicator
-          size="large"
-          color={COLORS.primary}
-        />
-        {message ? (
-          <Text style={styles.overlayMessage}>{message}</Text>
-        ) : null}
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        {message ? <Text style={styles.overlayMessage}>{message}</Text> : null}
       </View>
     </View>
   );
@@ -124,9 +118,7 @@ export default function Loading({
   return (
     <View style={styles.center}>
       <ActivityIndicator size={size} color={color} />
-      {message && (
-        <Text style={styles.message}>{message}</Text>
-      )}
+      {message && <Text style={styles.message}>{message}</Text>}
     </View>
   );
 }
@@ -144,7 +136,7 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
   },
   message: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
     fontSize: FONTS.sm,
     color: COLORS.textMuted,
     textAlign: 'center',
@@ -163,7 +155,9 @@ const styles = StyleSheet.create({
   // Skeleton
   skeletonCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 10,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     overflow: 'hidden',
   },
   skeletonImage: {
@@ -172,12 +166,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.skeleton,
   },
   skeletonBody: {
-    padding: SPACING.sm,
+    padding: SPACING.md,
   },
   skeletonLine: {
     height: 10,
     backgroundColor: COLORS.skeleton,
-    borderRadius: RADIUS.sm,
+    borderRadius: RADIUS.xs,
   },
   skeletonGrid: {
     flexDirection: 'row',
@@ -220,16 +214,16 @@ const styles = StyleSheet.create({
   },
   overlayCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     alignItems: 'center',
-    minWidth: 120,
+    minWidth: 130,
+    ...SHADOWS.lg,
   },
   overlayMessage: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
     fontSize: FONTS.sm,
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
 });
-

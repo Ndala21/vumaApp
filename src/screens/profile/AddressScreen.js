@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
   selectorArrow: { fontSize: FONTS.sm, color: COLORS.textMuted },
   gpsBtn: { flexDirection: 'row', alignItems: 'center', padding: SPACING.base, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade, marginBottom: SPACING.base, gap: SPACING.sm },
-  gpsBtnActive: { backgroundColor: '#E8F5E9', borderColor: COLORS.success },
+  gpsBtnActive: { backgroundColor: COLORS.successLight, borderColor: COLORS.success },
   gpsBtnIcon: { fontSize: 28 },
   gpsBtnText: { flex: 1 },
   gpsBtnTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },

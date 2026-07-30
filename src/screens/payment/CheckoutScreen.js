@@ -50,15 +50,18 @@ const PickerModal = ({ visible, title, data, onSelect, onClose }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <View style={styles.pickerOverlay}>
       <View style={styles.pickerSheet}>
+        <View style={styles.pickerHandle} />
         <View style={styles.pickerHeader}>
           <Text style={styles.pickerTitle}>{title}</Text>
-          <TouchableOpacity onPress={onClose}><Text style={styles.pickerClose}>✕</Text></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.pickerCloseBtn}>
+            <Text style={styles.pickerClose}>✕</Text>
+          </TouchableOpacity>
         </View>
         <FlatList
           data={data}
           keyExtractor={item => typeof item === 'string' ? item : item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(item); onClose(); }}>
+            <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(item); onClose(); }} activeOpacity={0.75}>
               <Text style={styles.pickerItemText}>{typeof item === 'string' ? item : item.name}</Text>
               {typeof item !== 'string' && item.area && (
                 <Text style={styles.pickerItemSub}>{item.area} · {item.open}</Text>
@@ -182,8 +185,8 @@ export default function CheckoutScreen({ navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtn}>←</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtnWrap}>
+          <Text style={styles.backBtn}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Checkout</Text>
         <View style={{ width: 40 }} />
@@ -197,10 +200,13 @@ export default function CheckoutScreen({ navigation }) {
       >
         {/* Order Summary */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Order Summary</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.summaryTitle}>Order Summary</Text>
+          </View>
           {cartItems.map((item, i) => (
             <View key={i} style={styles.summaryRow}>
-              <Text style={styles.summaryItem} numberOfLines={1}>{item.name} x{item.quantity}</Text>
+              <Text style={styles.summaryItem} numberOfLines={1}>{item.name} ×{item.quantity}</Text>
               <Text style={styles.summaryPrice}>TZS {(item.price * item.quantity).toLocaleString()}</Text>
             </View>
           ))}
@@ -210,8 +216,7 @@ export default function CheckoutScreen({ navigation }) {
           </View>
         </View>
 
-        {/* ── Commission Breakdown for vendors (if seller is viewing) ── */}
-        {/* This shows buyers the fee breakdown — transparency builds trust */}
+        {/* Commission Breakdown */}
         <CommissionBreakdown
           categorySlug={firstItemCategory}
           price={cartTotal}
@@ -222,19 +227,23 @@ export default function CheckoutScreen({ navigation }) {
         {/* Saved Addresses */}
         {savedAddresses.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📍 Saved Addresses</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={styles.sectionAccent} />
+              <Text style={styles.sectionTitle}>Saved Addresses</Text>
+            </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {savedAddresses.map(addr => (
                 <TouchableOpacity
                   key={addr.id}
                   style={[styles.savedCard, selectedSaved?.id === addr.id && styles.savedCardActive]}
                   onPress={() => useSavedAddress(addr)}
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.savedLabel}>{addr.label || 'Home'}</Text>
                   <Text style={styles.savedText} numberOfLines={2}>{addr.display_address || addr.ward}</Text>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={styles.savedNew} onPress={() => setSelectedSaved(null)}>
+              <TouchableOpacity style={styles.savedNew} onPress={() => setSelectedSaved(null)} activeOpacity={0.8}>
                 <Text style={styles.savedNewText}>+ New</Text>
               </TouchableOpacity>
             </ScrollView>
@@ -243,7 +252,10 @@ export default function CheckoutScreen({ navigation }) {
 
         {/* Delivery Type */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🚚 Delivery Method</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Delivery Method</Text>
+          </View>
           <View style={styles.deliveryRow}>
             {[
               { value: 'home', icon: '🏠', label: 'Home Delivery' },
@@ -253,6 +265,7 @@ export default function CheckoutScreen({ navigation }) {
                 key={dt.value}
                 style={[styles.deliveryBtn, deliveryType === dt.value && styles.deliveryBtnActive]}
                 onPress={() => setDeliveryType(dt.value)}
+                activeOpacity={0.8}
               >
                 <Text style={styles.deliveryIcon}>{dt.icon}</Text>
                 <Text style={[styles.deliveryLabel, deliveryType === dt.value && styles.deliveryLabelActive]}>
@@ -265,7 +278,10 @@ export default function CheckoutScreen({ navigation }) {
 
         {/* Phone */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📞 Contact</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Contact</Text>
+          </View>
           <Text style={styles.fieldLabel}>Phone Number *</Text>
           <View style={styles.phoneWrap}>
             <View style={styles.phoneFlag}><Text style={styles.phoneFlagText}>🇹🇿 +255</Text></View>
@@ -284,7 +300,10 @@ export default function CheckoutScreen({ navigation }) {
         {/* Pickup Point */}
         {deliveryType === 'pickup' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📦 Pickup Station</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={styles.sectionAccent} />
+              <Text style={styles.sectionTitle}>Pickup Station</Text>
+            </View>
             {pickupPoint ? (
               <View style={styles.selectedPickup}>
                 <View style={styles.selectedPickupInfo}>
@@ -296,8 +315,9 @@ export default function CheckoutScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.pickupSelectBtn} onPress={() => setShowPickupPicker(true)}>
-                <Text style={styles.pickupSelectText}>Select nearest pickup station →</Text>
+              <TouchableOpacity style={styles.pickupSelectBtn} onPress={() => setShowPickupPicker(true)} activeOpacity={0.85}>
+                <Text style={styles.pickupSelectText}>Select nearest pickup station</Text>
+                <Text style={styles.pickupSelectArrow}>›</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -306,15 +326,19 @@ export default function CheckoutScreen({ navigation }) {
         {/* Home Delivery */}
         {deliveryType === 'home' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={styles.sectionAccent} />
+              <Text style={styles.sectionTitle}>Delivery Address</Text>
+            </View>
             <TouchableOpacity
               style={[styles.gpsBtn, latitude && styles.gpsBtnDone]}
               onPress={getGPS} disabled={gpsLoading}
+              activeOpacity={0.85}
             >
               {gpsLoading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Text style={styles.gpsBtnIcon}>📍</Text>}
               <View style={styles.gpsBtnText}>
                 <Text style={[styles.gpsBtnTitle, latitude && { color: COLORS.success }]}>
-                  {gpsLoading ? 'Getting your location...' : latitude ? '✓ Location Pinned' : 'Use My Location (GPS)'}
+                  {gpsLoading ? 'Getting your location...' : latitude ? '✓ Location pinned' : 'Use my location (GPS)'}
                 </Text>
                 <Text style={styles.gpsBtnSub}>
                   {latitude ? `${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}` : 'Tap to pin your exact location'}
@@ -323,20 +347,21 @@ export default function CheckoutScreen({ navigation }) {
             </TouchableOpacity>
 
             <Text style={styles.fieldLabel}>Region *</Text>
-            <TouchableOpacity style={styles.selector} onPress={() => setShowRegionPicker(true)}>
+            <TouchableOpacity style={styles.selector} onPress={() => setShowRegionPicker(true)} activeOpacity={0.8}>
               <Text style={region ? styles.selectorValue : styles.selectorPlaceholder}>{region || 'Select your region...'}</Text>
-              <Text style={styles.selectorArrow}>▼</Text>
+              <Text style={styles.selectorArrow}>⌄</Text>
             </TouchableOpacity>
 
             <Text style={styles.fieldLabel}>District / Ward *</Text>
             <TouchableOpacity
               style={[styles.selector, !region && styles.selectorDisabled]}
               onPress={() => region ? setShowDistrictPicker(true) : Alert.alert('', 'Please select a region first.')}
+              activeOpacity={0.8}
             >
               <Text style={district ? styles.selectorValue : styles.selectorPlaceholder}>
                 {district || (region ? 'Select district/ward...' : 'Select region first')}
               </Text>
-              <Text style={styles.selectorArrow}>▼</Text>
+              <Text style={styles.selectorArrow}>⌄</Text>
             </TouchableOpacity>
 
             <Text style={styles.fieldLabel}>Landmark <Text style={styles.optional}>(optional)</Text></Text>
@@ -365,7 +390,10 @@ export default function CheckoutScreen({ navigation }) {
 
         {/* Payment Method */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💳 Payment Method</Text>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Payment Method</Text>
+          </View>
           {[
             { value: 'mobile_money', icon: '📱', label: 'Mobile Money', sub: 'M-Pesa, Airtel, Tigo, Halopesa' },
             { value: 'wallet', icon: '💰', label: 'VUMA Wallet', sub: 'Pay from your balance' },
@@ -374,8 +402,11 @@ export default function CheckoutScreen({ navigation }) {
               key={pm.value}
               style={[styles.paymentCard, paymentMethod === pm.value && styles.paymentCardActive]}
               onPress={() => setPaymentMethod(pm.value)}
+              activeOpacity={0.8}
             >
-              <Text style={styles.paymentIcon}>{pm.icon}</Text>
+              <View style={styles.paymentIconChip}>
+                <Text style={styles.paymentIcon}>{pm.icon}</Text>
+              </View>
               <View style={styles.paymentInfo}>
                 <Text style={[styles.paymentLabel, paymentMethod === pm.value && styles.paymentLabelActive]}>{pm.label}</Text>
                 <Text style={styles.paymentSub}>{pm.sub}</Text>
@@ -390,7 +421,7 @@ export default function CheckoutScreen({ navigation }) {
         {/* Place Order */}
         <View style={styles.placeOrderSection}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total to Pay</Text>
+            <Text style={styles.totalLabel}>Total to pay</Text>
             <Text style={styles.totalValue}>TZS {Number(cartTotal).toLocaleString()}</Text>
           </View>
           <Button
@@ -400,7 +431,10 @@ export default function CheckoutScreen({ navigation }) {
             fullWidth
             style={styles.placeBtn}
           />
-          <Text style={styles.secureText}>🔒 Secured by AzamPay · Free Delivery on all orders</Text>
+          <View style={styles.secureRow}>
+            <Text style={styles.secureIcon}>🔒</Text>
+            <Text style={styles.secureText}>Secured by AzamPay · Free delivery on all orders</Text>
+          </View>
         </View>
 
         <View style={{ height: 40 }} />
@@ -418,21 +452,29 @@ export default function CheckoutScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base,
+    borderBottomWidth: 1, borderBottomColor: COLORS.divider,
+  },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  backBtn: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold },
+  backBtnWrap: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { fontSize: 24, color: COLORS.textPrimary, fontWeight: FONTS.bold, marginTop: -2 },
   scroll: { padding: SPACING.base },
-  summaryCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
-  summaryTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  summaryCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.xs },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
+  sectionAccent: { width: 4, height: 15, borderRadius: 2, backgroundColor: COLORS.primary },
+  summaryTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   summaryItem: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary },
   summaryPrice: { fontSize: FONTS.sm, color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
   summaryTotal: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: COLORS.divider, marginTop: SPACING.sm, paddingTop: SPACING.sm },
   summaryTotalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  summaryTotalValue: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.primary },
+  summaryTotalValue: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
   commissionCard: { marginBottom: SPACING.sm },
-  section: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
-  sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  section: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.xs },
+  sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   savedCard: { width: 140, backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.sm, borderWidth: 1.5, borderColor: COLORS.border },
   savedCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade },
   savedLabel: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 4 },
@@ -442,9 +484,9 @@ const styles = StyleSheet.create({
   deliveryRow: { flexDirection: 'row', gap: SPACING.sm },
   deliveryBtn: { flex: 1, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.xl, padding: SPACING.base, alignItems: 'center', backgroundColor: COLORS.surface },
   deliveryBtnActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade },
-  deliveryIcon: { fontSize: 28, marginBottom: 4 },
+  deliveryIcon: { fontSize: 27, marginBottom: 4 },
   deliveryLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
-  deliveryLabelActive: { color: COLORS.primary, fontWeight: FONTS.bold },
+  deliveryLabelActive: { color: COLORS.primaryDark, fontWeight: FONTS.bold },
   phoneWrap: { flexDirection: 'row', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, overflow: 'hidden' },
   phoneFlag: { backgroundColor: COLORS.surfaceAlt, paddingHorizontal: SPACING.sm, justifyContent: 'center', borderRightWidth: 1, borderRightColor: COLORS.border },
   phoneFlagText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
@@ -454,45 +496,70 @@ const styles = StyleSheet.create({
   selectedPickupName: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   selectedPickupSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   changeText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
-  pickupSelectBtn: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1.5, borderColor: COLORS.primary, alignItems: 'center' },
-  pickupSelectText: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  gpsBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: COLORS.primary, borderRadius: RADIUS.xl, padding: SPACING.base, backgroundColor: COLORS.primaryFade, marginBottom: SPACING.sm, gap: SPACING.sm },
-  gpsBtnDone: { borderColor: COLORS.success, backgroundColor: '#E8F5E9' },
-  gpsBtnIcon: { fontSize: 26 },
+  pickupSelectBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.xl, padding: SPACING.base,
+    borderWidth: 1.5, borderColor: COLORS.primary,
+  },
+  pickupSelectText: { fontSize: FONTS.base, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
+  pickupSelectArrow: { fontSize: FONTS.xl, color: COLORS.primary },
+  gpsBtn: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: COLORS.primary,
+    borderRadius: RADIUS.xl, padding: SPACING.base, backgroundColor: COLORS.primaryFade,
+    marginBottom: SPACING.sm, gap: SPACING.sm,
+  },
+  gpsBtnDone: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
+  gpsBtnIcon: { fontSize: 25 },
   gpsBtnText: { flex: 1 },
-  gpsBtnTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primary },
+  gpsBtnTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primaryDark },
   gpsBtnSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs, marginTop: SPACING.sm },
   optional: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.regular },
-  selector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.background, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, marginBottom: SPACING.xs },
+  selector: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.surfaceAlt, borderWidth: 1.5, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, marginBottom: SPACING.xs,
+  },
   selectorDisabled: { opacity: 0.5 },
   selectorValue: { fontSize: FONTS.base, color: COLORS.textPrimary },
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
-  selectorArrow: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  input: { backgroundColor: COLORS.background, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.xs },
+  selectorArrow: { fontSize: FONTS.base, color: COLORS.textMuted },
+  input: { backgroundColor: COLORS.surfaceAlt, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   moreBtn: { paddingVertical: SPACING.sm, alignItems: 'center' },
   moreBtnText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
-  paymentCard: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, backgroundColor: COLORS.surface, gap: SPACING.sm },
+  paymentCard: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border,
+    borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm,
+    backgroundColor: COLORS.surface, gap: SPACING.sm,
+  },
   paymentCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade },
-  paymentIcon: { fontSize: 24 },
+  paymentIconChip: { width: 40, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
+  paymentIcon: { fontSize: 20 },
   paymentInfo: { flex: 1 },
   paymentLabel: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
-  paymentLabelActive: { color: COLORS.primary },
+  paymentLabelActive: { color: COLORS.primaryDark },
   paymentSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  radio: { width: 22, height: 22, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  radio: { width: 22, height: 22, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.borderStrong, alignItems: 'center', justifyContent: 'center' },
   radioActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  radioTick: { color: 'white', fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  placeOrderSection: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, ...SHADOWS.md },
+  radioTick: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  placeOrderSection: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.md },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.base },
   totalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  totalValue: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.primary },
+  totalValue: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
   placeBtn: { borderRadius: RADIUS.xl, marginBottom: SPACING.sm },
+  secureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  secureIcon: { fontSize: 11 },
   secureText: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center' },
-  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  pickerSheet: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '75%', paddingBottom: Platform.OS === 'ios' ? 34 : 16 },
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(18,22,43,0.55)', justifyContent: 'flex-end' },
+  pickerSheet: {
+    backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'],
+    maxHeight: '75%', paddingBottom: Platform.OS === 'ios' ? 34 : 16, paddingTop: 10,
+  },
+  pickerHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 8 },
   pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   pickerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  pickerClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
+  pickerCloseBtn: { width: 28, height: 28, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
+  pickerClose: { fontSize: FONTS.base, color: COLORS.textMuted, fontWeight: FONTS.bold },
   pickerItem: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   pickerItemText: { fontSize: FONTS.base, color: COLORS.textPrimary },
   pickerItemSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },

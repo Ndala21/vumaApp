@@ -393,7 +393,7 @@ export default function CartScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F3F5' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
   headerTitle: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary },
   headerDelete: { fontSize: FONTS.sm, color: COLORS.danger, fontWeight: FONTS.semiBold },
@@ -405,10 +405,10 @@ const styles = StyleSheet.create({
   sellerHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderBottomWidth: 1, borderBottomColor: COLORS.divider, gap: SPACING.sm },
   sellerHeaderIcon: { fontSize: 16 },
   sellerHeaderName: { flex: 1, fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  sellerFreeDelivery: { backgroundColor: '#E8F5E9', borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
+  sellerFreeDelivery: { backgroundColor: COLORS.successLight, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
   sellerFreeDeliveryText: { fontSize: FONTS.xs, color: COLORS.success, fontWeight: FONTS.semiBold },
   cartItem: { flexDirection: 'row', padding: SPACING.base, gap: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider, backgroundColor: COLORS.surface },
-  cartItemSelected: { backgroundColor: '#FFFBF7' },
+  cartItemSelected: { backgroundColor: COLORS.primaryFade },
   cartItemImageWrap: { position: 'relative' },
   cartItemImage: { width: 90, height: 90, borderRadius: RADIUS.lg, backgroundColor: COLORS.surfaceAlt },
   cartItemImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },

@@ -23,6 +23,7 @@ import Loading, { SkeletonListItem } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { VendorSizePicker, requiresSize } from '../../components/SizeSelector';
 import { MultiImagePicker } from '../../components/MultiImagePicker';
+import { ImageQualityWarning, ImageQualityBadge } from '../../components/product/ImageQualityWarning';
 
 const PRODUCT_STATUS = [
   { label: 'Active', value: 'active' },
@@ -290,6 +291,19 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
         </TouchableOpacity>
       </View>
     </View>
+
+      {/* Image Quality Warning Modal */}
+      <ImageQualityWarning
+        quality={currentQuality}
+        visible={showQualityModal}
+        imageUri={currentImageUri}
+        onDismiss={() => setShowQualityModal(false)}
+        onRetry={() => {
+          setShowQualityModal(false);
+          openAddModal();
+        }}
+        onPublishAnyway={() => setShowQualityModal(false)}
+      />
   );
 });
 
@@ -311,6 +325,10 @@ export default function VendorProducts({ navigation, route }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [productImages, setProductImages] = useState([]); // array of {uri, ...} or existing {image_url, id}
   const [uploading, setUploading] = useState(false);
+  const [qualityResults, setQualityResults] = useState([]);
+  const [showQualityModal, setShowQualityModal] = useState(false);
+  const [currentQuality, setCurrentQuality] = useState(null);
+  const [currentImageUri, setCurrentImageUri] = useState(null);
   const [uploadingIndex, setUploadingIndex] = useState(null);
 
   useEffect(() => {
@@ -450,11 +468,12 @@ export default function VendorProducts({ navigation, route }) {
       const { productsAPI } = await import('../../api/products');
       let failedCount = 0;
 
+      const uploadQualityResults = [];
       for (let i = 0; i < newImages.length; i++) {
         setUploadingIndex(productImages.indexOf(newImages[i]));
         try {
           const isFirstOverall = productImages.indexOf(newImages[i]) === 0;
-          await productsAPI.uploadProductImage(
+          const response = await productsAPI.uploadProductImage(
             savedProduct.id,
             {
               uri: newImages[i].uri,
@@ -463,15 +482,59 @@ export default function VendorProducts({ navigation, route }) {
             },
             isFirstOverall
           );
+
+          // Capture quality data from response
+          if (response && response.image_quality) {
+            uploadQualityResults.push({
+              imageUri: newImages[i].uri,
+              quality: response.image_quality,
+              imageName: newImages[i].fileName || `Image ${i + 1}`,
+            });
+          }
         } catch (e) {
-          failedCount++;
+          // Handle quality blocked error (400)
+          if (e?.response?.status === 400 && e?.response?.data?.issues) {
+            const blockedQuality = {
+              score: e.response.data.quality_score || 0,
+              grade: 'F',
+              passed: false,
+              issues: e.response.data.issues || [],
+              suggestions: e.response.data.suggestions || [],
+              metrics: {},
+              warnings: e.response.data.issues || [],
+            };
+            uploadQualityResults.push({
+              imageUri: newImages[i].uri,
+              quality: blockedQuality,
+              imageName: newImages[i].fileName || `Image ${i + 1}`,
+              blocked: true,
+            });
+            failedCount++;
+          } else {
+            failedCount++;
+          }
         }
       }
       setUploadingIndex(null);
       setUploading(false);
 
-      if (failedCount > 0) {
-        Alert.alert('Partial Success', `Product saved. ${failedCount} of ${newImages.length} images failed to upload. Edit product to retry.`);
+      // Show quality results if any issues found
+      const issueResults = uploadQualityResults.filter(r => !r.quality.passed || r.quality.warnings?.length > 0 || r.blocked);
+      if (issueResults.length > 0) {
+        setQualityResults(issueResults);
+        setCurrentQuality(issueResults[0].quality);
+        setCurrentImageUri(issueResults[0].imageUri);
+        setShowQualityModal(true);
+      } else if (uploadQualityResults.length > 0) {
+        // All passed — show brief success with grade
+        const best = uploadQualityResults[0];
+        if (best.quality.grade === 'A') {
+          Alert.alert('✅ Images Uploaded', `All ${newImages.length} image(s) passed quality check (Grade ${best.quality.grade})!`);
+        }
+      }
+
+      if (failedCount > 0 && issueResults.filter(r => r.blocked).length === 0) {
+        Alert.alert('Partial Success', `Product saved. ${failedCount} of ${newImages.length} images failed to upload.`);
       }
     }
 
@@ -598,6 +661,19 @@ export default function VendorProducts({ navigation, route }) {
         onSelect={handleCategorySelect}
         onClose={() => setShowCategoryPicker(false)}
         loading={loading.categories}
+      />
+
+      {/* Image Quality Warning Modal */}
+      <ImageQualityWarning
+        quality={currentQuality}
+        visible={showQualityModal}
+        imageUri={currentImageUri}
+        onDismiss={() => setShowQualityModal(false)}
+        onRetry={() => {
+          setShowQualityModal(false);
+          openAddModal();
+        }}
+        onPublishAnyway={() => setShowQualityModal(false)}
       />
     </View>
   );

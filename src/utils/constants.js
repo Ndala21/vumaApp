@@ -92,81 +92,89 @@ export const API = {
 };
 
 // ─── COLORS ───────────────────────────────────────────
+// VUMA Design System v2 — Coupang/Temu-grade polish, VUMA brand identity
 export const COLORS = {
   // Brand
-  primary: '#FF6B00',
-  primaryDark: '#E55A00',
-  primaryLight: '#FF8C33',
-  primaryFade: '#FFF0E6',
+  primary: '#FF6A00',
+  primaryDark: '#D9550A',
+  primaryLight: '#FF8A3D',
+  primaryFade: '#FFF3EA',
+  primaryTint: '#FFE4CC',
 
-  secondary: '#1A1A2E',
-  secondaryLight: '#2D2D44',
+  secondary: '#12162B',      // deep navy — headers, premium sections
+  secondaryLight: '#242A4A',
+  secondaryFade: '#EEEFF6',
 
-  // UI
-  background: '#F5F5F5',
+  // UI surfaces
+  background: '#F6F6F8',
   surface: '#FFFFFF',
-  surfaceAlt: '#FAFAFA',
-  border: '#E8E8E8',
-  borderLight: '#F0F0F0',
-  divider: '#EEEEEE',
+  surfaceAlt: '#FBFBFC',
+  surfaceSunken: '#F0F0F3',
+  border: '#EBEBEF',
+  borderLight: '#F2F2F5',
+  borderStrong: '#DCDCE2',
+  divider: '#EFEFF3',
 
-  // Text
-  textPrimary: '#1A1A1A',
-  textSecondary: '#555555',
-  textMuted: '#999999',
-  textLight: '#BBBBBB',
+  // Text — near-black ink, never pure gray-black
+  textPrimary: '#14141A',
+  textSecondary: '#5B5F6B',
+  textMuted: '#9497A3',
+  textLight: '#C4C6CF',
   textWhite: '#FFFFFF',
   textInverse: '#FFFFFF',
 
   // Status
-  success: '#28A745',
-  successLight: '#D4EDDA',
-  successText: '#155724',
+  success: '#0E9F6E',
+  successLight: '#E3F9F0',
+  successText: '#087054',
 
-  warning: '#FFC107',
-  warningLight: '#FFF3CD',
-  warningText: '#856404',
+  warning: '#F5A623',
+  warningLight: '#FFF6E5',
+  warningText: '#92620A',
 
-  danger: '#DC3545',
-  dangerLight: '#F8D7DA',
-  dangerText: '#721C24',
+  danger: '#E5484D',
+  dangerLight: '#FDECEC',
+  dangerText: '#9B2020',
 
-  info: '#17A2B8',
-  infoLight: '#CCE5FF',
-  infoText: '#004085',
+  info: '#3B82C4',
+  infoLight: '#E8F2FB',
+  infoText: '#1E5C8A',
 
-  // Product
-  discount: '#FF3C00',
-  rating: '#FFB800',
-  freeShip: '#28A745',
-  flashSale: '#FF3C00',
+  // Product / commerce accents
+  discount: '#E8390B',       // hot coral-red — price-cut chips
+  rating: '#F5A623',
+  freeShip: '#0E9F6E',
+  flashSale: '#E8390B',
+  priceGreen: '#0E9F6E',
 
   // Overlay
-  overlay: 'rgba(0,0,0,0.5)',
-  overlayLight: 'rgba(0,0,0,0.3)',
+  overlay: 'rgba(15,16,26,0.55)',
+  overlayLight: 'rgba(15,16,26,0.28)',
+  scrim: 'rgba(15,16,26,0.85)',
 
   // Skeleton
-  skeleton: '#E0E0E0',
-  skeletonHighlight: '#F5F5F5',
+  skeleton: '#EAEAED',
+  skeletonHighlight: '#F8F8FA',
 
   // Tab bar
-  tabActive: '#FF6B00',
-  tabInactive: '#AAAAAA',
+  tabActive: '#FF6A00',
+  tabInactive: '#AEB0BC',
 };
 
 // ─── TYPOGRAPHY ───────────────────────────────────────
+// Refined type scale — clearer hierarchy between price, title, and meta text
 export const FONTS = {
-  xs: 10,
-  sm: 12,
+  xs: 11,
+  sm: 12.5,
   md: 14,
   base: 15,
-  lg: 16,
-  xl: 18,
-  '2xl': 20,
-  '3xl': 24,
-  '4xl': 28,
-  '5xl': 32,
-  '6xl': 42,
+  lg: 17,
+  xl: 19,
+  '2xl': 22,
+  '3xl': 26,
+  '4xl': 30,
+  '5xl': 36,
+  '6xl': 44,
 
   regular: '400',
   medium: '500',
@@ -175,9 +183,15 @@ export const FONTS = {
   extraBold: '800',
   black: '900',
 
-  tight: 1.2,
-  normal: 1.5,
-  relaxed: 1.8,
+  tight: 1.15,
+  normal: 1.45,
+  relaxed: 1.75,
+
+  // Letter-spacing tokens — negative tracking on large numerals/prices
+  // reads more premium than default 0, per Coupang/Temu price display
+  trackTight: -0.4,
+  trackNormal: 0,
+  trackWide: 0.3,
 };
 
 // ─── SPACING ──────────────────────────────────────────
@@ -196,43 +210,51 @@ export const SPACING = {
 
 // ─── BORDER RADIUS ────────────────────────────────────
 export const RADIUS = {
-  xs: 4,
-  sm: 6,
-  md: 8,
-  lg: 12,
-  xl: 16,
-  '2xl': 20,
+  xs: 6,
+  sm: 9,
+  md: 12,
+  lg: 14,
+  xl: 18,
+  '2xl': 24,
   full: 9999,
 };
 
 // ─── SHADOWS ──────────────────────────────────────────
+// Cooler, softer tint (navy-black) instead of pure #000 — reads less "default RN card"
 export const SHADOWS = {
-  sm: {
-    shadowColor: '#000',
+  xs: {
+    shadowColor: '#12162B',
     shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  sm: {
+    shadowColor: '#12162B',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 3,
+    shadowRadius: 5,
     elevation: 2,
   },
   md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    shadowColor: '#12162B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.09,
+    shadowRadius: 10,
     elevation: 4,
   },
   lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
+    shadowColor: '#12162B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
     elevation: 8,
   },
   primary: {
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowColor: '#FF6A00',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
     elevation: 6,
   },
 };

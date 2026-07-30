@@ -30,7 +30,7 @@ const SELLER_TYPES = [
     icon: '🏢',
     title: 'Business / Company',
     subtitle: 'Registered shops, wholesalers, distributors',
-    color: '#1A1A2E',
+    color: '#12162B',
     examples: 'BRELA-registered business, wholesale supplier',
   },
   {
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
   selectorValue: { fontSize: FONTS.base, color: COLORS.textPrimary },
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
   gpsBtn: { flexDirection: 'row', alignItems: 'center', padding: SPACING.base, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade, marginVertical: SPACING.sm, gap: SPACING.sm },
-  gpsBtnActive: { borderColor: COLORS.success, backgroundColor: '#E8F5E9' },
+  gpsBtnActive: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
   gpsBtnIcon: { fontSize: 28 },
   gpsBtnContent: { flex: 1 },
   gpsBtnTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },

@@ -17,7 +17,7 @@ import {
   register, clearError, selectAuthLoading,
   selectAuthErrors, selectIsAuthenticated,
 } from '../../store/authSlice';
-import { COLORS, FONTS, SPACING, RADIUS, LANGUAGES } from '../../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, LANGUAGES } from '../../utils/constants';
 import { storage } from '../../utils/storage';
 import { setAuthToken } from '../../api/client';
 
@@ -182,7 +182,7 @@ export default function RegisterScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always"
@@ -191,9 +191,12 @@ export default function RegisterScreen({ navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backIcon}>‹</Text>
           </TouchableOpacity>
-          <Text style={styles.logo}>VUMA</Text>
+          <View style={styles.headerLogoRow}>
+            <View style={styles.logoBadge}><Text style={styles.logoBadgeText}>V</Text></View>
+            <Text style={styles.logo}>VUMA</Text>
+          </View>
           <View style={{ width: 40 }} />
         </View>
 
@@ -210,7 +213,7 @@ export default function RegisterScreen({ navigation }) {
               value={form.username}
               onChangeText={v => setField('username', v)}
               placeholder="Choose a username"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={COLORS.textLight}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="next"
@@ -223,14 +226,14 @@ export default function RegisterScreen({ navigation }) {
           {/* Email */}
           <Text style={styles.label}>Email Address *</Text>
           <View style={[styles.inputWrap, fieldErrors.email && styles.inputError]}>
-            <Text style={styles.inputIcon}>✉️</Text>
+            <Text style={styles.inputIcon}>✉</Text>
             <TextInput
               ref={emailRef}
               style={styles.input}
               value={form.email}
               onChangeText={v => setField('email', v)}
               placeholder="your@email.com"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={COLORS.textLight}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -251,7 +254,7 @@ export default function RegisterScreen({ navigation }) {
               value={form.phone}
               onChangeText={v => setField('phone', v)}
               placeholder="+255 7XX XXX XXX"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={COLORS.textLight}
               keyboardType="phone-pad"
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
@@ -270,13 +273,13 @@ export default function RegisterScreen({ navigation }) {
               value={form.password}
               onChangeText={v => setField('password', v)}
               placeholder="At least 6 characters"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={COLORS.textLight}
               secureTextEntry={!showPassword}
               returnKeyType="next"
               editable={!isLoading}
             />
             <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn}>
-              <Text>{showPassword ? '🙈' : '👁'}</Text>
+              <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
             </TouchableOpacity>
           </View>
           <FieldError field="password" />
@@ -290,7 +293,7 @@ export default function RegisterScreen({ navigation }) {
               value={form.confirmPassword}
               onChangeText={v => setField('confirmPassword', v)}
               placeholder="Re-enter password"
-              placeholderTextColor="#BBB"
+              placeholderTextColor={COLORS.textLight}
               secureTextEntry={!showPassword}
               returnKeyType="done"
               onSubmitEditing={handleRegister}
@@ -303,7 +306,7 @@ export default function RegisterScreen({ navigation }) {
           <TouchableOpacity
             style={styles.termsRow}
             onPress={() => setAgreedToTerms(v => !v)}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
             <View style={[styles.checkbox, agreedToTerms && styles.checkboxOn]}>
               {agreedToTerms && <Text style={styles.tick}>✓</Text>}
@@ -322,11 +325,11 @@ export default function RegisterScreen({ navigation }) {
             style={[styles.registerBtn, isLoading && styles.registerBtnLoading]}
             onPress={handleRegister}
             disabled={isLoading}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
             {isLoading ? (
               <View style={styles.loadingRow}>
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={COLORS.textWhite} size="small" />
                 <Text style={styles.registerBtnText}>Creating account...</Text>
               </View>
             ) : (
@@ -344,6 +347,7 @@ export default function RegisterScreen({ navigation }) {
             style={styles.loginBtn}
             onPress={() => navigation.navigate('Login')}
             disabled={isLoading}
+            activeOpacity={0.85}
           >
             <Text style={styles.loginBtnText}>Sign In</Text>
           </TouchableOpacity>
@@ -354,35 +358,39 @@ export default function RegisterScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  scroll: { flexGrow: 1, paddingHorizontal: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 20, paddingBottom: 8 },
-  backBtn: { padding: 8 },
-  backIcon: { fontSize: 22, color: '#FF6B00', fontWeight: '700' },
-  logo: { fontSize: 24, fontWeight: '900', color: '#FF6B00', letterSpacing: -1 },
-  title: { fontSize: 26, fontWeight: '800', color: '#1A1A1A', marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#999', marginBottom: 20 },
-  card: { backgroundColor: '#fff', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6, marginTop: 12 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#fff', minHeight: 50 },
-  inputError: { borderColor: '#DC3545' },
-  inputIcon: { fontSize: 16, marginRight: 8 },
-  input: { flex: 1, fontSize: 15, color: '#1A1A1A', paddingVertical: 12 },
-  eyeBtn: { padding: 8 },
-  fieldError: { fontSize: 12, color: '#DC3545', marginTop: 4 },
-  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 16, marginBottom: 4 },
-  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: '#E0E0E0', borderRadius: 4, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  checkboxOn: { backgroundColor: '#FF6B00', borderColor: '#FF6B00' },
-  tick: { color: 'white', fontSize: 11, fontWeight: '900' },
-  termsText: { flex: 1, fontSize: 13, color: '#555', lineHeight: 20 },
-  termsLink: { color: '#FF6B00', fontWeight: '600' },
-  registerBtn: { backgroundColor: '#FF6B00', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 20, shadowColor: '#FF6B00', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-  registerBtnLoading: { opacity: 0.8, shadowOpacity: 0 },
-  registerBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#F0F0F0' },
-  dividerText: { fontSize: 12, color: '#BBB', fontWeight: '500' },
-  loginBtn: { borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  loginBtnText: { fontSize: 15, color: '#555', fontWeight: '600' },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scroll: { flexGrow: 1, paddingHorizontal: SPACING.base, paddingBottom: SPACING['2xl'] },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 24, paddingBottom: SPACING.sm },
+  backBtn: { width: 40, height: 40, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 26, color: COLORS.textPrimary, fontWeight: FONTS.bold, marginTop: -2 },
+  headerLogoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logoBadge: { width: 24, height: 24, borderRadius: RADIUS.sm, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  logoBadgeText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.black },
+  logo: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.secondary, letterSpacing: FONTS.trackTight },
+  title: { fontSize: FONTS['3xl'], fontWeight: FONTS.extraBold, color: COLORS.textPrimary, marginBottom: 4, marginTop: SPACING.sm, letterSpacing: FONTS.trackTight },
+  subtitle: { fontSize: FONTS.sm, color: COLORS.textMuted, marginBottom: SPACING.lg },
+  card: { backgroundColor: COLORS.surface, borderRadius: RADIUS['2xl'], padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.md },
+  label: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: 6, marginTop: SPACING.md },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.md, backgroundColor: COLORS.surfaceAlt, minHeight: 50 },
+  inputError: { borderColor: COLORS.danger, backgroundColor: COLORS.dangerLight },
+  inputIcon: { fontSize: 15, marginRight: SPACING.sm, opacity: 0.6 },
+  input: { flex: 1, fontSize: FONTS.base, color: COLORS.textPrimary, paddingVertical: SPACING.sm + 2 },
+  eyeBtn: { padding: SPACING.xs },
+  eyeIcon: { fontSize: 16 },
+  fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: 4, fontWeight: FONTS.medium },
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginTop: SPACING.md, marginBottom: 4 },
+  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: COLORS.borderStrong, borderRadius: RADIUS.xs, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  checkboxOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  tick: { color: COLORS.textWhite, fontSize: 11, fontWeight: FONTS.black },
+  termsText: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20 },
+  termsLink: { color: COLORS.primary, fontWeight: FONTS.semiBold },
+  registerBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: SPACING.md + 2, alignItems: 'center', marginTop: SPACING.lg, ...SHADOWS.primary },
+  registerBtnLoading: { opacity: 0.85, shadowOpacity: 0, elevation: 0 },
+  registerBtnText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.bold },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: SPACING.md, gap: SPACING.sm },
+  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.divider },
+  dividerText: { fontSize: 11, color: COLORS.textLight, fontWeight: FONTS.semiBold },
+  loginBtn: { borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center' },
+  loginBtnText: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
 });

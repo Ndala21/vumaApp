@@ -315,7 +315,7 @@ export default function AIChatScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F4F8' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.secondary, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base, gap: SPACING.sm },
   backBtn: { padding: 4 },

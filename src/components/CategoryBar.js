@@ -1,6 +1,6 @@
 /**
  * VUMA Store — Category Bar Component
- * Horizontal scrollable category icons like Coupang
+ * Horizontal scrollable category wheel. Same props/handlers — visual rebuild only.
  */
 
 import React, { memo, useRef } from 'react';
@@ -16,6 +16,7 @@ import {
   FONTS,
   RADIUS,
   SPACING,
+  SHADOWS,
 } from '../utils/constants';
 
 function CategoryBar({
@@ -52,17 +53,15 @@ function CategoryBar({
               }
               activeOpacity={0.75}
             >
-              {/* Icon bubble */}
               <View
                 style={[
                   styles.iconBubble,
                   isActive && styles.iconBubbleActive,
                 ]}
               >
-                <Text style={styles.icon}>{cat.icon}</Text>
+                <Text style={[styles.icon, isActive && styles.iconActive]}>{cat.icon}</Text>
               </View>
 
-              {/* Label */}
               <Text
                 style={[
                   styles.label,
@@ -73,8 +72,7 @@ function CategoryBar({
                 {cat.label || cat.name}
               </Text>
 
-              {/* Active dot */}
-              {isActive && <View style={styles.activeDot} />}
+              <View style={[styles.underline, isActive && styles.underlineActive]} />
             </TouchableOpacity>
           );
         })}
@@ -92,36 +90,36 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.divider,
   },
   scrollContent: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.sm,
-    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    gap: SPACING.sm,
   },
   item: {
     alignItems: 'center',
-    minWidth: 64,
+    minWidth: 62,
     paddingHorizontal: SPACING.xs,
     position: 'relative',
   },
   iconBubble: {
-    width: 52,
-    height: 52,
-    borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.primaryFade,
+    width: 54,
+    height: 54,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceSunken,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 6,
   },
   iconBubbleActive: {
     backgroundColor: COLORS.primary,
-    borderColor: COLORS.primaryDark,
+    borderColor: COLORS.primary,
+    ...SHADOWS.primary,
   },
-  icon: {
-    fontSize: 24,
-  },
+  icon: { fontSize: 23 },
+  iconActive: { transform: [{ scale: 1.05 }] },
   label: {
-    fontSize: FONTS.xs,
+    fontSize: 11,
     color: COLORS.textSecondary,
     fontWeight: FONTS.medium,
     textAlign: 'center',
@@ -130,11 +128,9 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: FONTS.bold,
   },
-  activeDot: {
-    width: 4,
-    height: 4,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.primary,
-    marginTop: 3,
+  underline: {
+    width: 16, height: 2.5, borderRadius: 2,
+    backgroundColor: 'transparent', marginTop: 5,
   },
+  underlineActive: { backgroundColor: COLORS.primary },
 });
