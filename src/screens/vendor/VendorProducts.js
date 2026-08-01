@@ -291,19 +291,6 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
         </TouchableOpacity>
       </View>
     </View>
-
-      {/* Image Quality Warning Modal */}
-      <ImageQualityWarning
-        quality={currentQuality}
-        visible={showQualityModal}
-        imageUri={currentImageUri}
-        onDismiss={() => setShowQualityModal(false)}
-        onRetry={() => {
-          setShowQualityModal(false);
-          openAddModal();
-        }}
-        onPublishAnyway={() => setShowQualityModal(false)}
-      />
   );
 });
 
