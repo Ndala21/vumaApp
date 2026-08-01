@@ -17,6 +17,7 @@ import {
   register, clearError, selectAuthLoading,
   selectAuthErrors, selectIsAuthenticated,
 } from '../../store/authSlice';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, LANGUAGES } from '../../utils/constants';
 import { storage } from '../../utils/storage';
 import { setAuthToken } from '../../api/client';
@@ -178,15 +179,16 @@ export default function RegisterScreen({ navigation }) {
   ) : null;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={Platform.OS === 'ios' ? 20 : 60}
+        keyboardOpeningTime={0}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -352,8 +354,8 @@ export default function RegisterScreen({ navigation }) {
             <Text style={styles.loginBtnText}>Sign In</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

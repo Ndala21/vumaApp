@@ -29,7 +29,7 @@ import { EmptyState } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
 
 const { width } = Dimensions.get('window');
-const NUM_COLUMNS = 2;
+const NUM_COLUMNS = width >= 700 ? 4 : 3;
 
 export default function HomeScreen({ navigation }) {
   const dispatch = useDispatch();
@@ -296,7 +296,7 @@ export default function HomeScreen({ navigation }) {
   };
 
   const renderProduct = useCallback(({ item, index }) => (
-    <View style={[styles.productItemWrap, index % 2 === 0 ? styles.productLeft : styles.productRight]}>
+    <View style={styles.productItemWrap}>
       <ProductCard product={item} variant="grid" onPress={() => handleProductPress(item)} style={styles.productCard} />
     </View>
   ), []);
@@ -306,9 +306,7 @@ export default function HomeScreen({ navigation }) {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
       <View style={styles.topBar}>
-        <View style={styles.logoBadge}>
-          <Text style={styles.logoBadgeText}>V</Text>
-        </View>
+        <Text style={styles.logoWord}>VUMA</Text>
         <View style={styles.topSearch}>
           <SearchBar
             value={searchQuery} onChangeText={setSearchQuery}
@@ -343,6 +341,7 @@ export default function HomeScreen({ navigation }) {
         renderItem={renderProduct}
         keyExtractor={(item) => item.id?.toString()}
         numColumns={NUM_COLUMNS}
+        columnWrapperStyle={styles.columnWrapper}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}
@@ -368,17 +367,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.sm,
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.xl,
+    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] + SPACING.xs : (StatusBar.currentHeight || SPACING.xl) + SPACING.sm,
     paddingBottom: SPACING.sm,
     borderBottomWidth: 1, borderBottomColor: COLORS.divider,
     gap: SPACING.sm,
   },
-  logoBadge: {
-    width: 34, height: 34, borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
-    ...SHADOWS.primary,
+  logoWord: {
+    fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.primary,
+    letterSpacing: FONTS.trackTight,
   },
-  logoBadgeText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.black },
   topSearch: { flex: 1 },
   searchBar: {
     paddingHorizontal: 0, paddingVertical: 0,
@@ -461,9 +458,8 @@ const styles = StyleSheet.create({
 
   // ── Grid ──
   flatListContent: { paddingBottom: 90, paddingTop: 2 },
-  productItemWrap: { flex: 1, paddingHorizontal: SPACING.xs, paddingVertical: SPACING.sm },
-  productLeft: { paddingLeft: SPACING.base, paddingRight: SPACING.xs },
-  productRight: { paddingLeft: SPACING.xs, paddingRight: SPACING.base },
+  columnWrapper: { paddingHorizontal: SPACING.base, gap: SPACING.xs },
+  productItemWrap: { flex: 1, paddingVertical: SPACING.xs },
   productCard: { flex: 1 },
 
   loadingMore: { padding: SPACING.xl, alignItems: 'center' },

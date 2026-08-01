@@ -177,7 +177,7 @@ export default memo(ProductCard);
 const styles = StyleSheet.create({
   // Grid
   gridCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOWS.sm },
-  imageWrap: { width: '100%', aspectRatio: 1, backgroundColor: COLORS.skeleton, position: 'relative' },
+  imageWrap: { width: '100%', aspectRatio: 1.15, backgroundColor: COLORS.skeleton, position: 'relative' },
   image: { width: '100%', height: '100%' },
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
   flashBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: COLORS.flashSale, borderRadius: RADIUS.sm, paddingHorizontal: 5, paddingVertical: 2 },
