@@ -23,7 +23,7 @@ import Loading, { SkeletonListItem } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { VendorSizePicker, requiresSize } from '../../components/SizeSelector';
 import { MultiImagePicker } from '../../components/MultiImagePicker';
-import { ImageQualityWarning, ImageQualityBadge } from '../../components/product/ImageQualityWarning';
+import { ImageQualityWarning, ImageQualityBadge } from '../../components/ImageQualityWarning';
 
 const PRODUCT_STATUS = [
   { label: 'Active', value: 'active' },
