@@ -23,6 +23,7 @@ import Loading, { SkeletonListItem } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { VendorSizePicker, requiresSize } from '../../components/SizeSelector';
 import { MultiImagePicker } from '../../components/MultiImagePicker';
+import VariantManager from '../../components/VariantManager';
 import { ImageQualityWarning, ImageQualityBadge } from '../../components/ImageQualityWarning';
 
 const PRODUCT_STATUS = [
@@ -94,6 +95,7 @@ const ProductModal = memo(({
   productImages, onAddImages, onRemoveImage, onSetPrimaryImage,
   onSubmit, loading, uploading, uploadingIndex,
   onOpenCategoryPicker, onToggleSize,
+  variants, onVariantsChange,
 }) => (
   <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent={false}>
     <View style={styles.modalContainer}>
@@ -212,6 +214,13 @@ const ProductModal = memo(({
           />
         )}
 
+        {/* Product Variants — size/color/material/storage/etc, based on category */}
+        <VariantManager
+          categoryName={form.category}
+          variants={variants}
+          onChange={onVariantsChange}
+        />
+
         {/* Status */}
         <Text style={styles.fieldLabel}>Status</Text>
         <View style={styles.statusOptions}>
@@ -317,6 +326,7 @@ export default function VendorProducts({ navigation, route }) {
   const [currentQuality, setCurrentQuality] = useState(null);
   const [currentImageUri, setCurrentImageUri] = useState(null);
   const [uploadingIndex, setUploadingIndex] = useState(null);
+  const [variants, setVariants] = useState([]);
 
   useEffect(() => {
     dispatch(fetchMyProducts());
@@ -335,6 +345,7 @@ export default function VendorProducts({ navigation, route }) {
     setFormState(EMPTY_FORM);
     setFormErrors({});
     setProductImages([]);
+    setVariants([]);
     setShowModal(true);
   }, []);
 
@@ -354,6 +365,13 @@ export default function VendorProducts({ navigation, route }) {
       requires_size: product.requires_size || false,
     });
     setFormErrors({});
+    // Load existing variants (map API shape -> the plain objects VariantManager expects)
+    setVariants((product.variants || []).map(v => ({
+      size: v.size || '', color: v.color || '', material: v.material || '',
+      storage: v.storage || '', ram: v.ram || '', model_name: v.model_name || '',
+      weight_volume: v.weight_volume || '', stock: v.stock || 0,
+      price_adjustment: v.price_adjustment || 0,
+    })));
     // Load existing images
     const existingImages = (product.images || []).map(img => ({
       id: img.id,
@@ -448,6 +466,16 @@ export default function VendorProducts({ navigation, route }) {
       else { Alert.alert('Error', errors.createProduct || 'Failed to create.'); return; }
     }
 
+    // Save variants (replaces the full set for this product)
+    if (variants.length > 0 && savedProduct?.id) {
+      try {
+        const { productsAPI } = await import('../../api/products');
+        await productsAPI.bulkSaveVariants(savedProduct.id, variants);
+      } catch (e) {
+        Alert.alert('Partial Success', 'Product saved, but variants failed to save. Edit the product to retry.');
+      }
+    }
+
     // Upload only NEW images (not existing ones)
     const newImages = productImages.filter(img => !img.isExisting);
     if (newImages.length > 0 && savedProduct?.id) {
@@ -528,6 +556,7 @@ export default function VendorProducts({ navigation, route }) {
     setShowModal(false);
     setFormState(EMPTY_FORM);
     setEditingProduct(null);
+    setVariants([]);
     setProductImages([]);
     dispatch(fetchMyProducts());
   }, [form, productImages, editingProduct, validateForm, errors]);
@@ -640,6 +669,8 @@ export default function VendorProducts({ navigation, route }) {
         uploadingIndex={uploadingIndex}
         onOpenCategoryPicker={() => setShowCategoryPicker(true)}
         onToggleSize={handleToggleSize}
+        variants={variants}
+        onVariantsChange={setVariants}
       />
 
       <CategoryPickerModal

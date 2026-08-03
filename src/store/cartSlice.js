@@ -127,6 +127,8 @@ const cartSlice = createSlice({
           id: `${product.id}_${Date.now()}`,
           product,
           quantity: Math.min(quantity, product.stock || 99),
+          selectedSize: product.selectedSize || null,
+          selectedVariant: product.selectedVariant || null,
           addedAt: new Date().toISOString(),
         });
       }

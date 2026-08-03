@@ -121,6 +121,9 @@ const CartItem = memo(({ item, selected, onToggle, onQuantityChange, onDelete })
         {item.selectedColor && (
           <Text style={styles.cartItemVariant}>Color: {item.selectedColor}</Text>
         )}
+        {item.selectedVariant && (
+          <Text style={styles.cartItemVariant}>{item.selectedVariant.display_name}</Text>
+        )}
 
         <View style={styles.cartItemPriceRow}>
           <Text style={styles.cartItemPrice}>TZS {itemTotal.toLocaleString()}</Text>

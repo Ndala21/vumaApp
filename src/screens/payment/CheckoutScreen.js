@@ -156,7 +156,11 @@ export default function CheckoutScreen({ navigation }) {
         : { delivery_type: 'home', full_name: user?.username || '', phone, city: region, ward: district, landmark, building_detail: buildingDetail, latitude, longitude };
 
       const result = await post('/orders/', {
-        items: cartItems.map(item => ({ product_id: item.id, quantity: item.quantity })),
+        items: cartItems.map(item => ({
+          product_id: item.product?.id || item.id,
+          variant_id: item.selectedVariant?.id || undefined,
+          quantity: item.quantity,
+        })),
         shipping_address: shippingAddress,
         payment_method: paymentMethod,
         total_amount: cartTotal,

@@ -93,6 +93,8 @@ export default function ProductDetailScreen({ navigation, route }) {
   const [pendingAction, setPendingAction] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [sizeError, setSizeError] = useState(false);
+  const [selectedVariant, setSelectedVariant] = useState(null);
+  const [variantError, setVariantError] = useState(false);
 
   const cartBounce = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -112,6 +114,8 @@ export default function ProductDetailScreen({ navigation, route }) {
   useEffect(() => {
     setSelectedSize(null);
     setSizeError(false);
+    setSelectedVariant(null);
+    setVariantError(false);
   }, [product?.id]);
 
   useEffect(() => {
@@ -141,11 +145,24 @@ export default function ProductDetailScreen({ navigation, route }) {
   const images = displayProduct.images || [];
   const reviews = displayProduct.reviews || [];
   const productNeedsSize = displayProduct.requires_size && displayProduct.available_sizes?.length > 0;
+  const productVariants = displayProduct.variants || [];
+  const needsVariant = productVariants.length > 0;
+  const variantPriceAdjustment = selectedVariant ? Number(selectedVariant.price_adjustment || 0) : 0;
+  const finalPrice = effectivePrice + variantPriceAdjustment;
 
   const validateSize = () => {
     if (productNeedsSize && !selectedSize) {
       setSizeError(true);
       Alert.alert('Select Size', 'Please select a size before continuing.');
+      return false;
+    }
+    return true;
+  };
+
+  const validateVariant = () => {
+    if (needsVariant && !selectedVariant) {
+      setVariantError(true);
+      Alert.alert('Select an option', 'Please select a product option before continuing.');
       return false;
     }
     return true;
@@ -165,7 +182,8 @@ export default function ProductDetailScreen({ navigation, route }) {
     if (!isAuthenticated) { setPendingAction('cart'); setShowAuthModal(true); return; }
     if (outOfStock) return;
     if (!validateSize()) return;
-    dispatch(addToCartAndSave({ ...displayProduct, selectedSize }, quantity));
+    if (!validateVariant()) return;
+    dispatch(addToCartAndSave({ ...displayProduct, selectedSize, selectedVariant }, quantity));
     setAddedToCart(true);
     Animated.sequence([
       Animated.spring(cartBounce, { toValue: 1.2, useNativeDriver: true }),
@@ -177,7 +195,8 @@ export default function ProductDetailScreen({ navigation, route }) {
   const handleBuyNow = () => {
     if (!isAuthenticated) { setPendingAction('buy'); setShowAuthModal(true); return; }
     if (!validateSize()) return;
-    dispatch(addToCartAndSave({ ...displayProduct, selectedSize }, quantity));
+    if (!validateVariant()) return;
+    dispatch(addToCartAndSave({ ...displayProduct, selectedSize, selectedVariant }, quantity));
     navigation.navigate(SCREENS.CHECKOUT);
   };
 
@@ -292,7 +311,7 @@ export default function ProductDetailScreen({ navigation, route }) {
           <Text style={styles.productName}>{displayProduct.name}</Text>
           <View style={styles.priceSection}>
             <View style={styles.priceRow}>
-              <Text style={styles.effectivePrice}>{formatPrice(effectivePrice)}</Text>
+              <Text style={styles.effectivePrice}>{formatPrice(finalPrice)}</Text>
               {discount > 0 && (
                 <>
                   <Text style={styles.originalPrice}>{formatPrice(displayProduct.price)}</Text>
@@ -359,6 +378,45 @@ export default function ProductDetailScreen({ navigation, route }) {
               onSelect={(size) => { setSelectedSize(size); setSizeError(false); }}
               error={sizeError}
             />
+          </View>
+        )}
+
+        {/* Product Variants (size/color/material/storage/etc — from the seller's variant list) */}
+        {needsVariant && (
+          <View style={styles.card}>
+            <View style={styles.sectionTitleRow}>
+              <View style={styles.sectionAccent} />
+              <Text style={styles.sectionTitle}>Select Option</Text>
+            </View>
+            {variantError && <Text style={styles.fieldError}>⚠️ Please select an option</Text>}
+            <View style={styles.variantGrid}>
+              {productVariants.map((v) => {
+                const isSelected = selectedVariant?.id === v.id;
+                const isOut = v.stock <= 0;
+                return (
+                  <TouchableOpacity
+                    key={v.id}
+                    disabled={isOut}
+                    style={[
+                      styles.variantChip,
+                      isSelected && styles.variantChipActive,
+                      isOut && styles.variantChipDisabled,
+                    ]}
+                    onPress={() => { setSelectedVariant(v); setVariantError(false); }}
+                  >
+                    <Text style={[styles.variantChipText, isSelected && styles.variantChipTextActive]}>
+                      {v.display_name}
+                    </Text>
+                    {Number(v.price_adjustment) !== 0 && (
+                      <Text style={[styles.variantChipPrice, isSelected && styles.variantChipTextActive]}>
+                        {Number(v.price_adjustment) > 0 ? '+' : ''}{formatPrice(v.price_adjustment)}
+                      </Text>
+                    )}
+                    {isOut && <Text style={styles.variantChipOut}>Out of stock</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -682,4 +740,18 @@ const styles = StyleSheet.create({
   starRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
   starIcon: { fontSize: 32, opacity: 0.28, color: COLORS.rating },
   starIconActive: { opacity: 1 },
+
+  fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginBottom: SPACING.sm, fontWeight: FONTS.medium },
+  variantGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  variantChip: {
+    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, backgroundColor: COLORS.surfaceAlt,
+    minWidth: 80, alignItems: 'center',
+  },
+  variantChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  variantChipDisabled: { opacity: 0.4 },
+  variantChipText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  variantChipTextActive: { color: COLORS.textWhite },
+  variantChipPrice: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  variantChipOut: { fontSize: 10, color: COLORS.danger, marginTop: 2, fontWeight: FONTS.semiBold },
 });

@@ -187,6 +187,7 @@ export default function OrderDetailScreen({ navigation, route }) {
                 <View key={i} style={styles.receiptItem}>
                   <View style={styles.receiptItemLeft}>
                     <Text style={styles.receiptItemName} numberOfLines={2}>{item.product_name}</Text>
+                    {item.variant_display ? <Text style={styles.receiptItemVendor}>{item.variant_display}</Text> : null}
                     <Text style={styles.receiptItemVendor}>Sold by: {item.vendor_name || 'VUMA Store'}</Text>
                     <Text style={styles.receiptItemQty}>Qty: {item.quantity} × {formatPrice(item.unit_price)}</Text>
                   </View>
@@ -364,6 +365,7 @@ export default function OrderDetailScreen({ navigation, route }) {
               )}
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={2}>{item.product_name}</Text>
+                {item.variant_display ? <Text style={styles.itemVendor}>{item.variant_display}</Text> : null}
                 <Text style={styles.itemVendor}>🏪 {item.vendor_name || 'VUMA Store'}</Text>
                 <View style={styles.itemPriceRow}>
                   <Text style={styles.itemPrice}>{formatPrice(item.unit_price)}</Text>

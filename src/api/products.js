@@ -88,4 +88,10 @@ export const productsAPI = {
 
   // ── Vendor Activity ───────────────────────────────────
   getVendorActivity: () => get('/products/vendor-activity/'),
+
+  // ── Product Variants ──────────────────────────────────
+  getVariants: (productId) => get(`/products/${productId}/variants/`),
+  bulkSaveVariants: (productId, variants) => post(`/products/${productId}/variants/bulk/`, { variants }),
+  updateVariant: (productId, variantId, data) => patch(`/products/${productId}/variants/${variantId}/`, data),
+  deleteVariant: (productId, variantId) => del(`/products/${productId}/variants/${variantId}/`),
 };
