@@ -17,6 +17,11 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 
 const DELIVERY_FEE = 0;
 
+// TabNavigator renders a floating tab bar (position: absolute) that overlays
+// screen content instead of pushing it up — so any bottom-pinned element in
+// this screen must add this offset or it renders underneath the tab bar.
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 80 : 64;
+
 // ── Get product image URL ──────────────────────────────
 function getProductImage(product) {
   if (!product) return null;
@@ -400,7 +405,7 @@ const styles = StyleSheet.create({
   selectAllBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, gap: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   selectAllText: { flex: 1, fontSize: FONTS.base, color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
   selectedCount: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
-  listContent: { padding: SPACING.sm, gap: SPACING.sm },
+  listContent: { padding: SPACING.sm, paddingBottom: 180 + TAB_BAR_HEIGHT, gap: SPACING.sm },
   sellerGroup: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, overflow: 'hidden', ...SHADOWS.sm },
   sellerHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderBottomWidth: 1, borderBottomColor: COLORS.divider, gap: SPACING.sm },
   sellerHeaderIcon: { fontSize: 16 },
@@ -433,7 +438,7 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxTick: { color: 'white', fontSize: 13, fontWeight: FONTS.black },
   checkboxIndeterminate: { width: 10, height: 2, backgroundColor: COLORS.primary, borderRadius: 1 },
-  summary: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingHorizontal: SPACING.base, paddingTop: SPACING.sm, paddingBottom: Platform.OS === 'ios' ? 44 : 20, ...SHADOWS.lg },
+  summary: { position: 'absolute', bottom: TAB_BAR_HEIGHT, left: 0, right: 0, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingHorizontal: SPACING.base, paddingTop: SPACING.sm, paddingBottom: Platform.OS === 'ios' ? 24 : 16, ...SHADOWS.lg },
   summaryBreakdown: { gap: SPACING.xs, marginBottom: SPACING.sm },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { fontSize: FONTS.sm, color: COLORS.textMuted },
