@@ -43,6 +43,31 @@ import WelcomeGiftScreen from '../screens/gift/WelcomeGiftScreen';
 
 const Stack = createNativeStackNavigator();
 
+// Deep linking — routes for email CTA buttons (order updates, referral
+// rewards, password reset) and any future universal-link support.
+const linking = {
+  prefixes: ['vuma://', 'https://vumastore.store', 'https://www.vumastore.store'],
+  config: {
+    screens: {
+      Main: {
+        screens: {
+          Tabs: 'dashboard',
+          OrderDetail: 'orders/:orderId',
+          Referral: 'referral',
+          Auth: {
+            screens: {
+              Login: 'login',
+              Register: 'register',
+              ForgotPassword: 'forgot-password',
+              ResetPassword: 'reset-password/:uid/:token',
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 function SplashScreen() {
   return (
     <View style={styles.splash}>
@@ -158,7 +183,7 @@ export default function AppNavigator() {
   if (!isInitialized) return <SplashScreen />;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking} fallback={<SplashScreen />}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Main" options={{ animation: 'fade' }}>
           {() => <MainStack isVendor={isApprovedVendor || isVendor} />}
