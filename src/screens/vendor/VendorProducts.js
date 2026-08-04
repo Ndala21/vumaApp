@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
   Platform, Alert, RefreshControl, Modal, TextInput, Image, ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
@@ -145,6 +146,18 @@ const ProductModal = memo(({
           textAlignVertical="top" placeholderTextColor={COLORS.textLight}
           blurOnSubmit={false}
         />
+        <TouchableOpacity
+          style={styles.aiBtn}
+          onPress={handleGenerateDescription}
+          disabled={aiDescLoading}
+          activeOpacity={0.85}
+        >
+          {aiDescLoading ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+            <Text style={styles.aiBtnText}>✨ Generate with AI</Text>
+          )}
+        </TouchableOpacity>
 
         {/* Price & Stock */}
         <View style={styles.rowFields}>
@@ -157,6 +170,34 @@ const ProductModal = memo(({
               returnKeyType="next" blurOnSubmit={false}
             />
             {formErrors.price && <Text style={styles.fieldError}>⚠️ {formErrors.price}</Text>}
+            <TouchableOpacity
+              style={styles.pricingCheckBtn}
+              onPress={handleCheckPricing}
+              disabled={pricingLoading}
+              activeOpacity={0.85}
+            >
+              {pricingLoading ? (
+                <ActivityIndicator size="small" color={COLORS.info} />
+              ) : (
+                <Text style={styles.pricingCheckBtnText}>📊 Check Pricing</Text>
+              )}
+            </TouchableOpacity>
+            {pricingSuggestion && pricingSuggestion.sample_size > 0 && (
+              <View style={styles.pricingResult}>
+                <Text style={styles.pricingResultText}>
+                  Category avg: TZS {Math.round(pricingSuggestion.category_avg_price).toLocaleString()}
+                  {pricingSuggestion.vs_category_avg_pct !== undefined && (
+                    <Text> ({pricingSuggestion.vs_category_avg_pct > 0 ? '+' : ''}{pricingSuggestion.vs_category_avg_pct}% vs avg)</Text>
+                  )}
+                </Text>
+                {pricingSuggestion.suggestion && (
+                  <Text style={styles.pricingResultSuggestion}>{pricingSuggestion.suggestion}</Text>
+                )}
+              </View>
+            )}
+            {pricingSuggestion && pricingSuggestion.sample_size === 0 && (
+              <Text style={styles.pricingResultEmpty}>No comparable products in this category yet.</Text>
+            )}
           </View>
           <View style={styles.halfField}>
             <Text style={styles.fieldLabel}>Stock *</Text>
@@ -327,6 +368,9 @@ export default function VendorProducts({ navigation, route }) {
   const [currentImageUri, setCurrentImageUri] = useState(null);
   const [uploadingIndex, setUploadingIndex] = useState(null);
   const [variants, setVariants] = useState([]);
+  const [aiDescLoading, setAiDescLoading] = useState(false);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingSuggestion, setPricingSuggestion] = useState(null);
 
   useEffect(() => {
     dispatch(fetchMyProducts());
@@ -346,6 +390,7 @@ export default function VendorProducts({ navigation, route }) {
     setFormErrors({});
     setProductImages([]);
     setVariants([]);
+    setPricingSuggestion(null);
     setShowModal(true);
   }, []);
 
@@ -425,6 +470,58 @@ export default function VendorProducts({ navigation, route }) {
       return [selected, ...reordered];
     });
   }, []);
+
+  const handleGenerateDescription = useCallback(async () => {
+    if (!form.name.trim()) {
+      Alert.alert('Product Name Required', 'Enter a product name first so the AI knows what to describe.');
+      return;
+    }
+    setAiDescLoading(true);
+    try {
+      const { post } = await import('../../api/client');
+      const result = await post('/ai/vendor/generate-description/', {
+        product_name: form.name.trim(),
+        category: form.category || '',
+        keywords: '',
+      });
+      if (result?.success && result?.data?.description) {
+        setField('description', result.data.description);
+      } else {
+        Alert.alert('AI Unavailable', 'Could not generate a description right now. Please write one manually.');
+      }
+    } catch (e) {
+      Alert.alert('AI Unavailable', 'Could not generate a description right now. Please write one manually.');
+    } finally {
+      setAiDescLoading(false);
+    }
+  }, [form.name, form.category]);
+
+  const handleCheckPricing = useCallback(async () => {
+    if (!form.categoryId) {
+      Alert.alert('Select a Category', 'Choose a category first so pricing can be compared.');
+      return;
+    }
+    if (!form.price || isNaN(form.price)) {
+      Alert.alert('Enter a Price', 'Enter a price first to check it against similar products.');
+      return;
+    }
+    setPricingLoading(true);
+    setPricingSuggestion(null);
+    try {
+      const { post } = await import('../../api/client');
+      const result = await post('/ai/vendor/pricing-suggestion/', {
+        category_id: form.categoryId,
+        proposed_price: Number(form.price),
+      });
+      if (result?.success) {
+        setPricingSuggestion(result.data);
+      }
+    } catch (e) {
+      // Silent — pricing suggestion is optional guidance, not a blocker
+    } finally {
+      setPricingLoading(false);
+    }
+  }, [form.categoryId, form.price]);
 
   const validateForm = useCallback(() => {
     const errs = {};
@@ -782,4 +879,25 @@ const styles = StyleSheet.create({
   pickerLoading: { padding: SPACING.xl, alignItems: 'center' },
   pickerLoadingText: { fontSize: FONTS.sm, color: COLORS.textMuted },
   pickerEmpty: { textAlign: 'center', padding: SPACING.xl, fontSize: FONTS.sm, color: COLORS.textMuted },
+
+  aiBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.sm, backgroundColor: COLORS.primaryFade,
+    marginTop: -SPACING.sm, marginBottom: SPACING.base,
+  },
+  aiBtnText: { fontSize: FONTS.sm, color: COLORS.primaryDark, fontWeight: FONTS.bold },
+  pricingCheckBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderWidth: 1.5, borderColor: COLORS.info, borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.xs + 4, backgroundColor: COLORS.infoLight, marginTop: 6,
+  },
+  pricingCheckBtnText: { fontSize: FONTS.xs, color: COLORS.infoText, fontWeight: FONTS.bold },
+  pricingResult: {
+    backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.md,
+    padding: SPACING.sm, marginTop: SPACING.xs,
+  },
+  pricingResultText: { fontSize: FONTS.xs, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  pricingResultSuggestion: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4, lineHeight: 16 },
+  pricingResultEmpty: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 6, fontStyle: 'italic' },
 });
