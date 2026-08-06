@@ -97,6 +97,8 @@ const ProductModal = memo(({
   onSubmit, loading, uploading, uploadingIndex,
   onOpenCategoryPicker, onToggleSize,
   variants, onVariantsChange,
+  onGenerateDescription, aiDescLoading,
+  onCheckPricing, pricingLoading, pricingSuggestion,
 }) => (
   <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent={false}>
     <View style={styles.modalContainer}>
@@ -148,7 +150,7 @@ const ProductModal = memo(({
         />
         <TouchableOpacity
           style={styles.aiBtn}
-          onPress={handleGenerateDescription}
+          onPress={onGenerateDescription}
           disabled={aiDescLoading}
           activeOpacity={0.85}
         >
@@ -172,7 +174,7 @@ const ProductModal = memo(({
             {formErrors.price && <Text style={styles.fieldError}>⚠️ {formErrors.price}</Text>}
             <TouchableOpacity
               style={styles.pricingCheckBtn}
-              onPress={handleCheckPricing}
+              onPress={onCheckPricing}
               disabled={pricingLoading}
               activeOpacity={0.85}
             >
@@ -768,6 +770,11 @@ export default function VendorProducts({ navigation, route }) {
         onToggleSize={handleToggleSize}
         variants={variants}
         onVariantsChange={setVariants}
+        onGenerateDescription={handleGenerateDescription}
+        aiDescLoading={aiDescLoading}
+        onCheckPricing={handleCheckPricing}
+        pricingLoading={pricingLoading}
+        pricingSuggestion={pricingSuggestion}
       />
 
       <CategoryPickerModal
