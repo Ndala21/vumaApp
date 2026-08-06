@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "532626175456",
+    "project_id": "vuma-store",
+    "storage_bucket": "vuma-store.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:532626175456:android:2b42bc180c3659215ee785",
+        "android_client_info": {
+          "package_name": "com.vumastore"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAyYZEkBivk80tu5atdI8wU2XVx1AbEGDE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
