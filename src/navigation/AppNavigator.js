@@ -25,6 +25,7 @@ import ProductDetailScreen from '../screens/product/ProductDetailScreen';
 import OrderDetailScreen from '../screens/order/OrderDetailScreen';
 import CheckoutScreen from '../screens/payment/CheckoutScreen';
 import MobileMoneyScreen from '../screens/payment/MobileMoneyScreen';
+import BankTransferScreen from '../screens/payment/BankTransferScreen';
 import WalletScreen from '../screens/payment/WalletScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import AddressScreen from '../screens/profile/AddressScreen';
@@ -118,6 +119,7 @@ function MainStack({ isVendor }) {
       <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen name="MobileMoney" component={MobileMoneyScreen} options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="BankTransfer" component={BankTransferScreen} options={{ animation: 'slide_from_bottom' }} />
 
       {/* Profile */}
       <Stack.Screen name="Settings" component={SettingsScreen} />

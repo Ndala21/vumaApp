@@ -169,6 +169,8 @@ export default function CheckoutScreen({ navigation }) {
       if (result.id || result.order_number) {
         if (paymentMethod === 'mobile_money') {
           navigation.replace('MobileMoney', { orderId: result.id, orderNumber: result.order_number, amount: cartTotal });
+        } else if (paymentMethod === 'bank_transfer') {
+          navigation.replace('BankTransfer', { orderId: result.id, orderNumber: result.order_number, amount: cartTotal });
         } else {
           navigation.replace('OrderDetail', { orderId: result.id });
         }
@@ -400,6 +402,7 @@ export default function CheckoutScreen({ navigation }) {
           </View>
           {[
             { value: 'mobile_money', icon: '📱', label: 'Mobile Money', sub: 'M-Pesa, Airtel, Tigo, Halopesa' },
+            { value: 'bank_transfer', icon: '🏦', label: 'Bank Transfer', sub: 'CRDB, NMB' },
             { value: 'wallet', icon: '💰', label: 'VUMA Wallet', sub: 'Pay from your balance' },
           ].map(pm => (
             <TouchableOpacity
