@@ -252,8 +252,35 @@ export default function SellerRegisterScreen({ navigation }) {
         'Thank you! We will review your application within 24 hours and notify you via SMS.',
         [{ text: 'OK', onPress: () => navigation.replace('Login') }]
       );
-    } catch {
-      Alert.alert('Error', 'Could not submit. Please check your connection and try again.');
+    } catch (err) {
+      // Show the REAL error instead of a generic connection message.
+      // DRF validation errors come back as { field: "message" } or
+      // { field: ["message"] } — surface those specifically so the
+      // seller knows exactly what to fix, rather than guessing.
+      const data = err?.response?.data;
+      let message = 'Could not submit your application. Please try again.';
+
+      if (data && typeof data === 'object') {
+        const fieldErrors = Object.entries(data)
+          .map(([field, msg]) => {
+            const text = Array.isArray(msg) ? msg.join(' ') : String(msg);
+            return text;
+          })
+          .filter(Boolean);
+        if (fieldErrors.length > 0) {
+          message = fieldErrors.join('\n');
+        } else if (data.detail) {
+          message = String(data.detail);
+        }
+      } else if (err?.message && err.message !== 'Network Error') {
+        message = err.message;
+      } else if (!err?.response) {
+        // A genuine network/connectivity failure — this is the only
+        // case where the connection message is actually accurate.
+        message = 'Could not reach the server. Please check your internet connection and try again.';
+      }
+
+      Alert.alert('Submission Failed', message);
     } finally {
       setSaving(false);
     }
