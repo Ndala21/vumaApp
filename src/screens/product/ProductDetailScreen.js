@@ -2,6 +2,7 @@
  * VUMA Store — Product Detail Screen
  * Fixed: Size selector for Fashion/Clothing/Shoes + auth modal
  * Updated: SellerBadge + TrustSignals + SellerStore navigation
+ * Updated: Related Products section at the bottom
  */
 
 import { t } from '../../i18n';
@@ -31,6 +32,8 @@ import Button from '../../components/common/Button';
 import Loading, { OverlayLoading } from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
 import { CustomerSizeSelector, requiresSize } from '../../components/SizeSelector';
+import ProductCard from '../../components/ProductCard';
+import { productsAPI } from '../../api/products';
 
 // ── NEW: Seller Badge & Trust Signals ────────────────
 import { SellerBadge, TrustSignals } from '../../components/vendor/SellerBadge';
@@ -95,6 +98,7 @@ export default function ProductDetailScreen({ navigation, route }) {
   const [sizeError, setSizeError] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [variantError, setVariantError] = useState(false);
+  const [relatedProducts, setRelatedProducts] = useState([]);
 
   const cartBounce = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -102,6 +106,21 @@ export default function ProductDetailScreen({ navigation, route }) {
   useEffect(() => {
     if (productId) dispatch(fetchProductDetail(productId));
     return () => dispatch(clearSelectedProduct());
+  }, [productId]);
+
+  useEffect(() => {
+    if (!productId) return;
+    let cancelled = false;
+    productsAPI.getRelatedProducts(productId)
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : (data?.results || []);
+        setRelatedProducts(list);
+      })
+      .catch(() => {
+        if (!cancelled) setRelatedProducts([]);
+      });
+    return () => { cancelled = true; };
   }, [productId]);
 
   useEffect(() => {
@@ -227,6 +246,10 @@ export default function ProductDetailScreen({ navigation, route }) {
       setReviewRating(5);
       Alert.alert('Success', 'Review submitted!');
     }
+  };
+
+  const handleRelatedProductPress = (relatedProduct) => {
+    navigation.push(SCREENS.PRODUCT_DETAIL, { productId: relatedProduct.id, product: relatedProduct });
   };
 
   const headerOpacity = scrollY.interpolate({ inputRange: [0, 200], outputRange: [0, 1], extrapolate: 'clamp' });
@@ -521,6 +544,31 @@ export default function ProductDetailScreen({ navigation, route }) {
           {reviews.length === 0 && <Text style={styles.noReviews}>No reviews yet. Be the first!</Text>}
         </View>
 
+        {/* Related Products */}
+        {relatedProducts.length > 0 && (
+          <View style={styles.relatedSection}>
+            <View style={styles.relatedTitleRow}>
+              <View style={styles.sectionAccent} />
+              <Text style={styles.sectionTitle}>You May Also Like</Text>
+            </View>
+            <FlatList
+              data={relatedProducts}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+              contentContainerStyle={styles.relatedList}
+              renderItem={({ item }) => (
+                <ProductCard
+                  product={item}
+                  variant="featured"
+                  onPress={() => handleRelatedProductPress(item)}
+                  style={styles.relatedCard}
+                />
+              )}
+            />
+          </View>
+        )}
+
         <View style={{ height: 120 }} />
       </Animated.ScrollView>
 
@@ -665,6 +713,10 @@ const styles = StyleSheet.create({
   guestBannerArrow: { fontSize: FONTS.xl, color: COLORS.primary },
 
   card: { backgroundColor: COLORS.surface, padding: SPACING.base, marginBottom: SPACING.sm },
+  relatedSection: { backgroundColor: COLORS.surface, paddingTop: SPACING.base, paddingBottom: SPACING.sm, marginBottom: SPACING.sm },
+  relatedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm, paddingHorizontal: SPACING.base },
+  relatedList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
+  relatedCard: { width: 160, height: 200 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.base },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
   sectionAccent: { width: 4, height: 15, borderRadius: 2, backgroundColor: COLORS.primary },

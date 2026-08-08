@@ -1,6 +1,6 @@
 /**
  * VUMA Store — Products API
- * Complete with banners, trending, deals, recently viewed, recommendations, coupons
+ * Complete with banners, trending, deals, recently viewed, recommendations, coupons, related products
  */
 
 import { get, post, patch, del, upload } from './client';
@@ -81,6 +81,9 @@ export const productsAPI = {
   getRecentlyViewed: () => get('/promotions/recently-viewed/'),
 
   getRecommendations: () => get('/promotions/recommendations/'),
+
+  // ── Related Products (Product Detail page) ────────────
+  getRelatedProducts: (productId, limit = 12) => get(`/products/${productId}/related/`, { limit }),
 
   trackView: (productId) => post('/promotions/track-view/', { product_id: productId }),
 
