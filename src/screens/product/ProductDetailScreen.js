@@ -409,7 +409,7 @@ export default function ProductDetailScreen({ navigation, route }) {
           <View style={styles.card}>
             <View style={styles.sectionTitleRow}>
               <View style={styles.sectionAccent} />
-              <Text style={styles.sectionTitle}>Select Option</Text>
+              <Text style={styles.sectionTitle}>Choose Options</Text>
             </View>
             {variantError && <Text style={styles.fieldError}>⚠️ Please select an option</Text>}
             <View style={styles.variantGrid}>

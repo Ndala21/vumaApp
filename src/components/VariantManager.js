@@ -1,22 +1,23 @@
 /**
- * VUMA Store — Product Variant Manager (Seller Add/Edit Product)
+ * VUMA Store — Product Options Manager (Seller Add/Edit Product)
+ * (Internally still "variants" in code/API — user-facing label is "Product Options")
  *
  * Shows different fields depending on the product's category:
  *   Fashion (Men/Women/Kids/Clothing)  → Size, Color, Material, Stock
- *   Shoes                                → Shoe Size (EU/UK/US), Color, Stock
+ *   Shoes                                → Shoe Size (EU/UK/US) [required], Color, Stock
  *   Electronics                          → Storage, RAM, Color, Model, Stock
  *   Food / Grocery / Mazao                → Weight/Volume, Stock
  *   Beauty / Cosmetics                    → Volume/Size, Stock
  *   Anything else                         → section is hidden entirely
  *
- * Seller fills in one combination at a time and taps "+ Add Variant" —
+ * Seller fills in one combination at a time and taps "+ Add Option" —
  * each combination becomes a row in the list below, with its own stock.
  * `variants` / `onChange` hold the full list; the parent screen is
  * responsible for saving it (existing UI/styling untouched — this is
  * purely additive).
  */
 import React, { useState, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 
 const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
@@ -96,8 +97,18 @@ export default function VariantManager({ categoryName, variants = [], onChange }
 
   const handleAdd = () => {
     const draft = buildDraft();
+
+    // Shoes: Size is mandatory — a shoe listing without a size is unusable for customers.
+    if (variantType === 'shoes' && !size) {
+      Alert.alert('Size Required', 'Please select a shoe size before adding this option.');
+      return;
+    }
+
     if (!hasAnyAttribute(draft)) return; // need at least one attribute filled
-    if (!draft.stock || draft.stock <= 0) return; // stock required
+    if (!draft.stock || draft.stock <= 0) {
+      Alert.alert('Stock Required', 'Please enter stock quantity for this option.');
+      return;
+    }
     onChange([...variants, draft]);
     resetDraft();
   };
@@ -108,17 +119,19 @@ export default function VariantManager({ categoryName, variants = [], onChange }
 
   const displayName = (v) => {
     const parts = [v.size, v.color, v.material, v.storage, v.ram, v.model_name, v.weight_volume].filter(Boolean);
-    return parts.length ? parts.join(' / ') : 'Variant';
+    return parts.length ? parts.join(' / ') : 'Option';
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.sectionTitleRow}>
         <View style={styles.sectionAccent} />
-        <Text style={styles.sectionTitle}>Product Variants</Text>
+        <Text style={styles.sectionTitle}>Product Options</Text>
       </View>
       <Text style={styles.hint}>
-        Add each option (e.g. size + color) with its own stock. Leave this empty if this product has no variants.
+        {variantType === 'shoes'
+          ? 'Add each size + color combination with its own stock. Size is required for shoes.'
+          : 'Add each option (e.g. size + color) with its own stock. Leave this empty if this product has no options.'}
       </Text>
 
       {/* ── Fashion: Size + Color + Material ── */}
@@ -143,7 +156,7 @@ export default function VariantManager({ categoryName, variants = [], onChange }
         </>
       )}
 
-      {/* ── Shoes: Size (EU/UK/US) + Color ── */}
+      {/* ── Shoes: Size (EU/UK/US) [required] + Color ── */}
       {variantType === 'shoes' && (
         <>
           <Text style={styles.fieldLabel}>Size Unit</Text>
@@ -157,7 +170,7 @@ export default function VariantManager({ categoryName, variants = [], onChange }
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.fieldLabel}>Shoe Size</Text>
+          <Text style={styles.fieldLabel}>Shoe Size *</Text>
           <ChipRow options={SHOE_SIZES_EU} value={size} onSelect={setSize} />
           <Text style={styles.fieldLabel}>Color</Text>
           <TextInput
@@ -221,10 +234,10 @@ export default function VariantManager({ categoryName, variants = [], onChange }
       />
 
       <TouchableOpacity style={styles.addBtn} onPress={handleAdd} activeOpacity={0.85}>
-        <Text style={styles.addBtnText}>+ Add Variant</Text>
+        <Text style={styles.addBtnText}>+ Add Option</Text>
       </TouchableOpacity>
 
-      {/* ── List of added variants ── */}
+      {/* ── List of added options ── */}
       {variants.length > 0 && (
         <View style={styles.list}>
           {variants.map((v, i) => (
