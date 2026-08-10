@@ -15,6 +15,8 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, API } from '../../utils/consta
 import Button from '../../components/common/Button';
 import { upload, setAuthToken } from '../../api/client';
 import { storage } from '../../utils/storage';
+import { useSelector } from 'react-redux';
+import { selectIsAuthenticated } from '../../store/authSlice';
 
 // ── Constants ─────────────────────────────────────────
 const SELLER_TYPES = [
@@ -121,6 +123,7 @@ const PickerModal = ({ visible, title, data, onSelect, onClose, keyFn, labelFn, 
 );
 
 export default function SellerRegisterScreen({ navigation }) {
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const [sellerType, setSellerType] = useState(null); // null = not chosen yet
   const [step, setStep] = useState(0); // 0=type selection, 1=personal, 2=business, 3=verify
   const [form, setFormState] = useState(EMPTY_FORM);
@@ -236,57 +239,59 @@ export default function SellerRegisterScreen({ navigation }) {
     if (!validateStep3()) return;
     setSaving(true);
     try {
-      // Step A: this form creates a brand-new account (Step 1 collected
-      // full name, phone, email, password) — the vendor application
-      // endpoint requires the seller to be logged in, so we create the
-      // account (or log in, if they already registered on a previous
-      // attempt) and save real tokens before submitting the application.
-      const registerRes = await fetch(`${API.BASE_URL}users/register/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email.trim().toLowerCase(),
-          username: form.email.trim().toLowerCase().split('@')[0],
-          password: form.password,
-          password2: form.confirm_password,
-          phone: form.phone.trim(),
-        }),
-      });
-      let authData = await registerRes.json().catch(() => ({}));
+      // Step A: only needed for guests. If the seller is already logged in
+      // (the common case — most sellers are existing app users), we reuse
+      // their existing session and skip account creation entirely, so
+      // there's no "email already exists" possibility for them at all.
+      if (!isAuthenticated) {
+        const registerRes = await fetch(`${API.BASE_URL}users/register/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: form.email.trim().toLowerCase(),
+            username: form.email.trim().toLowerCase().split('@')[0],
+            password: form.password,
+            password2: form.confirm_password,
+            phone: form.phone.trim(),
+          }),
+        });
+        let authData = await registerRes.json().catch(() => ({}));
 
-      if (!registerRes.ok) {
-        // Most common case: they already registered on a previous attempt.
-        // Fall back to logging in with the same credentials instead of
-        // failing outright.
-        const alreadyRegistered = JSON.stringify(authData).toLowerCase().includes('already registered');
-        if (alreadyRegistered) {
-          const loginRes = await fetch(`${API.BASE_URL}users/login/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: form.email.trim().toLowerCase(),
-              password: form.password,
-            }),
-          });
-          authData = await loginRes.json().catch(() => ({}));
-          if (!loginRes.ok) {
-            throw Object.assign(new Error('Login failed'), {
-              response: { data: { detail: 'An account with this email already exists, but the password entered does not match it. Please use a different email, or go back and enter the correct password for this account.' }, status: loginRes.status },
+        if (!registerRes.ok) {
+          // Most common case: they already registered on a previous attempt.
+          // Fall back to logging in with the same credentials instead of
+          // failing outright.
+          const authDataText = JSON.stringify(authData).toLowerCase();
+          const alreadyRegistered = authDataText.includes('already registered') || authDataText.includes('already exists');
+          if (alreadyRegistered) {
+            const loginRes = await fetch(`${API.BASE_URL}users/login/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: form.email.trim().toLowerCase(),
+                password: form.password,
+              }),
+            });
+            authData = await loginRes.json().catch(() => ({}));
+            if (!loginRes.ok) {
+              throw Object.assign(new Error('Login failed'), {
+                response: { data: { detail: 'An account with this email already exists. Please log in to your existing VUMA account first, then apply to become a seller from your profile — or use a different email to create a new account.' }, status: loginRes.status },
+              });
+            }
+          } else {
+            throw Object.assign(new Error('Registration failed'), {
+              response: { data: authData, status: registerRes.status },
             });
           }
-        } else {
-          throw Object.assign(new Error('Registration failed'), {
-            response: { data: authData, status: registerRes.status },
-          });
         }
-      }
 
-      const { access, refresh, user } = authData;
-      if (!access || !refresh) {
-        throw new Error('Could not create your account. Please try again.');
+        const { access, refresh, user } = authData;
+        if (!access || !refresh) {
+          throw new Error('Could not create your account. Please try again.');
+        }
+        await storage.saveAuthData({ accessToken: access, refreshToken: refresh, user, rememberMe: true });
+        setAuthToken(access);
       }
-      await storage.saveAuthData({ accessToken: access, refreshToken: refresh, user, rememberMe: true });
-      setAuthToken(access);
 
       // Step B: now submit the vendor application while authenticated.
       const formData = new FormData();
