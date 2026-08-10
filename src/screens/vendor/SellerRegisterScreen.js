@@ -11,9 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, API } from '../../utils/constants';
 import Button from '../../components/common/Button';
-import { upload } from '../../api/client';
 
 // ── Constants ─────────────────────────────────────────
 const SELLER_TYPES = [
@@ -265,7 +264,20 @@ export default function SellerRegisterScreen({ navigation }) {
       if (form.selfie_uri) formData.append('selfie_image', { uri: form.selfie_uri, name: 'selfie.jpg', type: 'image/jpeg' });
       if (form.certificate_uri) formData.append('business_certificate', { uri: form.certificate_uri, name: 'certificate.jpg', type: 'image/jpeg' });
 
-      await upload('/vendors/applications/apply/', formData);
+      // This is a fresh account signup — it must not depend on any existing
+      // login session. Using a direct, tokenless request here (instead of the
+      // shared authenticated client) avoids "Session expired" errors caused
+      // by a stale/expired token left over from a previous session on the device.
+      const response = await fetch(`${API.BASE_URL}/vendors/applications/apply/`, {
+        method: 'POST',
+        body: formData,
+      });
+      const responseData = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const err = new Error('Submission failed');
+        err.response = { data: responseData, status: response.status };
+        throw err;
+      }
 
       Alert.alert(
         '🎉 Application Submitted!',
