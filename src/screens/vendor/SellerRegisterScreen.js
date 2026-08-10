@@ -241,7 +241,7 @@ export default function SellerRegisterScreen({ navigation }) {
       // endpoint requires the seller to be logged in, so we create the
       // account (or log in, if they already registered on a previous
       // attempt) and save real tokens before submitting the application.
-      const registerRes = await fetch(`${API.BASE_URL}/users/register/`, {
+      const registerRes = await fetch(`${API.BASE_URL}users/register/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -260,7 +260,7 @@ export default function SellerRegisterScreen({ navigation }) {
         // failing outright.
         const alreadyRegistered = JSON.stringify(authData).toLowerCase().includes('already registered');
         if (alreadyRegistered) {
-          const loginRes = await fetch(`${API.BASE_URL}/users/login/`, {
+          const loginRes = await fetch(`${API.BASE_URL}users/login/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
