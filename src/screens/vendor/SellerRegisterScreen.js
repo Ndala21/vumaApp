@@ -550,7 +550,7 @@ export default function SellerRegisterScreen({ navigation }) {
 
       {/* Payout */}
       <Text style={styles.sectionTitle}>💳 How Should We Pay You?</Text>
-      <Text style={styles.fieldHint}>After each sale, we'll pay you here. Only 10% commission.</Text>
+      <Text style={styles.fieldHint}>After each sale, we'll pay you here. Commission varies by product category (3%–15%) — farmers and food sellers pay the lowest rates.</Text>
 
       <TouchableOpacity style={styles.selector} onPress={() => setShowPayoutPicker(true)}>
         <Text style={form.payout_method ? styles.selectorValue : styles.selectorPlaceholder}>
@@ -592,7 +592,7 @@ export default function SellerRegisterScreen({ navigation }) {
       <View style={styles.termsCard}>
         <Text style={styles.termsText}>
           By submitting, you agree to VUMA's Seller Terms.{'\n'}
-          • 10% commission per sale{'\n'}
+          • Commission varies by product category (3%–15%){'\n'}
           • Payouts within 3 business days{'\n'}
           • Account verified within 24 hours{'\n'}
           {sellerType === 'business' ? '• Business verification required before selling' : '• You can start listing products after approval'}
