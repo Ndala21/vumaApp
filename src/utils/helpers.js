@@ -450,6 +450,7 @@ export const getEffectivePrice = (product) => {
 
 /**
  * Calculate cart totals
+ * Delivery is free on all orders (VUMA policy) — shipping is always 0.
  */
 export const calculateCartTotals = (items) => {
   if (!items || items.length === 0) {
@@ -458,21 +459,20 @@ export const calculateCartTotals = (items) => {
       shipping: 0,
       total: 0,
       itemCount: 0,
-      isfreeDelivery: false,
+      isfreeDelivery: true,
     };
   }
   const subtotal = items.reduce(
     (sum, item) => sum + getEffectivePrice(item.product) * item.quantity,
     0
   );
-  const isfreeDelivery = subtotal >= APP.freeDeliveryThreshold;
-  const shipping = isfreeDelivery ? 0 : 3000;
+  const shipping = 0;
   return {
     subtotal,
     shipping,
     total: subtotal + shipping,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-    isfreeDelivery,
+    isfreeDelivery: true,
   };
 };
 

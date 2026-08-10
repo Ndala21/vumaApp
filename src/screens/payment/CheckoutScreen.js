@@ -2,6 +2,8 @@
  * VUMA Store — Tanzania Checkout Screen
  * Mobile-first, GPS-first, fast checkout for Tanzanian users
  * + Commission breakdown added
+ * Fixed: Order Summary NaN price (item.price -> item.product), commission
+ * breakdown using correct per-item price/quantity instead of cart total.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -13,8 +15,9 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectIsAuthenticated } from '../../store/authSlice';
-import { selectCartItems, selectCartTotal } from '../../store/cartSlice';
+import { selectCartItems, selectCartTotal, selectCartSubtotal } from '../../store/cartSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { getEffectivePrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
 import { CommissionBreakdown } from '../../components/CommissionCalculator';
@@ -80,6 +83,7 @@ export default function CheckoutScreen({ navigation }) {
   const user = useSelector(selectUser);
   const cartItems = useSelector(selectCartItems);
   const cartTotal = useSelector(selectCartTotal);
+  const cartSubtotal = useSelector(selectCartSubtotal);
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
   const [deliveryType, setDeliveryType] = useState('home');
@@ -185,7 +189,9 @@ export default function CheckoutScreen({ navigation }) {
   const districts = TZ_DISTRICTS[region] || TZ_DISTRICTS['default'];
 
   // Get first item category for commission display
-  const firstItemCategory = cartItems?.[0]?.category_slug || 'others';
+  const firstItemCategory = cartItems?.[0]?.product?.category_slug
+    || cartItems?.[0]?.product?.category?.slug
+    || 'others';
 
   return (
     <View style={styles.container}>
@@ -210,22 +216,31 @@ export default function CheckoutScreen({ navigation }) {
             <View style={styles.sectionAccent} />
             <Text style={styles.summaryTitle}>Order Summary</Text>
           </View>
-          {cartItems.map((item, i) => (
-            <View key={i} style={styles.summaryRow}>
-              <Text style={styles.summaryItem} numberOfLines={1}>{item.name} ×{item.quantity}</Text>
-              <Text style={styles.summaryPrice}>TZS {(item.price * item.quantity).toLocaleString()}</Text>
-            </View>
-          ))}
+          {cartItems.map((item, i) => {
+            const unitPrice = getEffectivePrice(item.product);
+            const lineTotal = unitPrice * item.quantity;
+            return (
+              <View key={i} style={styles.summaryRow}>
+                <Text style={styles.summaryItem} numberOfLines={1}>{item.product?.name} ×{item.quantity}</Text>
+                <Text style={styles.summaryPrice}>TZS {Number(lineTotal || 0).toLocaleString()}</Text>
+              </View>
+            );
+          })}
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryItem}>Delivery</Text>
+            <Text style={[styles.summaryPrice, { color: COLORS.success }]}>FREE</Text>
+          </View>
           <View style={styles.summaryTotal}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
-            <Text style={styles.summaryTotalValue}>TZS {Number(cartTotal).toLocaleString()}</Text>
+            <Text style={styles.summaryTotalValue}>TZS {Number(cartTotal || 0).toLocaleString()}</Text>
           </View>
         </View>
 
-        {/* Commission Breakdown */}
+        {/* Commission Breakdown — uses the real product subtotal (never
+            includes delivery fee), not the full cart total */}
         <CommissionBreakdown
           categorySlug={firstItemCategory}
-          price={cartTotal}
+          price={cartSubtotal}
           quantity={1}
           style={styles.commissionCard}
         />
@@ -429,10 +444,10 @@ export default function CheckoutScreen({ navigation }) {
         <View style={styles.placeOrderSection}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total to pay</Text>
-            <Text style={styles.totalValue}>TZS {Number(cartTotal).toLocaleString()}</Text>
+            <Text style={styles.totalValue}>TZS {Number(cartTotal || 0).toLocaleString()}</Text>
           </View>
           <Button
-            title={placing ? 'Placing Order...' : `Place Order — TZS ${Number(cartTotal).toLocaleString()}`}
+            title={placing ? 'Placing Order...' : `Place Order — TZS ${Number(cartTotal || 0).toLocaleString()}`}
             onPress={handlePlaceOrder}
             loading={placing}
             fullWidth
