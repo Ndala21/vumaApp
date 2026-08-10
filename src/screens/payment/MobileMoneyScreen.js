@@ -1,14 +1,19 @@
 /**
  * VUMA Store — Mobile Money Payment Screen
- * AzamPay: M-Pesa, Airtel, Tigo Pesa, HaloPesa
+ * AzamPay: M-Pesa, Airtel Money, Tigo Pesa, HaloPesa
+ *
+ * Flow: select provider/phone → confirm dialog → send STK push →
+ * poll for real confirmation → Successful / Failed / Cancelled.
+ * The order is only marked paid by the backend webhook after the
+ * customer actually enters their PIN on their own phone — this screen
+ * never collects, displays, logs, or stores that PIN.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
-  TextInput, Alert, Platform, ActivityIndicator, ScrollView,
+  TextInput, Alert, Platform, ActivityIndicator, ScrollView, Modal,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import { post } from '../../api/client';
@@ -52,21 +57,48 @@ const PROVIDERS = [
   },
 ];
 
+// Poll every 4s, give up after ~2 minutes (STK pushes typically expire
+// around then if the customer never enters their PIN).
+const POLL_INTERVAL_MS = 4000;
+const MAX_POLL_ATTEMPTS = 30;
+
 export default function MobileMoneyScreen({ navigation, route }) {
   const { orderId, amount, orderNumber } = route?.params || {};
 
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [phone, setPhone] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState('select'); // select | confirm | waiting | success | failed
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [sending, setSending] = useState(false);
+  // select | processing | success | failed | cancelled
+  const [step, setStep] = useState('select');
+  const [txRef, setTxRef] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handlePay = async () => {
+  const pollTimer = useRef(null);
+  const pollAttempts = useRef(0);
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    return () => stopPolling();
+  }, []);
+
+  const stopPolling = () => {
+    if (pollTimer.current) {
+      clearTimeout(pollTimer.current);
+      pollTimer.current = null;
+    }
+  };
+
+  // ── Step 1: tap Pay → open confirm dialog (nothing sent yet) ──
+  const handleTapPay = () => {
     if (!selectedProvider) { Alert.alert('Required', 'Please select a payment method.'); return; }
     if (!phone.trim() || phone.trim().length < 9) { Alert.alert('Required', 'Enter a valid phone number.'); return; }
+    setShowConfirm(true);
+  };
 
-    setLoading(true);
-    setStep('waiting');
-
+  // ── Step 2: customer confirms in the dialog → actually send the STK push ──
+  const handleConfirmSend = async () => {
+    setSending(true);
     try {
       const result = await post('/payments/mobile-money/initiate/', {
         provider: selectedProvider.id,
@@ -75,25 +107,124 @@ export default function MobileMoneyScreen({ navigation, route }) {
         order_id: orderId,
       });
 
-      if (result.success || result.transaction_id) {
-        setStep('success');
-        setTimeout(() => {
-          navigation.navigate('OrderDetail', { orderId });
-        }, 3000);
+      if (result.success && result.tx_ref) {
+        setTxRef(result.tx_ref);
+        setShowConfirm(false);
+        setStep('processing');
+        cancelledRef.current = false;
+        pollAttempts.current = 0;
+        pollPaymentStatus(result.tx_ref);
       } else {
+        setShowConfirm(false);
+        setErrorMessage(result.error || 'Could not send payment request. Please try again.');
         setStep('failed');
-        Alert.alert('Payment Failed', result.error || 'Please try again.');
       }
     } catch (e) {
+      setShowConfirm(false);
+      setErrorMessage('Could not reach the payment gateway. Please check your connection and try again.');
       setStep('failed');
-      Alert.alert('Error', 'Payment failed. Please check your phone and try again.');
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
-  // ── Waiting Screen ────────────────────────────────
-  if (step === 'waiting') {
+  // ── Poll the backend for real confirmation (never assume success) ──
+  const pollPaymentStatus = useCallback((ref) => {
+    if (cancelledRef.current) return;
+
+    pollTimer.current = setTimeout(async () => {
+      if (cancelledRef.current) return;
+      pollAttempts.current += 1;
+
+      try {
+        const result = await post('/payments/mobile-money/verify/', {
+          tx_ref: ref,
+          provider: selectedProvider?.id,
+        });
+
+        if (cancelledRef.current) return;
+
+        if (result.success && result.status === 'completed') {
+          setStep('success');
+          return;
+        }
+        if (result.status === 'failed') {
+          setErrorMessage(result.message || 'Payment was not completed.');
+          setStep('failed');
+          return;
+        }
+        // Still pending — keep polling until the timeout
+        if (pollAttempts.current >= MAX_POLL_ATTEMPTS) {
+          setErrorMessage('We did not receive confirmation in time. If you completed the payment on your phone, check your order status shortly — you have not been charged twice.');
+          setStep('failed');
+          return;
+        }
+        pollPaymentStatus(ref);
+      } catch (e) {
+        if (cancelledRef.current) return;
+        if (pollAttempts.current >= MAX_POLL_ATTEMPTS) {
+          setErrorMessage('Could not confirm payment status. Please check your order shortly.');
+          setStep('failed');
+          return;
+        }
+        pollPaymentStatus(ref);
+      }
+    }, POLL_INTERVAL_MS);
+  }, [selectedProvider]);
+
+  const handleCancelProcessing = () => {
+    cancelledRef.current = true;
+    stopPolling();
+    setStep('cancelled');
+  };
+
+  const handleRetry = () => {
+    stopPolling();
+    cancelledRef.current = false;
+    setTxRef(null);
+    setErrorMessage('');
+    setStep('select');
+  };
+
+  // ── Confirm Dialog ──────────────────────────────────
+  const ConfirmDialog = () => (
+    <Modal visible={showConfirm} transparent animationType="fade" onRequestClose={() => !sending && setShowConfirm(false)}>
+      <View style={styles.dialogOverlay}>
+        <View style={styles.dialogCard}>
+          <Text style={styles.dialogTitle}>Confirm Payment</Text>
+          <View style={styles.dialogRow}>
+            <Text style={styles.dialogLabel}>Method</Text>
+            <Text style={styles.dialogValue}>{selectedProvider?.icon} {selectedProvider?.name}</Text>
+          </View>
+          <View style={styles.dialogRow}>
+            <Text style={styles.dialogLabel}>Phone Number</Text>
+            <Text style={styles.dialogValue}>+255 {phone}</Text>
+          </View>
+          <View style={styles.dialogRow}>
+            <Text style={styles.dialogLabel}>Amount</Text>
+            <Text style={styles.dialogAmount}>TZS {Number(amount).toLocaleString()}</Text>
+          </View>
+          <Text style={styles.dialogNote}>
+            You'll receive a prompt on this phone to enter your {selectedProvider?.name} PIN. VUMA never asks for or stores your PIN.
+          </Text>
+          <View style={styles.dialogBtns}>
+            <TouchableOpacity style={styles.dialogCancelBtn} onPress={() => setShowConfirm(false)} disabled={sending}>
+              <Text style={styles.dialogCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Button
+              title={sending ? 'Sending...' : 'Confirm & Pay'}
+              onPress={handleConfirmSend}
+              loading={sending}
+              style={styles.dialogConfirmBtn}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // ── Processing Screen ────────────────────────────────
+  if (step === 'processing') {
     return (
       <View style={styles.centerScreen}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -105,9 +236,15 @@ export default function MobileMoneyScreen({ navigation, route }) {
         <View style={styles.waitingCard}>
           <Text style={styles.waitingProvider}>{selectedProvider?.icon} {selectedProvider?.name}</Text>
           <Text style={styles.waitingAmount}>TZS {Number(amount).toLocaleString()}</Text>
-          <Text style={styles.waitingPhone}>{phone}</Text>
+          <Text style={styles.waitingPhone}>+255 {phone}</Text>
+          <View style={styles.statusPill}>
+            <Text style={styles.statusPillText}>Status: Waiting for confirmation</Text>
+          </View>
         </View>
         <Text style={styles.waitingFooter}>Do not close this screen</Text>
+        <TouchableOpacity onPress={handleCancelProcessing} style={styles.cancelProcessingBtn}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -121,7 +258,11 @@ export default function MobileMoneyScreen({ navigation, route }) {
         <Text style={styles.successText}>
           TZS {Number(amount).toLocaleString()} paid via {selectedProvider?.name}
         </Text>
-        <Text style={styles.successSub}>Taking you to your order...</Text>
+        <Button
+          title="View Order"
+          onPress={() => navigation.replace('OrderDetail', { orderId })}
+          style={{ marginTop: SPACING.xl, minWidth: 200 }}
+        />
       </View>
     );
   }
@@ -132,15 +273,33 @@ export default function MobileMoneyScreen({ navigation, route }) {
       <View style={styles.centerScreen}>
         <Text style={styles.failedIcon}>❌</Text>
         <Text style={styles.failedTitle}>Payment Failed</Text>
-        <Text style={styles.failedText}>Please check your balance and try again.</Text>
-        <Button title="Try Again" onPress={() => setStep('select')} style={styles.retryBtn} />
+        <Text style={styles.failedText}>{errorMessage || 'Please check your balance and try again.'}</Text>
+        <Button title="Try Again" onPress={handleRetry} style={styles.retryBtn} />
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelText}>Cancel</Text>
+          <Text style={styles.cancelText}>Back to Order</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  // ── Cancelled Screen ───────────────────────────────
+  if (step === 'cancelled') {
+    return (
+      <View style={styles.centerScreen}>
+        <Text style={styles.failedIcon}>⚠️</Text>
+        <Text style={styles.failedTitle}>Payment Cancelled</Text>
+        <Text style={styles.failedText}>
+          Your payment was not completed. If you already entered your PIN on your phone, check your order status shortly — you have not been charged twice.
+        </Text>
+        <Button title="Try Again" onPress={handleRetry} style={styles.retryBtn} />
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.cancelText}>Back to Order</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── Select Screen ──────────────────────────────────
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
@@ -217,8 +376,7 @@ export default function MobileMoneyScreen({ navigation, route }) {
         {/* Pay Button */}
         <Button
           title={`Pay TZS ${Number(amount).toLocaleString()}`}
-          onPress={handlePay}
-          loading={loading}
+          onPress={handleTapPay}
           disabled={!selectedProvider || !phone.trim()}
           fullWidth
           style={styles.payBtn}
@@ -231,6 +389,8 @@ export default function MobileMoneyScreen({ navigation, route }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <ConfirmDialog />
     </View>
   );
 }
@@ -265,6 +425,19 @@ const styles = StyleSheet.create({
   secureNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, marginTop: SPACING.base },
   secureIcon: { fontSize: FONTS.sm },
   secureText: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center' },
+  // Confirm Dialog
+  dialogOverlay: { flex: 1, backgroundColor: 'rgba(18,22,43,0.6)', justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
+  dialogCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.xl, width: '100%', maxWidth: 380, ...SHADOWS.lg },
+  dialogTitle: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.base, textAlign: 'center' },
+  dialogRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  dialogLabel: { fontSize: FONTS.sm, color: COLORS.textMuted },
+  dialogValue: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  dialogAmount: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.primary },
+  dialogNote: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: SPACING.base, marginBottom: SPACING.base, lineHeight: 18, textAlign: 'center' },
+  dialogBtns: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
+  dialogCancelBtn: { flex: 1, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.xl, alignItems: 'center', justifyContent: 'center' },
+  dialogCancelText: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  dialogConfirmBtn: { flex: 2 },
   // Center screens
   centerScreen: { flex: 1, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   waitingTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary, marginTop: SPACING.xl, marginBottom: SPACING.sm },
@@ -272,8 +445,11 @@ const styles = StyleSheet.create({
   waitingCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.xl, alignItems: 'center', width: '100%', ...SHADOWS.md },
   waitingProvider: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
   waitingAmount: { fontSize: FONTS['3xl'], fontWeight: FONTS.black, color: COLORS.primary, marginBottom: SPACING.sm },
-  waitingPhone: { fontSize: FONTS.base, color: COLORS.textMuted },
+  waitingPhone: { fontSize: FONTS.base, color: COLORS.textMuted, marginBottom: SPACING.base },
+  statusPill: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.full, paddingHorizontal: SPACING.base, paddingVertical: SPACING.xs },
+  statusPillText: { fontSize: FONTS.xs, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
   waitingFooter: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: SPACING.xl },
+  cancelProcessingBtn: { marginTop: SPACING.base },
   successIcon: { fontSize: 80, marginBottom: SPACING.base },
   successTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.success, marginBottom: SPACING.sm },
   successText: { fontSize: FONTS.base, color: COLORS.textSecondary, textAlign: 'center', marginBottom: SPACING.xs },
