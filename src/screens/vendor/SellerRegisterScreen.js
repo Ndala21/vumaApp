@@ -129,8 +129,6 @@ export default function SellerRegisterScreen({ navigation }) {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPayoutPicker, setShowPayoutPicker] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState('');
 
   const setField = (key, value) => setFormState(prev => ({ ...prev, [key]: value }));
 
@@ -149,26 +147,31 @@ export default function SellerRegisterScreen({ navigation }) {
     finally { setGpsLoading(false); }
   };
 
+  // Camera is used specifically for the selfie; if it's unavailable or the
+  // user denies permission, fall back to letting them pick from the gallery
+  // instead of leaving them stuck with no clear next step.
   const pickImage = async (field) => {
-    try {
-      const ImagePicker = await import('expo-image-picker');
-      if (field === 'selfie_uri') {
+    if (field === 'selfie_uri') {
+      try {
+        const ImagePicker = await import('expo-image-picker');
         const cam = await ImagePicker.requestCameraPermissionsAsync();
         if (cam.granted) {
           const r = await ImagePicker.launchCameraAsync({ quality: 0.8 });
           if (!r.canceled) { setField(field, r.assets[0].uri); return; }
+          return; // user cancelled the camera — don't silently fall through
         }
+        Alert.alert('Camera Permission Needed', 'Please allow camera access, or tap again to choose a photo from your gallery instead.');
+      } catch (e) {
+        Alert.alert('Camera Unavailable', 'Could not open the camera. Please tap again to choose a photo from your gallery instead.');
       }
+      return;
+    }
+    try {
+      const ImagePicker = await import('expo-image-picker');
       await ImagePicker.requestMediaLibraryPermissionsAsync();
       const r = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
       if (!r.canceled) setField(field, r.assets[0].uri);
-    } catch { Alert.alert('Error', 'Could not open camera/gallery.'); }
-  };
-
-  const sendOTP = () => {
-    if (!form.phone.trim()) { Alert.alert('Required', 'Enter your phone number first.'); return; }
-    setOtpSent(true);
-    Alert.alert('OTP Sent', `A verification code has been sent to ${form.phone}`);
+    } catch { Alert.alert('Error', 'Could not open gallery.'); }
   };
 
   // ── Validation ────────────────────────────────────
@@ -346,22 +349,8 @@ export default function SellerRegisterScreen({ navigation }) {
         placeholder="Your full name as on ID" placeholderTextColor={COLORS.textLight} />
 
       <Text style={styles.fieldLabel}>Phone Number *</Text>
-      <View style={styles.otpRow}>
-        <TextInput style={[styles.input, { flex: 1 }]} value={form.phone} onChangeText={v => setField('phone', v)}
-          placeholder="+255 7XX XXX XXX" keyboardType="phone-pad" placeholderTextColor={COLORS.textLight} />
-        <TouchableOpacity style={styles.otpBtn} onPress={sendOTP}>
-          <Text style={styles.otpBtnText}>{otpSent ? '✓ Sent' : 'Send OTP'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {otpSent && (
-        <>
-          <Text style={styles.fieldLabel}>Enter OTP Code</Text>
-          <TextInput style={styles.input} value={otp} onChangeText={setOtp}
-            placeholder="6-digit code" keyboardType="numeric" maxLength={6}
-            placeholderTextColor={COLORS.textLight} />
-        </>
-      )}
+      <TextInput style={styles.input} value={form.phone} onChangeText={v => setField('phone', v)}
+        placeholder="+255 7XX XXX XXX" keyboardType="phone-pad" placeholderTextColor={COLORS.textLight} />
 
       <Text style={styles.fieldLabel}>Email Address *</Text>
       <TextInput style={styles.input} value={form.email} onChangeText={v => setField('email', v)}
@@ -730,9 +719,6 @@ const styles = StyleSheet.create({
   textArea: { minHeight: 80, textAlignVertical: 'top', paddingTop: SPACING.sm },
   passwordRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, backgroundColor: COLORS.surface, marginBottom: SPACING.xs },
   eyeBtn: { padding: SPACING.sm },
-  otpRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xs },
-  otpBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, justifyContent: 'center' },
-  otpBtnText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.bold },
   selector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, marginBottom: SPACING.xs },
   selectorValue: { fontSize: FONTS.base, color: COLORS.textPrimary },
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
