@@ -147,25 +147,42 @@ export default function SellerRegisterScreen({ navigation }) {
     finally { setGpsLoading(false); }
   };
 
-  // Camera is used specifically for the selfie; if it's unavailable or the
-  // user denies permission, fall back to letting them pick from the gallery
-  // instead of leaving them stuck with no clear next step.
+  // Selfie: ask the seller to choose Camera or Gallery up front, instead of
+  // forcing the camera automatically. Some devices' cameras fail at the OS
+  // level (a native error dialog outside our control) — letting the seller
+  // pick Gallery directly avoids that entirely on phones where it happens.
   const pickImage = async (field) => {
     if (field === 'selfie_uri') {
-      try {
-        const ImagePicker = await import('expo-image-picker');
-        const cam = await ImagePicker.requestCameraPermissionsAsync();
-        if (cam.granted) {
-          const r = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-          if (!r.canceled) { setField(field, r.assets[0].uri); return; }
-          return; // user cancelled the camera — don't silently fall through
-        }
-        Alert.alert('Camera Permission Needed', 'Please allow camera access, or tap again to choose a photo from your gallery instead.');
-      } catch (e) {
-        Alert.alert('Camera Unavailable', 'Could not open the camera. Please tap again to choose a photo from your gallery instead.');
-      }
+      Alert.alert(
+        'Selfie with ID',
+        'How would you like to add this photo?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Choose from Gallery', onPress: () => openGallery(field) },
+          { text: 'Take Photo', onPress: () => openCamera(field) },
+        ]
+      );
       return;
     }
+    openGallery(field);
+  };
+
+  const openCamera = async (field) => {
+    try {
+      const ImagePicker = await import('expo-image-picker');
+      const cam = await ImagePicker.requestCameraPermissionsAsync();
+      if (!cam.granted) {
+        Alert.alert('Camera Permission Needed', 'Please allow camera access, or choose from gallery instead.');
+        return;
+      }
+      const r = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+      if (!r.canceled) setField(field, r.assets[0].uri);
+    } catch (e) {
+      Alert.alert('Camera Unavailable', 'The camera could not be opened on this device. Please choose from gallery instead.');
+    }
+  };
+
+  const openGallery = async (field) => {
     try {
       const ImagePicker = await import('expo-image-picker');
       await ImagePicker.requestMediaLibraryPermissionsAsync();
