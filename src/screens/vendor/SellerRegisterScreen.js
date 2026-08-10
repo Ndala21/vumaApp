@@ -13,6 +13,8 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, API } from '../../utils/constants';
 import Button from '../../components/common/Button';
+import { upload, setAuthToken } from '../../api/client';
+import { storage } from '../../utils/storage';
 
 // ── Constants ─────────────────────────────────────────
 const SELLER_TYPES = [
@@ -234,6 +236,59 @@ export default function SellerRegisterScreen({ navigation }) {
     if (!validateStep3()) return;
     setSaving(true);
     try {
+      // Step A: this form creates a brand-new account (Step 1 collected
+      // full name, phone, email, password) — the vendor application
+      // endpoint requires the seller to be logged in, so we create the
+      // account (or log in, if they already registered on a previous
+      // attempt) and save real tokens before submitting the application.
+      const registerRes = await fetch(`${API.BASE_URL}/users/register/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email.trim().toLowerCase(),
+          username: form.email.trim().toLowerCase().split('@')[0],
+          password: form.password,
+          password2: form.confirm_password,
+          phone: form.phone.trim(),
+        }),
+      });
+      let authData = await registerRes.json().catch(() => ({}));
+
+      if (!registerRes.ok) {
+        // Most common case: they already registered on a previous attempt.
+        // Fall back to logging in with the same credentials instead of
+        // failing outright.
+        const alreadyRegistered = JSON.stringify(authData).toLowerCase().includes('already registered');
+        if (alreadyRegistered) {
+          const loginRes = await fetch(`${API.BASE_URL}/users/login/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: form.email.trim().toLowerCase(),
+              password: form.password,
+            }),
+          });
+          authData = await loginRes.json().catch(() => ({}));
+          if (!loginRes.ok) {
+            throw Object.assign(new Error('Login failed'), {
+              response: { data: { detail: 'An account with this email already exists, but the password entered does not match it. Please use a different email, or go back and enter the correct password for this account.' }, status: loginRes.status },
+            });
+          }
+        } else {
+          throw Object.assign(new Error('Registration failed'), {
+            response: { data: authData, status: registerRes.status },
+          });
+        }
+      }
+
+      const { access, refresh, user } = authData;
+      if (!access || !refresh) {
+        throw new Error('Could not create your account. Please try again.');
+      }
+      await storage.saveAuthData({ accessToken: access, refreshToken: refresh, user, rememberMe: true });
+      setAuthToken(access);
+
+      // Step B: now submit the vendor application while authenticated.
       const formData = new FormData();
       formData.append('seller_type', sellerType);
       formData.append('full_name', form.full_name.trim());
@@ -264,20 +319,7 @@ export default function SellerRegisterScreen({ navigation }) {
       if (form.selfie_uri) formData.append('selfie_image', { uri: form.selfie_uri, name: 'selfie.jpg', type: 'image/jpeg' });
       if (form.certificate_uri) formData.append('business_certificate', { uri: form.certificate_uri, name: 'certificate.jpg', type: 'image/jpeg' });
 
-      // This is a fresh account signup — it must not depend on any existing
-      // login session. Using a direct, tokenless request here (instead of the
-      // shared authenticated client) avoids "Session expired" errors caused
-      // by a stale/expired token left over from a previous session on the device.
-      const response = await fetch(`${API.BASE_URL}/vendors/applications/apply/`, {
-        method: 'POST',
-        body: formData,
-      });
-      const responseData = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const err = new Error('Submission failed');
-        err.response = { data: responseData, status: response.status };
-        throw err;
-      }
+      await upload('/vendors/applications/apply/', formData);
 
       Alert.alert(
         '🎉 Application Submitted!',
