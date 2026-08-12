@@ -33,8 +33,7 @@
         "googleMaps": {
           "apiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A"
         }
-      },
-      "versionCode": 1
+      }
     },
     "ios": {
       "bundleIdentifier": "com.vumastore",
