@@ -2,8 +2,13 @@
  * VUMA Store — Tanzania Checkout Screen
  * Mobile-first, GPS-first, fast checkout for Tanzanian users
  * + Commission breakdown added
- * Fixed: Order Summary NaN price (item.price -> item.product), commission
- * breakdown using correct per-item price/quantity instead of cart total.
+ * Fixed: Order Summary NaN price, commission calc using correct subtotal.
+ * Fixed: Region -> District -> Ward now load dynamically from the real
+ * delivery API (all 31 regions, 174 districts, 3664 wards) instead of a
+ * hardcoded 6-region stub that showed "Select Region First" incorrectly.
+ * Added: free-text Village/Mtaa/Street field (Tanzania's official admin
+ * data stops at Ward level — this lets customers specify their own
+ * village/mtaa/street rather than picking from an incomplete list).
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -22,61 +27,55 @@ import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
 import { CommissionBreakdown } from '../../components/CommissionCalculator';
 
-const TZ_REGIONS = [
-  'Arusha','Dar es Salaam','Dodoma','Geita','Iringa','Kagera',
-  'Katavi','Kigoma','Kilimanjaro','Lindi','Manyara','Mara',
-  'Mbeya','Morogoro','Mtwara','Mwanza','Njombe','Pwani',
-  'Rukwa','Ruvuma','Shinyanga','Simiyu','Singida','Songwe',
-  'Tabora','Tanga','Zanzibar',
-];
-
-const TZ_DISTRICTS = {
-  'Dar es Salaam': ['Ilala','Kinondoni','Temeke','Ubungo','Kigamboni'],
-  'Arusha': ['Arusha City','Arumeru','Karatu','Longido','Meru','Monduli','Ngorongoro'],
-  'Mwanza': ['Ilemela','Nyamagana','Buchosa','Kwimba','Magu','Misungwi','Sengerema','Ukerewe'],
-  'Dodoma': ['Dodoma City','Bahi','Chamwino','Kondoa','Kongwa','Mpwapwa'],
-  'Kilimanjaro': ['Moshi Urban','Moshi Rural','Hai','Mwanga','Rombo','Same','Siha'],
-  'Mbeya': ['Mbeya City','Chunya','Kyela','Mbarali','Mbeya Rural','Momba','Rungwe'],
-  'default': ['Select Region First'],
-};
-
-const PICKUP_POINTS = [
-  { id: '1', name: 'VUMA Kariakoo Hub', area: 'Kariakoo, Dar es Salaam', open: '8am - 8pm' },
-  { id: '2', name: 'VUMA Mwenge Station', area: 'Mwenge, Dar es Salaam', open: '8am - 7pm' },
-  { id: '3', name: 'VUMA Ubungo Point', area: 'Ubungo, Dar es Salaam', open: '8am - 7pm' },
-  { id: '4', name: 'VUMA Arusha Center', area: 'Arusha Town', open: '8am - 6pm' },
-  { id: '5', name: 'VUMA Mwanza Point', area: 'Mwanza Town', open: '8am - 6pm' },
-  { id: '6', name: 'VUMA Dodoma Hub', area: 'Dodoma City', open: '8am - 6pm' },
-];
-
-const PickerModal = ({ visible, title, data, onSelect, onClose }) => (
-  <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-    <View style={styles.pickerOverlay}>
-      <View style={styles.pickerSheet}>
-        <View style={styles.pickerHandle} />
-        <View style={styles.pickerHeader}>
-          <Text style={styles.pickerTitle}>{title}</Text>
-          <TouchableOpacity onPress={onClose} style={styles.pickerCloseBtn}>
-            <Text style={styles.pickerClose}>✕</Text>
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={data}
-          keyExtractor={item => typeof item === 'string' ? item : item.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(item); onClose(); }} activeOpacity={0.75}>
-              <Text style={styles.pickerItemText}>{typeof item === 'string' ? item : item.name}</Text>
-              {typeof item !== 'string' && item.area && (
-                <Text style={styles.pickerItemSub}>{item.area} · {item.open}</Text>
-              )}
+const PickerModal = ({ visible, title, data, onSelect, onClose, loading, searchable, onSearch }) => {
+  const [query, setQuery] = useState('');
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.pickerOverlay}>
+        <View style={styles.pickerSheet}>
+          <View style={styles.pickerHandle} />
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.pickerCloseBtn}>
+              <Text style={styles.pickerClose}>✕</Text>
             </TouchableOpacity>
+          </View>
+          {searchable && (
+            <View style={styles.pickerSearchWrap}>
+              <TextInput
+                style={styles.pickerSearchInput}
+                value={query}
+                onChangeText={(t) => { setQuery(t); onSearch && onSearch(t); }}
+                placeholder="Search..."
+                placeholderTextColor={COLORS.textLight}
+              />
+            </View>
           )}
-          contentContainerStyle={{ paddingBottom: 40 }}
-        />
+          {loading ? (
+            <View style={styles.pickerLoading}>
+              <ActivityIndicator color={COLORS.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={data}
+              keyExtractor={item => typeof item === 'string' ? item : item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.pickerItem} onPress={() => { onSelect(item); onClose(); }} activeOpacity={0.75}>
+                  <Text style={styles.pickerItemText}>{typeof item === 'string' ? item : item.name}</Text>
+                  {typeof item !== 'string' && item.area && (
+                    <Text style={styles.pickerItemSub}>{item.area} · {item.open}</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.pickerEmpty}>No results found.</Text>}
+              contentContainerStyle={{ paddingBottom: 40 }}
+            />
+          )}
+        </View>
       </View>
-    </View>
-  </Modal>
-);
+    </Modal>
+  );
+};
 
 export default function CheckoutScreen({ navigation }) {
   const dispatch = useDispatch();
@@ -88,12 +87,25 @@ export default function CheckoutScreen({ navigation }) {
 
   const [deliveryType, setDeliveryType] = useState('home');
   const [phone, setPhone] = useState(user?.phone || '');
-  const [region, setRegion] = useState('');
-  const [district, setDistrict] = useState('');
+
+  // Region -> District -> Ward, loaded dynamically from the real API
+  const [regions, setRegions] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [loadingRegions, setLoadingRegions] = useState(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingWards, setLoadingWards] = useState(false);
+
+  const [region, setRegion] = useState(null);       // { id, name }
+  const [district, setDistrict] = useState(null);    // { id, name }
+  const [ward, setWard] = useState(null);             // { id, name }
+  const [village, setVillage] = useState('');         // free text — Village/Mtaa/Street
   const [landmark, setLandmark] = useState('');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [pickupPoint, setPickupPoint] = useState(null);
+  const [pickupPoints, setPickupPoints] = useState([]);
+  const [loadingPickupPoints, setLoadingPickupPoints] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [buildingDetail, setBuildingDetail] = useState('');
   const [savedAddresses, setSavedAddresses] = useState([]);
@@ -103,10 +115,13 @@ export default function CheckoutScreen({ navigation }) {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [showDistrictPicker, setShowDistrictPicker] = useState(false);
+  const [showWardPicker, setShowWardPicker] = useState(false);
   const [showPickupPicker, setShowPickupPicker] = useState(false);
+  const [pickupSearch, setPickupSearch] = useState('');
 
   useEffect(() => {
     if (isAuthenticated) loadSavedAddresses();
+    loadRegions();
   }, [isAuthenticated]);
 
   const loadSavedAddresses = async () => {
@@ -114,6 +129,85 @@ export default function CheckoutScreen({ navigation }) {
       const data = await get('/orders/addresses/');
       setSavedAddresses(data?.results || data || []);
     } catch {}
+  };
+
+  // ── Region / District / Ward — real API, not hardcoded ──
+  const loadRegions = async () => {
+    setLoadingRegions(true);
+    try {
+      const data = await get('/delivery/regions/');
+      setRegions(Array.isArray(data) ? data : data?.results || []);
+    } catch {
+      setRegions([]);
+    } finally {
+      setLoadingRegions(false);
+    }
+  };
+
+  const loadDistricts = async (regionId) => {
+    setLoadingDistricts(true);
+    try {
+      const data = await get('/delivery/districts/', { region: regionId });
+      setDistricts(Array.isArray(data) ? data : data?.results || []);
+    } catch {
+      setDistricts([]);
+    } finally {
+      setLoadingDistricts(false);
+    }
+  };
+
+  const loadWards = async (districtId) => {
+    setLoadingWards(true);
+    try {
+      const data = await get('/delivery/wards/', { district: districtId });
+      setWards(Array.isArray(data) ? data : data?.results || []);
+    } catch {
+      setWards([]);
+    } finally {
+      setLoadingWards(false);
+    }
+  };
+
+  const handleSelectRegion = (r) => {
+    setRegion(r);
+    setDistrict(null);
+    setWard(null);
+    setDistricts([]);
+    setWards([]);
+    loadDistricts(r.id);
+  };
+
+  const handleSelectDistrict = (d) => {
+    setDistrict(d);
+    setWard(null);
+    setWards([]);
+    loadWards(d.id);
+  };
+
+  // ── Pickup Points — real API, searchable by institution name ──
+  const loadPickupPoints = useCallback(async (search = '') => {
+    setLoadingPickupPoints(true);
+    try {
+      const params = search ? { search } : {};
+      const data = await get('/delivery/pickup-points/', params);
+      const list = Array.isArray(data) ? data : data?.results || [];
+      setPickupPoints(list.map(p => ({
+        id: p.id,
+        name: p.name,
+        area: [p.address, p.district_name, p.region_name].filter(Boolean).join(', '),
+        open: p.opening_hours || '',
+        pointType: p.point_type,
+      })));
+    } catch {
+      setPickupPoints([]);
+    } finally {
+      setLoadingPickupPoints(false);
+    }
+  }, []);
+
+  const openPickupPicker = () => {
+    setShowPickupPicker(true);
+    loadPickupPoints();
   };
 
   const getGPS = async () => {
@@ -125,7 +219,7 @@ export default function CheckoutScreen({ navigation }) {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       setLatitude(loc.coords.latitude);
       setLongitude(loc.coords.longitude);
-      Alert.alert('📍 Location Pinned!', `Accuracy: ±${Math.round(loc.coords.accuracy)} meters`);
+      Alert.alert('📍 Location Pinned!', `Accuracy: ±${Math.round(loc.coords.accuracy)} meters\n\nPlease still select your Region, District and Ward below, and add a landmark to help the delivery rider.`);
     } catch { Alert.alert('Error', 'Could not get GPS. Try again.'); }
     finally { setGpsLoading(false); }
   };
@@ -133,18 +227,20 @@ export default function CheckoutScreen({ navigation }) {
   const useSavedAddress = (addr) => {
     setSelectedSaved(addr);
     setPhone(addr.phone || phone);
-    setRegion(addr.city || '');
-    setDistrict(addr.ward || '');
     setLandmark(addr.landmark || '');
     if (addr.latitude) { setLatitude(addr.latitude); setLongitude(addr.longitude); }
     setDeliveryType(addr.delivery_type || 'home');
+    // Saved addresses store plain city/ward strings from before this fix —
+    // we can't safely re-select the matching region/district objects here,
+    // so leave the pickers for the customer to reselect if needed.
   };
 
   const validate = () => {
     if (!phone.trim() || phone.trim().length < 9) { Alert.alert('Required', 'Please enter a valid phone number.'); return false; }
     if (deliveryType === 'home') {
       if (!region) { Alert.alert('Required', 'Please select your region.'); return false; }
-      if (!district) { Alert.alert('Required', 'Please select your district/ward.'); return false; }
+      if (!district) { Alert.alert('Required', 'Please select your district.'); return false; }
+      if (!ward) { Alert.alert('Required', 'Please select your ward.'); return false; }
     } else {
       if (!pickupPoint) { Alert.alert('Required', 'Please select a pickup station.'); return false; }
     }
@@ -157,7 +253,22 @@ export default function CheckoutScreen({ navigation }) {
     try {
       const shippingAddress = deliveryType === 'pickup'
         ? { delivery_type: 'pickup', pickup_point_id: pickupPoint.id, pickup_point_name: pickupPoint.name, phone }
-        : { delivery_type: 'home', full_name: user?.username || '', phone, city: region, ward: district, landmark, building_detail: buildingDetail, latitude, longitude };
+        : {
+            delivery_type: 'home',
+            full_name: user?.username || '',
+            phone,
+            region_id: region.id,
+            region: region.name,
+            district_id: district.id,
+            district: district.name,
+            ward_id: ward.id,
+            ward: ward.name,
+            village,
+            landmark,
+            building_detail: buildingDetail,
+            latitude,
+            longitude,
+          };
 
       const result = await post('/orders/', {
         items: cartItems.map(item => ({
@@ -185,8 +296,6 @@ export default function CheckoutScreen({ navigation }) {
       setPlacing(false);
     }
   };
-
-  const districts = TZ_DISTRICTS[region] || TZ_DISTRICTS['default'];
 
   // Get first item category for commission display
   const firstItemCategory = cartItems?.[0]?.product?.category_slug
@@ -236,8 +345,7 @@ export default function CheckoutScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Commission Breakdown — uses the real product subtotal (never
-            includes delivery fee), not the full cart total */}
+        {/* Commission Breakdown */}
         <CommissionBreakdown
           categorySlug={firstItemCategory}
           price={cartSubtotal}
@@ -329,15 +437,15 @@ export default function CheckoutScreen({ navigation }) {
               <View style={styles.selectedPickup}>
                 <View style={styles.selectedPickupInfo}>
                   <Text style={styles.selectedPickupName}>{pickupPoint.name}</Text>
-                  <Text style={styles.selectedPickupSub}>{pickupPoint.area} · {pickupPoint.open}</Text>
+                  <Text style={styles.selectedPickupSub}>{pickupPoint.area} {pickupPoint.open ? `· ${pickupPoint.open}` : ''}</Text>
                 </View>
-                <TouchableOpacity onPress={() => setShowPickupPicker(true)}>
+                <TouchableOpacity onPress={openPickupPicker}>
                   <Text style={styles.changeText}>Change</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.pickupSelectBtn} onPress={() => setShowPickupPicker(true)} activeOpacity={0.85}>
-                <Text style={styles.pickupSelectText}>Select nearest pickup station</Text>
+              <TouchableOpacity style={styles.pickupSelectBtn} onPress={openPickupPicker} activeOpacity={0.85}>
+                <Text style={styles.pickupSelectText}>Select or search pickup station / institution</Text>
                 <Text style={styles.pickupSelectArrow}>›</Text>
               </TouchableOpacity>
             )}
@@ -369,26 +477,45 @@ export default function CheckoutScreen({ navigation }) {
 
             <Text style={styles.fieldLabel}>Region *</Text>
             <TouchableOpacity style={styles.selector} onPress={() => setShowRegionPicker(true)} activeOpacity={0.8}>
-              <Text style={region ? styles.selectorValue : styles.selectorPlaceholder}>{region || 'Select your region...'}</Text>
+              <Text style={region ? styles.selectorValue : styles.selectorPlaceholder}>{region?.name || 'Select your region...'}</Text>
               <Text style={styles.selectorArrow}>⌄</Text>
             </TouchableOpacity>
 
-            <Text style={styles.fieldLabel}>District / Ward *</Text>
+            <Text style={styles.fieldLabel}>District *</Text>
             <TouchableOpacity
               style={[styles.selector, !region && styles.selectorDisabled]}
               onPress={() => region ? setShowDistrictPicker(true) : Alert.alert('', 'Please select a region first.')}
               activeOpacity={0.8}
             >
               <Text style={district ? styles.selectorValue : styles.selectorPlaceholder}>
-                {district || (region ? 'Select district/ward...' : 'Select region first')}
+                {district?.name || (region ? 'Select district...' : 'Select region first')}
               </Text>
               <Text style={styles.selectorArrow}>⌄</Text>
             </TouchableOpacity>
 
+            <Text style={styles.fieldLabel}>Ward *</Text>
+            <TouchableOpacity
+              style={[styles.selector, !district && styles.selectorDisabled]}
+              onPress={() => district ? setShowWardPicker(true) : Alert.alert('', 'Please select a district first.')}
+              activeOpacity={0.8}
+            >
+              <Text style={ward ? styles.selectorValue : styles.selectorPlaceholder}>
+                {ward?.name || (district ? 'Select ward...' : 'Select district first')}
+              </Text>
+              <Text style={styles.selectorArrow}>⌄</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.fieldLabel}>Village / Mtaa / Street <Text style={styles.optional}>(optional)</Text></Text>
+            <TextInput
+              style={styles.input} value={village} onChangeText={setVillage}
+              placeholder="e.g. Mtaa wa Kariakoo, Mtaa 5, Kijiji cha..."
+              placeholderTextColor={COLORS.textLight}
+            />
+
             <Text style={styles.fieldLabel}>Landmark <Text style={styles.optional}>(optional)</Text></Text>
             <TextInput
               style={styles.input} value={landmark} onChangeText={setLandmark}
-              placeholder="e.g. Near Shoprite, Blue gate, Kariakoo Market"
+              placeholder="e.g. dukani, sokoni, karibu na shule, kanisani, msikitini, stendi ya basi"
               placeholderTextColor={COLORS.textLight}
             />
 
@@ -463,11 +590,18 @@ export default function CheckoutScreen({ navigation }) {
       </KeyboardAwareScrollView>
 
       <PickerModal visible={showRegionPicker} title="Select Region"
-        data={TZ_REGIONS} onSelect={r => { setRegion(r); setDistrict(''); }} onClose={() => setShowRegionPicker(false)} />
-      <PickerModal visible={showDistrictPicker} title={`Districts in ${region}`}
-        data={districts} onSelect={d => setDistrict(d)} onClose={() => setShowDistrictPicker(false)} />
+        data={regions} loading={loadingRegions}
+        onSelect={handleSelectRegion} onClose={() => setShowRegionPicker(false)} />
+      <PickerModal visible={showDistrictPicker} title={`Districts in ${region?.name || ''}`}
+        data={districts} loading={loadingDistricts}
+        onSelect={handleSelectDistrict} onClose={() => setShowDistrictPicker(false)} />
+      <PickerModal visible={showWardPicker} title={`Wards in ${district?.name || ''}`}
+        data={wards} loading={loadingWards}
+        onSelect={setWard} onClose={() => setShowWardPicker(false)} />
       <PickerModal visible={showPickupPicker} title="Select Pickup Station"
-        data={PICKUP_POINTS} onSelect={p => setPickupPoint(p)} onClose={() => setShowPickupPicker(false)} />
+        data={pickupPoints} loading={loadingPickupPoints} searchable
+        onSearch={(q) => loadPickupPoints(q)}
+        onSelect={p => setPickupPoint(p)} onClose={() => setShowPickupPicker(false)} />
     </View>
   );
 }
@@ -582,6 +716,10 @@ const styles = StyleSheet.create({
   pickerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   pickerCloseBtn: { width: 28, height: 28, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
   pickerClose: { fontSize: FONTS.base, color: COLORS.textMuted, fontWeight: FONTS.bold },
+  pickerSearchWrap: { paddingHorizontal: SPACING.base, paddingBottom: SPACING.sm },
+  pickerSearchInput: { backgroundColor: COLORS.surfaceAlt, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, fontSize: FONTS.base, color: COLORS.textPrimary },
+  pickerLoading: { padding: SPACING.xl, alignItems: 'center' },
+  pickerEmpty: { textAlign: 'center', padding: SPACING.xl, color: COLORS.textMuted, fontSize: FONTS.sm },
   pickerItem: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   pickerItemText: { fontSize: FONTS.base, color: COLORS.textPrimary },
   pickerItemSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
