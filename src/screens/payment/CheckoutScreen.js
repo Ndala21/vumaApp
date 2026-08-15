@@ -290,8 +290,21 @@ export default function CheckoutScreen({ navigation }) {
           navigation.replace('OrderDetail', { orderId: result.id });
         }
       }
-    } catch {
-      Alert.alert('Error', 'Could not place order. Please try again.');
+    } catch (err) {
+      const data = err?.response?.data;
+      let message = 'Could not place order. Please try again.';
+      if (data && typeof data === 'object') {
+        const fieldErrors = Object.entries(data)
+          .map(([field, msg]) => Array.isArray(msg) ? msg.join(' ') : String(msg))
+          .filter(Boolean);
+        if (fieldErrors.length > 0) message = fieldErrors.join('\n');
+        else if (data.detail) message = String(data.detail);
+      } else if (err?.message && err.message !== 'Network Error') {
+        message = err.message;
+      } else if (!err?.response) {
+        message = 'Could not reach the server. Please check your internet connection and try again.';
+      }
+      Alert.alert('Order Failed', message);
     } finally {
       setPlacing(false);
     }
