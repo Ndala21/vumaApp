@@ -276,7 +276,7 @@ export default function CartScreen({ navigation }) {
       return;
     }
     if (selectedItems.length === 0) return;
-    navigation.navigate('Checkout', { items: selectedItems, total });
+    navigation.navigate('Checkout', { items: selectedItems, total, source: 'cart' });
   }, [isAuthenticated, selectedItems, total, navigation]);
 
   if (cartItems.length === 0) {

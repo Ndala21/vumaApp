@@ -3,6 +3,9 @@
  * Fixed: Size selector for Fashion/Clothing/Shoes + auth modal
  * Updated: SellerBadge + TrustSignals + SellerStore navigation
  * Updated: Related Products section at the bottom
+ * Fixed: Buy Now no longer adds the product to the shared cart before
+ * checking out — it navigates straight to Checkout with just that one
+ * item, so anything already saved in the cart is left untouched.
  */
 
 import { t } from '../../i18n';
@@ -137,27 +140,48 @@ export default function ProductDetailScreen({ navigation, route }) {
     setVariantError(false);
   }, [product?.id]);
 
+  const displayProduct = product || routeProduct;
+
+  const effectivePrice = displayProduct ? getEffectivePrice(displayProduct) : 0;
+  const variantPriceAdjustment = selectedVariant ? Number(selectedVariant.price_adjustment || 0) : 0;
+  const finalPrice = effectivePrice + variantPriceAdjustment;
+
+  // Buy Now purchases this one product directly — it deliberately never
+  // touches the shared cart, so whatever else is already saved there
+  // (from earlier browsing) is left completely alone.
+  const goToDirectCheckout = useCallback(() => {
+    const directItem = {
+      id: `direct_${displayProduct.id}_${Date.now()}`,
+      product: displayProduct,
+      quantity,
+      selectedSize,
+      selectedVariant,
+    };
+    const total = finalPrice * quantity;
+    navigation.navigate(SCREENS.CHECKOUT, {
+      items: [directItem],
+      total,
+      source: 'buyNow',
+    });
+  }, [displayProduct, quantity, selectedSize, selectedVariant, finalPrice, navigation]);
+
   useEffect(() => {
     if (isAuthenticated && pendingAction && displayProduct) {
       if (pendingAction === 'cart') {
-        dispatch(addToCartAndSave(displayProduct, quantity));
+        dispatch(addToCartAndSave({ ...displayProduct, selectedSize, selectedVariant }, quantity));
         setAddedToCart(true);
         setTimeout(() => setAddedToCart(false), 2000);
       } else if (pendingAction === 'buy') {
-        dispatch(addToCartAndSave(displayProduct, quantity));
-        navigation.navigate(SCREENS.CHECKOUT);
+        goToDirectCheckout();
       }
       setPendingAction(null);
     }
   }, [isAuthenticated]);
 
-  const displayProduct = product || routeProduct;
-
   if (!displayProduct && loading.detail) return <Loading fullScreen message="Loading product..." />;
   if (!displayProduct && errors.detail) return <FullScreenError error={errors.detail} onRetry={() => dispatch(fetchProductDetail(productId))} />;
   if (!displayProduct) return null;
 
-  const effectivePrice = getEffectivePrice(displayProduct);
   const discount = getDiscount(displayProduct.price, effectivePrice);
   const onSale = isFlashSale(displayProduct);
   const outOfStock = displayProduct.stock <= 0;
@@ -166,8 +190,6 @@ export default function ProductDetailScreen({ navigation, route }) {
   const productNeedsSize = displayProduct.requires_size && displayProduct.available_sizes?.length > 0;
   const productVariants = displayProduct.variants || [];
   const needsVariant = productVariants.length > 0;
-  const variantPriceAdjustment = selectedVariant ? Number(selectedVariant.price_adjustment || 0) : 0;
-  const finalPrice = effectivePrice + variantPriceAdjustment;
 
   const validateSize = () => {
     if (productNeedsSize && !selectedSize) {
@@ -215,8 +237,7 @@ export default function ProductDetailScreen({ navigation, route }) {
     if (!isAuthenticated) { setPendingAction('buy'); setShowAuthModal(true); return; }
     if (!validateSize()) return;
     if (!validateVariant()) return;
-    dispatch(addToCartAndSave({ ...displayProduct, selectedSize, selectedVariant }, quantity));
-    navigation.navigate(SCREENS.CHECKOUT);
+    goToDirectCheckout();
   };
 
   const handleWishlist = () => {

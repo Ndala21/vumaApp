@@ -20,7 +20,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectIsAuthenticated } from '../../store/authSlice';
-import { selectCartItems, selectCartTotal, selectCartSubtotal } from '../../store/cartSlice';
+import { removeFromCartAndSave } from '../../store/cartSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { getEffectivePrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
@@ -77,12 +77,18 @@ const PickerModal = ({ visible, title, data, onSelect, onClose, loading, searcha
   );
 };
 
-export default function CheckoutScreen({ navigation }) {
+export default function CheckoutScreen({ navigation, route }) {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
-  const cartItems = useSelector(selectCartItems);
-  const cartTotal = useSelector(selectCartTotal);
-  const cartSubtotal = useSelector(selectCartSubtotal);
+  // Buy Now (from a product page) and Checkout Cart (from the cart screen,
+  // possibly only some items selected) both navigate here with an explicit
+  // `items` array + `total` + `source` — this screen NEVER falls back to
+  // "whatever is in the cart right now", so a Buy Now purchase can never
+  // silently combine with unrelated items still sitting in the cart.
+  const routeItems = route?.params?.items;
+  const routeTotal = route?.params?.total;
+  const purchaseSource = route?.params?.source; // 'cart' | 'buyNow'
+  const purchaseItems = Array.isArray(routeItems) ? routeItems : [];
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
   const [deliveryType, setDeliveryType] = useState('home');
@@ -118,6 +124,16 @@ export default function CheckoutScreen({ navigation }) {
   const [showWardPicker, setShowWardPicker] = useState(false);
   const [showPickupPicker, setShowPickupPicker] = useState(false);
   const [pickupSearch, setPickupSearch] = useState('');
+
+  // Subtotal/total are computed ONLY from the items this specific purchase
+  // is for (Buy Now's single item, or whichever items were selected on the
+  // Cart screen) — never from the customer's whole cart, so an unrelated
+  // item still sitting in the cart can never get pulled into this order.
+  const cartSubtotal = purchaseItems.reduce((sum, item) => {
+    const unitPrice = getEffectivePrice(item.product) + Number(item.selectedVariant?.price_adjustment || 0);
+    return sum + unitPrice * item.quantity;
+  }, 0);
+  const cartTotal = typeof routeTotal === 'number' ? routeTotal : cartSubtotal;
 
   useEffect(() => {
     if (isAuthenticated) loadSavedAddresses();
@@ -249,6 +265,10 @@ export default function CheckoutScreen({ navigation }) {
 
   const handlePlaceOrder = async () => {
     if (!validate() || placing) return;
+    if (purchaseItems.length === 0) {
+      Alert.alert('Nothing to order', 'No items were selected for this purchase. Please go back and select at least one item.');
+      return;
+    }
     setPlacing(true);
     try {
       const shippingAddress = deliveryType === 'pickup'
@@ -271,7 +291,7 @@ export default function CheckoutScreen({ navigation }) {
           };
 
       const result = await post('/orders/', {
-        items: cartItems.map(item => ({
+        items: purchaseItems.map(item => ({
           product_id: item.product?.id || item.id,
           variant_id: item.selectedVariant?.id || undefined,
           quantity: item.quantity,
@@ -282,6 +302,16 @@ export default function CheckoutScreen({ navigation }) {
       });
 
       if (result.id || result.order_number) {
+        // Only the items that were actually just purchased leave the cart —
+        // e.g. if the customer bought 2 of 5 selected items, the other 3
+        // (and anything they never selected at all) stay exactly as they
+        // were. A Buy Now purchase never touched the cart in the first
+        // place, so there's nothing to remove here for that case.
+        if (purchaseSource === 'cart') {
+          purchaseItems.forEach(item => {
+            if (item.product?.id) dispatch(removeFromCartAndSave(item.product.id));
+          });
+        }
         if (paymentMethod === 'mobile_money') {
           navigation.replace('MobileMoney', { orderId: result.id, orderNumber: result.order_number, amount: cartTotal });
         } else if (paymentMethod === 'bank_transfer') {
@@ -311,8 +341,8 @@ export default function CheckoutScreen({ navigation }) {
   };
 
   // Get first item category for commission display
-  const firstItemCategory = cartItems?.[0]?.product?.category_slug
-    || cartItems?.[0]?.product?.category?.slug
+  const firstItemCategory = purchaseItems?.[0]?.product?.category_slug
+    || purchaseItems?.[0]?.product?.category?.slug
     || 'others';
 
   return (
@@ -338,7 +368,7 @@ export default function CheckoutScreen({ navigation }) {
             <View style={styles.sectionAccent} />
             <Text style={styles.summaryTitle}>Order Summary</Text>
           </View>
-          {cartItems.map((item, i) => {
+          {purchaseItems.map((item, i) => {
             const unitPrice = getEffectivePrice(item.product);
             const lineTotal = unitPrice * item.quantity;
             return (
