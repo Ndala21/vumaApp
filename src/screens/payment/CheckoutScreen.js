@@ -26,6 +26,7 @@ import { getEffectivePrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
 import { CommissionBreakdown } from '../../components/CommissionCalculator';
+import MapLocationPicker from '../../components/MapLocationPicker';
 
 const PickerModal = ({ visible, title, data, onSelect, onClose, loading, searchable, onSearch }) => {
   const [query, setQuery] = useState('');
@@ -109,6 +110,8 @@ export default function CheckoutScreen({ navigation, route }) {
   const [landmark, setLandmark] = useState('');
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
+  const [formattedAddress, setFormattedAddress] = useState('');
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [pickupPoint, setPickupPoint] = useState(null);
   const [pickupPoints, setPickupPoints] = useState([]);
   const [loadingPickupPoints, setLoadingPickupPoints] = useState(false);
@@ -118,7 +121,6 @@ export default function CheckoutScreen({ navigation, route }) {
   const [selectedSaved, setSelectedSaved] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('mobile_money');
   const [placing, setPlacing] = useState(false);
-  const [gpsLoading, setGpsLoading] = useState(false);
   const [showRegionPicker, setShowRegionPicker] = useState(false);
   const [showDistrictPicker, setShowDistrictPicker] = useState(false);
   const [showWardPicker, setShowWardPicker] = useState(false);
@@ -227,17 +229,53 @@ export default function CheckoutScreen({ navigation, route }) {
   };
 
   const getGPS = async () => {
-    setGpsLoading(true);
-    try {
-      const Location = await import('expo-location');
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { Alert.alert('Permission needed', 'Please allow location access.'); return; }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setLatitude(loc.coords.latitude);
-      setLongitude(loc.coords.longitude);
-      Alert.alert('📍 Location Pinned!', `Accuracy: ±${Math.round(loc.coords.accuracy)} meters\n\nPlease still select your Region, District and Ward below, and add a landmark to help the delivery rider.`);
-    } catch { Alert.alert('Error', 'Could not get GPS. Try again.'); }
-    finally { setGpsLoading(false); }
+    setShowMapPicker(true);
+  };
+
+  // Called when the customer confirms a pin on the interactive map.
+  // Auto-fills Region -> District -> Ward from the reverse-geocode
+  // suggestion where we got a confident match, and always shows the
+  // human-readable address — the customer can still correct any field
+  // manually afterward, since Tanzania map data isn't always complete.
+  const handleMapConfirm = async ({ latitude: lat, longitude: lng, formattedAddress: addr, street, suggestedRegion, suggestedDistrict, suggestedWard }) => {
+    setShowMapPicker(false);
+    setLatitude(lat);
+    setLongitude(lng);
+    setFormattedAddress(addr);
+    if (street && !village) setVillage(street);
+
+    if (suggestedRegion) {
+      setRegion(suggestedRegion);
+      setDistrict(null);
+      setWard(null);
+      setLoadingDistricts(true);
+      try {
+        const data = await get('/delivery/districts/', { region: suggestedRegion.id });
+        const list = Array.isArray(data) ? data : data?.results || [];
+        setDistricts(list);
+
+        if (suggestedDistrict) {
+          const matchedDistrict = list.find(d => d.id === suggestedDistrict.id);
+          if (matchedDistrict) {
+            setDistrict(matchedDistrict);
+            setLoadingWards(true);
+            try {
+              const wardData = await get('/delivery/wards/', { district: matchedDistrict.id });
+              const wardList = Array.isArray(wardData) ? wardData : wardData?.results || [];
+              setWards(wardList);
+              if (suggestedWard) {
+                const matchedWard = wardList.find(w => w.id === suggestedWard.id);
+                if (matchedWard) setWard(matchedWard);
+              }
+            } finally {
+              setLoadingWards(false);
+            }
+          }
+        }
+      } finally {
+        setLoadingDistricts(false);
+      }
+    }
   };
 
   const useSavedAddress = (addr) => {
@@ -288,6 +326,7 @@ export default function CheckoutScreen({ navigation, route }) {
             building_detail: buildingDetail,
             latitude,
             longitude,
+            formatted_address: formattedAddress,
           };
 
       const result = await post('/orders/', {
@@ -504,18 +543,19 @@ export default function CheckoutScreen({ navigation, route }) {
             </View>
             <TouchableOpacity
               style={[styles.gpsBtn, latitude && styles.gpsBtnDone]}
-              onPress={getGPS} disabled={gpsLoading}
+              onPress={getGPS}
               activeOpacity={0.85}
             >
-              {gpsLoading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Text style={styles.gpsBtnIcon}>📍</Text>}
+              <Text style={styles.gpsBtnIcon}>📍</Text>
               <View style={styles.gpsBtnText}>
                 <Text style={[styles.gpsBtnTitle, latitude && { color: COLORS.success }]}>
-                  {gpsLoading ? 'Getting your location...' : latitude ? '✓ Location pinned' : 'Use my location (GPS)'}
+                  {latitude ? '✓ Location pinned' : 'Pin my location on map'}
                 </Text>
-                <Text style={styles.gpsBtnSub}>
-                  {latitude ? `${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}` : 'Tap to pin your exact location'}
+                <Text style={styles.gpsBtnSub} numberOfLines={2}>
+                  {latitude ? (formattedAddress || `${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}`) : 'Tap to open the map and drop a pin'}
                 </Text>
               </View>
+              {latitude && <Text style={styles.gpsBtnChange}>Change</Text>}
             </TouchableOpacity>
 
             <Text style={styles.fieldLabel}>Region *</Text>
@@ -645,6 +685,14 @@ export default function CheckoutScreen({ navigation, route }) {
         data={pickupPoints} loading={loadingPickupPoints} searchable
         onSearch={(q) => loadPickupPoints(q)}
         onSelect={p => setPickupPoint(p)} onClose={() => setShowPickupPicker(false)} />
+
+      <MapLocationPicker
+        visible={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        onConfirm={handleMapConfirm}
+        initialLatitude={latitude}
+        initialLongitude={longitude}
+      />
     </View>
   );
 }
@@ -712,6 +760,7 @@ const styles = StyleSheet.create({
   gpsBtnText: { flex: 1 },
   gpsBtnTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primaryDark },
   gpsBtnSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  gpsBtnChange: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.bold },
   fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs, marginTop: SPACING.sm },
   optional: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.regular },
   selector: {

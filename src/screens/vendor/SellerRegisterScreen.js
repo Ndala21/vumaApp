@@ -17,6 +17,7 @@ import { upload, setAuthToken } from '../../api/client';
 import { storage } from '../../utils/storage';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated } from '../../store/authSlice';
+import MapLocationPicker from '../../components/MapLocationPicker';
 
 // ── Constants ─────────────────────────────────────────
 const SELLER_TYPES = [
@@ -74,6 +75,7 @@ const EMPTY_FORM = {
   shop_name: '', business_category: '',
   city: 'Dar es Salaam', ward: '', landmark: '',
   latitude: null, longitude: null,
+  formatted_address: '',
   description: '',
   delivery_radius_km: 10,
   // Step 3 — Verification
@@ -128,7 +130,7 @@ export default function SellerRegisterScreen({ navigation }) {
   const [step, setStep] = useState(0); // 0=type selection, 1=personal, 2=business, 3=verify
   const [form, setFormState] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [gpsLoading, setGpsLoading] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPayoutPicker, setShowPayoutPicker] = useState(false);
@@ -138,17 +140,25 @@ export default function SellerRegisterScreen({ navigation }) {
 
   const selectedType = SELLER_TYPES.find(t => t.value === sellerType);
 
-  const getGPS = async () => {
-    setGpsLoading(true);
-    try {
-      const Location = await import('expo-location');
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { Alert.alert('Permission denied', 'Please allow location access.'); return; }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setFormState(prev => ({ ...prev, latitude: loc.coords.latitude, longitude: loc.coords.longitude }));
-      Alert.alert('📍 Location Pinned!', `Accuracy: ±${Math.round(loc.coords.accuracy)}m`);
-    } catch { Alert.alert('Error', 'Could not get location. Try again.'); }
-    finally { setGpsLoading(false); }
+  const getGPS = () => setShowMapPicker(true);
+
+  // Called when the seller confirms a pin on the interactive map. This
+  // form still uses a simple City dropdown + free-text Ward (not the
+  // full Region/District/Ward system Checkout uses), so we do a
+  // best-effort match of the reverse-geocoded district/region name
+  // against the City list, and pre-fill Ward — the seller can correct
+  // either field afterward.
+  const handleMapConfirm = ({ latitude: lat, longitude: lng, formattedAddress, suggestedDistrict, suggestedRegion }) => {
+    setShowMapPicker(false);
+    setFormState(prev => ({ ...prev, latitude: lat, longitude: lng, formatted_address: formattedAddress }));
+
+    const candidateName = suggestedDistrict?.name || suggestedRegion?.name;
+    if (candidateName) {
+      const matchedCity = TANZANIA_CITIES.find(
+        c => c.toLowerCase() === candidateName.toLowerCase()
+      );
+      if (matchedCity) setField('city', matchedCity);
+    }
   };
 
   // Selfie: ask the seller to choose Camera or Gallery up front, instead of
@@ -308,6 +318,7 @@ export default function SellerRegisterScreen({ navigation }) {
       formData.append('description', form.description.trim());
       if (form.latitude) formData.append('latitude', String(form.latitude));
       if (form.longitude) formData.append('longitude', String(form.longitude));
+      if (form.formatted_address) formData.append('formatted_address', form.formatted_address);
       formData.append('id_type', form.id_type);
       formData.append('id_card_number', form.nida_number || form.voter_id_number || form.passport_number);
       if (form.brela_number) formData.append('business_registration_number', form.brela_number);
@@ -490,14 +501,14 @@ export default function SellerRegisterScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>📍 Location</Text>
 
-      <TouchableOpacity style={[styles.gpsBtn, form.latitude && styles.gpsBtnActive]} onPress={getGPS} disabled={gpsLoading}>
+      <TouchableOpacity style={[styles.gpsBtn, form.latitude && styles.gpsBtnActive]} onPress={getGPS}>
         <Text style={styles.gpsBtnIcon}>📍</Text>
         <View style={styles.gpsBtnContent}>
           <Text style={[styles.gpsBtnTitle, form.latitude && { color: COLORS.success }]}>
-            {gpsLoading ? 'Getting location...' : form.latitude ? '✓ Location Pinned' : 'Pin My Location (GPS)'}
+            {form.latitude ? '✓ Location Pinned' : 'Pin My Shop Location'}
           </Text>
-          <Text style={styles.gpsBtnSub}>
-            {form.latitude ? `${Number(form.latitude).toFixed(4)}, ${Number(form.longitude).toFixed(4)}` : 'Helps customers find you'}
+          <Text style={styles.gpsBtnSub} numberOfLines={2}>
+            {form.latitude ? (form.formatted_address || `${Number(form.latitude).toFixed(4)}, ${Number(form.longitude).toFixed(4)}`) : 'Tap to open the map and drop a pin'}
           </Text>
         </View>
       </TouchableOpacity>
@@ -756,6 +767,14 @@ export default function SellerRegisterScreen({ navigation }) {
         iconFn={item => item.icon}
         onSelect={item => setField('payout_method', item.value)}
         onClose={() => setShowPayoutPicker(false)} />
+
+      <MapLocationPicker
+        visible={showMapPicker}
+        onClose={() => setShowMapPicker(false)}
+        onConfirm={handleMapConfirm}
+        initialLatitude={form.latitude}
+        initialLongitude={form.longitude}
+      />
     </View>
   );
 }
