@@ -26,24 +26,21 @@ const SELLER_TYPES = [
     icon: '👤',
     title: 'Individual Seller',
     subtitle: 'Students, home businesses, small traders',
-    color: COLORS.primary,
-    examples: 'Selling clothes, food, crafts, electronics from home',
+    description: 'Selling clothes, food, crafts, electronics from home',
   },
   {
     value: 'business',
     icon: '🏢',
     title: 'Business / Company',
     subtitle: 'Registered shops, wholesalers, distributors',
-    color: '#12162B',
-    examples: 'BRELA-registered business, wholesale supplier',
+    description: 'BRELA-registered business, wholesale supplier',
   },
   {
     value: 'agricultural',
-    icon: '🌾',
+    icon: '🌱',
     title: 'Agricultural Supplier',
     subtitle: 'Farmers, cooperatives, agri-businesses',
-    color: '#1B4332',
-    examples: 'Crops, livestock, fresh produce, farm inputs',
+    description: 'Crops, livestock, fresh produce, farm inputs',
   },
 ];
 
@@ -407,21 +404,28 @@ export default function SellerRegisterScreen({ navigation }) {
       {SELLER_TYPES.map(type => (
         <TouchableOpacity
           key={type.value}
-          style={[styles.typeCard, { borderColor: type.color }]}
+          style={styles.typeCard}
           onPress={() => { setSellerType(type.value); setStep(1); }}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
         >
-          <View style={[styles.typeIconWrap, { backgroundColor: type.color }]}>
-            <Text style={styles.typeIcon}>{type.icon}</Text>
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeIcon}>{type.icon}</Text>
           </View>
           <View style={styles.typeText}>
             <Text style={styles.typeTitle}>{type.title}</Text>
             <Text style={styles.typeSubtitleText}>{type.subtitle}</Text>
-            <Text style={styles.typeExamples}>{type.examples}</Text>
+            <Text style={styles.typeDescription}>{type.description}</Text>
           </View>
-          <Text style={[styles.typeArrow, { color: type.color }]}>›</Text>
+          <Text style={styles.typeArrow}>›</Text>
         </TouchableOpacity>
       ))}
+      <View style={styles.safeNote}>
+        <Text style={styles.safeNoteIcon}>🛡️</Text>
+        <View style={styles.safeNoteText}>
+          <Text style={styles.safeNoteTitle}>Safe, trusted and secure</Text>
+          <Text style={styles.safeNoteBody}>We verify all sellers to keep VUMA safe for everyone.</Text>
+        </View>
+      </View>
     </View>
   );
 
@@ -792,17 +796,22 @@ const styles = StyleSheet.create({
   progressLine: { flex: 1, height: 2, backgroundColor: COLORS.border, marginHorizontal: 4, marginBottom: 14 },
   scroll: { padding: SPACING.base },
   // Type selection
-  typeWrap: { paddingTop: SPACING.sm },
-  typeQuestion: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs },
-  typeSubtitle: { fontSize: FONTS.sm, color: COLORS.textMuted, marginBottom: SPACING.xl },
-  typeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, borderWidth: 2, padding: SPACING.base, marginBottom: SPACING.base, gap: SPACING.base, ...SHADOWS.sm },
-  typeIconWrap: { width: 52, height: 52, borderRadius: RADIUS.xl, alignItems: 'center', justifyContent: 'center' },
-  typeIcon: { fontSize: 28 },
+  typeWrap: { paddingTop: SPACING.xl },
+  typeQuestion: { fontSize: 26, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs, letterSpacing: -0.4 },
+  typeSubtitle: { fontSize: FONTS.sm, color: COLORS.textMuted, marginBottom: SPACING['2xl'] || 32 },
+  typeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, padding: SPACING.base + 2, marginBottom: SPACING.base, gap: SPACING.base, ...SHADOWS.xs },
+  typeBadge: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primaryFade },
+  typeBadgeIcon: { fontSize: 26 },
   typeText: { flex: 1 },
-  typeTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  typeSubtitleText: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  typeExamples: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4, fontStyle: 'italic' },
-  typeArrow: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold },
+  typeTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 3 },
+  typeSubtitleText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold, color: COLORS.primary, lineHeight: 17, marginBottom: 2 },
+  typeDescription: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 17 },
+  typeArrow: { fontSize: 22, fontWeight: FONTS.regular, color: COLORS.textMuted },
+  safeNote: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, backgroundColor: COLORS.surfaceSunken, borderRadius: 16, padding: SPACING.base, marginTop: SPACING.xs },
+  safeNoteIcon: { fontSize: 22 },
+  safeNoteText: { flex: 1 },
+  safeNoteTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
+  safeNoteBody: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 17 },
   // Form
   stepTitle: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   stepDesc: { fontSize: FONTS.sm, color: COLORS.textMuted, marginBottom: SPACING.base },

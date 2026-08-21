@@ -88,60 +88,110 @@ export default function ProfileScreen({ navigation }) {
 
   // ── GUEST SCREEN ─────────────────────────────────
   if (!isAuthenticated) {
+    const GUEST_FEATURES = [
+      { icon: '📦', label: 'Track your orders in real time' },
+      { icon: '❤️', label: 'Save your favourite products' },
+      { icon: '⚡', label: 'Faster checkout every time' },
+      { icon: '🔔', label: 'Get deals and flash sale alerts' },
+      { icon: '🚚', label: 'Free delivery on all orders' },
+      { icon: '🎁', label: 'Earn rewards by inviting friends' },
+    ];
+
     return (
       <View style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
-        <View style={styles.guestHeader}>
-          <Text style={styles.logo}>VUMA</Text>
-          <Text style={styles.guestTitle}>My Account</Text>
-          <Text style={styles.guestSub}>Sign in to track orders and checkout faster</Text>
+
+        {/* Top bar */}
+        <View style={styles.topBar}>
+          <Text style={styles.topBarLogo}>VUMA</Text>
+          <View style={styles.topBarIcons}>
+            <TouchableOpacity
+              style={styles.topBarIconBtn}
+              onPress={() => navigation.navigate('Auth', { screen: 'Login' })}
+            >
+              <Text style={styles.topBarIcon}>🔔</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.topBarIconBtn}
+              onPress={() => navigation.navigate('Auth', { screen: 'Login' })}
+            >
+              <Text style={styles.topBarIcon}>⚙️</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={styles.guestButtons}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.guestScroll}>
+          {/* Welcome card — no name shown here, since a guest isn't
+              identified yet; that only happens after they sign in. */}
+          <View style={styles.welcomeCard}>
+            <View style={styles.welcomeAvatar}>
+              <Text style={styles.welcomeAvatarIcon}>👤</Text>
+            </View>
+            <View style={styles.welcomeText}>
+              <Text style={styles.welcomeGreeting}>Welcome</Text>
+              <Text style={styles.welcomeSub}>Shop, sell and manage your account</Text>
+            </View>
+          </View>
+
           <TouchableOpacity
             style={styles.signInBtn}
             onPress={() => navigation.navigate('Auth', { screen: 'Login' })}
+            activeOpacity={0.85}
           >
-            <Text style={styles.signInIcon}>🛒</Text>
-            <Text style={styles.signInText}>Sign In</Text>
+            <Text style={styles.signInIcon}>➜</Text>
+            <View style={styles.signInText}>
+              <Text style={styles.signInTitle}>Sign In</Text>
+              <Text style={styles.signInSub}>Access your account</Text>
+            </View>
             <Text style={styles.signInArrow}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.createBtn}
             onPress={() => navigation.navigate('Auth', { screen: 'Register' })}
+            activeOpacity={0.7}
           >
-            <Text style={styles.createIcon}>👤</Text>
-            <Text style={styles.createText}>Create Customer Account</Text>
+            <View style={styles.createIconWrap}>
+              <Text style={styles.createIcon}>👤</Text>
+            </View>
+            <View style={styles.createText}>
+              <Text style={styles.createTitle}>Create Customer Account</Text>
+              <Text style={styles.createSub}>Create a new customer account</Text>
+            </View>
             <Text style={styles.createArrow}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.sellerBtn}
             onPress={() => navigation.navigate('VendorRegister', { isNewAccount: true })}
+            activeOpacity={0.85}
           >
-            <Text style={styles.sellerIcon}>🏪</Text>
+            <View style={styles.sellerIconWrap}>
+              <Text style={styles.sellerIcon}>🏪</Text>
+            </View>
             <View style={styles.sellerTextWrap}>
               <Text style={styles.sellerText}>Become a Seller</Text>
-              <Text style={styles.sellerSub}>Start earning on VUMA — commission from 3% only</Text>
+              <Text style={styles.sellerSub}>Start selling on VUMA</Text>
+            </View>
+            <View style={styles.sellerBadge}>
+              <Text style={styles.sellerBadgeText}>Commission from 3%</Text>
             </View>
             <Text style={styles.sellerArrow}>›</Text>
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.guestFeatures}>
-          <Text style={styles.featTitle}>Why join VUMA?</Text>
-          {[
-            '📦 Track your orders in real time',
-            '❤️ Save your favourite products',
-            '⚡ Faster checkout every time',
-            '🔔 Get deals and flash sale alerts',
-            '🚚 Free Delivery on all orders',
-            '🎁 Earn rewards by inviting friends',
-          ].map((f, i) => (
-            <Text key={i} style={styles.featText}>{f}</Text>
-          ))}
-        </View>
+          <View style={styles.guestFeatures}>
+            <Text style={styles.featTitle}>Why join VUMA?</Text>
+            {GUEST_FEATURES.map((f, i) => (
+              <View key={i} style={[styles.featRow, i === GUEST_FEATURES.length - 1 && { borderBottomWidth: 0 }]}>
+                <Text style={styles.featIcon}>{f.icon}</Text>
+                <Text style={styles.featText}>{f.label}</Text>
+                <Text style={styles.featArrow}>›</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
       </View>
     );
   }
@@ -316,28 +366,60 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   headerTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+
+  // Guest top bar
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 54 : SPACING.base, paddingBottom: SPACING.sm },
+  topBarLogo: { fontSize: 26, fontWeight: '900', color: COLORS.primary, letterSpacing: -1 },
+  topBarIcons: { flexDirection: 'row', gap: SPACING.sm },
+  topBarIconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  topBarIcon: { fontSize: 19 },
+  guestScroll: { padding: SPACING.base },
+
+  // Welcome card
+  welcomeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primaryFade, borderRadius: 18, padding: SPACING.base, marginBottom: SPACING.base, gap: SPACING.base },
+  welcomeAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  welcomeAvatarIcon: { fontSize: 24, color: COLORS.primary },
+  welcomeText: { flex: 1 },
+  welcomeGreeting: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  welcomeSub: { fontSize: FONTS.xs, color: COLORS.textSecondary, marginTop: 2 },
+
+  signInBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 16, padding: SPACING.base, gap: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
+  signInIcon: { fontSize: 20, color: 'white' },
+  signInText: { flex: 1 },
+  signInTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: 'white' },
+  signInSub: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+  signInArrow: { fontSize: FONTS.xl, color: 'white' },
+
+  createBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: SPACING.base, gap: SPACING.base, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
+  createIconWrap: { width: 36, height: 36, borderRadius: 12, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
+  createIcon: { fontSize: 17 },
+  createText: { flex: 1 },
+  createTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  createSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 1 },
+  createArrow: { fontSize: FONTS.xl, color: COLORS.textMuted },
+
+  sellerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primaryFade, borderRadius: 16, padding: SPACING.base, gap: SPACING.sm, marginBottom: SPACING.base, borderWidth: 1, borderColor: 'rgba(255,106,0,0.25)' },
+  sellerIconWrap: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  sellerIcon: { fontSize: 17 },
+  sellerTextWrap: { flex: 1 },
+  sellerText: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  sellerSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 1 },
+  sellerBadge: { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
+  sellerBadgeText: { fontSize: 10.5, color: 'white', fontWeight: FONTS.bold },
+  sellerArrow: { fontSize: FONTS.xl, color: COLORS.primary },
+
+  guestFeatures: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: SPACING.base, borderWidth: 1, borderColor: COLORS.border },
+  featTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
+  featRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm + 2, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
+  featIcon: { fontSize: 17, width: 24 },
+  featText: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary },
+  featArrow: { fontSize: FONTS.lg, color: COLORS.textLight },
+
   guestHeader: { backgroundColor: COLORS.surface, alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 60 : SPACING['3xl'], paddingBottom: SPACING.xl, paddingHorizontal: SPACING.xl, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   logo: { fontSize: 40, fontWeight: '900', color: COLORS.primary, letterSpacing: -2, marginBottom: SPACING.sm },
   guestTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   guestSub: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center' },
   guestButtons: { padding: SPACING.base, gap: SPACING.sm },
-  signInBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, padding: SPACING.base, gap: SPACING.base, ...SHADOWS.sm },
-  signInIcon: { fontSize: 24 },
-  signInText: { flex: 1, fontSize: FONTS.lg, fontWeight: FONTS.bold, color: 'white' },
-  signInArrow: { fontSize: FONTS.xl, color: 'white' },
-  createBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, gap: SPACING.base, borderWidth: 2, borderColor: COLORS.primary },
-  createIcon: { fontSize: 24 },
-  createText: { flex: 1, fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
-  createArrow: { fontSize: FONTS.xl, color: COLORS.primary },
-  sellerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1B4332', borderRadius: RADIUS.xl, padding: SPACING.base, gap: SPACING.base },
-  sellerIcon: { fontSize: 24 },
-  sellerTextWrap: { flex: 1 },
-  sellerText: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: 'white' },
-  sellerSub: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  sellerArrow: { fontSize: FONTS.xl, color: 'rgba(255,255,255,0.7)' },
-  guestFeatures: { margin: SPACING.base, backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base },
-  featTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textMuted, marginBottom: SPACING.sm },
-  featText: { fontSize: FONTS.sm, color: COLORS.textSecondary, paddingVertical: 5 },
   userCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, padding: SPACING.base, marginBottom: SPACING.sm, gap: SPACING.base },
   avatar: { width: 60, height: 60, borderRadius: RADIUS.full, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: 'white' },
