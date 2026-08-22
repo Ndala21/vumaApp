@@ -1,6 +1,14 @@
 /**
  * VUMA Store — Vendor Products Screen
- * Multi-image upload (up to 10), category dropdown, size selector, keyboard fix
+ * Restyled header/tabs/list rows to match the new VUMA orange design
+ * system. All existing logic — multi-image upload, AI description,
+ * pricing check, variants, image quality checks — is unchanged.
+ *
+ * Tab simplified to All / Active / Inactive matching the reference
+ * (client-side only, so safe to combine): Inactive = draft + out_of_stock
+ * combined, since both mean "not currently sellable" — the underlying
+ * product.status field itself still has all 3 real values, this is
+ * just how the tabs group them for browsing.
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
@@ -31,6 +39,15 @@ const PRODUCT_STATUS = [
   { label: 'Active', value: 'active' },
   { label: 'Draft', value: 'draft' },
   { label: 'Out of Stock', value: 'out_of_stock' },
+];
+
+// Simple browse tabs matching the reference (All/Active/Inactive) —
+// this is separate from the actual 3-value product.status field used
+// when editing a product (still Active/Draft/Out of Stock there).
+const BROWSE_TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'inactive', label: 'Inactive' },
 ];
 
 const EMPTY_FORM = {
@@ -298,6 +315,7 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
   const isLowStock = item.stock > 0 && item.stock <= 5;
   const isOutOfStock = item.stock <= 0;
   const imageCount = item.images?.length || 0;
+  const isActive = item.status === 'active';
   return (
     <View style={styles.productItem}>
       <View style={styles.productImageWrap}>
@@ -324,14 +342,16 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
           <Text style={styles.viewsText}>👁 {item.view_count} views</Text>
         )}
         <View style={styles.productMeta}>
-          <View style={[styles.statusBadge, item.status === 'active' ? styles.statusActive : styles.statusInactive]}>
-            <Text style={[styles.statusText, item.status === 'active' ? styles.statusTextActive : styles.statusTextInactive]}>
-              {item.status}
+          <Text style={[styles.stockText, isOutOfStock && styles.stockDanger, isLowStock && styles.stockWarning]}>
+            {isOutOfStock ? 'Out of stock' : isLowStock ? `Low stock: ${item.stock}` : `Stock: ${item.stock}`}
+          </Text>
+          <View style={styles.metaDivider} />
+          <View style={styles.metaStatusRow}>
+            <View style={[styles.statusDot, isActive ? styles.statusDotActive : styles.statusDotInactive]} />
+            <Text style={[styles.metaStatusText, isActive ? styles.statusTextActive : styles.statusTextInactive]}>
+              {isActive ? 'Active' : item.status === 'draft' ? 'Draft' : 'Inactive'}
             </Text>
           </View>
-          <Text style={[styles.stockText, isOutOfStock && styles.stockDanger, isLowStock && styles.stockWarning]}>
-            {isOutOfStock ? '❌ Out of stock' : isLowStock ? `⚠️ Low: ${item.stock}` : `📦 ${item.stock}`}
-          </Text>
         </View>
       </View>
       <View style={styles.productActions}>
@@ -361,7 +381,7 @@ export default function VendorProducts({ navigation, route }) {
   const [form, setFormState] = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [browseTab, setBrowseTab] = useState('all');
   const [productImages, setProductImages] = useState([]); // array of {uri, ...} or existing {image_url, id}
   const [uploading, setUploading] = useState(false);
   const [qualityResults, setQualityResults] = useState([]);
@@ -687,21 +707,29 @@ export default function VendorProducts({ navigation, route }) {
 
   const filteredProducts = products.filter((p) => {
     const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchStatus = !filterStatus || p.status === filterStatus;
-    return matchSearch && matchStatus;
+    let matchTab = true;
+    if (browseTab === 'active') matchTab = p.status === 'active';
+    else if (browseTab === 'inactive') matchTab = p.status === 'draft' || p.status === 'out_of_stock';
+    return matchSearch && matchTab;
   });
+
+  const tabCount = (key) => {
+    if (key === 'all') return products.length;
+    if (key === 'active') return products.filter(p => p.status === 'active').length;
+    return products.filter(p => p.status === 'draft' || p.status === 'out_of_stock').length;
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Products</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.browseBtn} onPress={() => navigation.navigate('Home')}>
-            <Text style={styles.browseBtnText}>🛍 Browse</Text>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate('Home')}>
+            <Text style={styles.headerIcon}>🛍</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
-            <Text style={styles.addBtnText}>+ Add</Text>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={openAddModal}>
+            <Text style={styles.headerIcon}>➕</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -722,19 +750,17 @@ export default function VendorProducts({ navigation, route }) {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filterContent}>
-        {[{ label: 'All', value: '' }, ...PRODUCT_STATUS].map((opt) => (
-          <TouchableOpacity key={opt.value}
-            style={[styles.filterChip, filterStatus === opt.value && styles.filterChipActive]}
-            onPress={() => setFilterStatus(opt.value)}
+        {BROWSE_TABS.map((tab) => (
+          <TouchableOpacity key={tab.key}
+            style={[styles.filterChip, browseTab === tab.key && styles.filterChipActive]}
+            onPress={() => setBrowseTab(tab.key)}
           >
-            <Text style={[styles.filterChipText, filterStatus === opt.value && styles.filterChipTextActive]}>{opt.label}</Text>
+            <Text style={[styles.filterChipText, browseTab === tab.key && styles.filterChipTextActive]}>
+              {tab.label} ({tabCount(tab.key)})
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
-
-      <View style={styles.countBar}>
-        <Text style={styles.countText}>{filteredProducts.length} products</Text>
-      </View>
 
       <FlatList
         data={filteredProducts}
@@ -803,13 +829,11 @@ export default function VendorProducts({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
-  headerTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.primary, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base },
+  headerTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: 'white' },
   headerRight: { flexDirection: 'row', gap: SPACING.sm },
-  browseBtn: { backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.sm, paddingVertical: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
-  browseBtnText: { color: COLORS.textSecondary, fontSize: FONTS.sm, fontWeight: FONTS.semiBold },
-  addBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm },
-  addBtnText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
+  headerIconBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  headerIcon: { fontSize: 18 },
   searchBar: { backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   searchInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.full, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, gap: SPACING.sm, borderWidth: 1.5, borderColor: COLORS.border },
   searchIcon: { fontSize: FONTS.base },
@@ -821,35 +845,35 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: COLORS.primaryFade, borderColor: COLORS.primary },
   filterChipText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
   filterChipTextActive: { color: COLORS.primary, fontWeight: FONTS.bold },
-  countBar: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.xs + 2, backgroundColor: COLORS.surfaceAlt, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  countText: { fontSize: FONTS.xs, color: COLORS.textMuted },
   listContent: { padding: SPACING.sm, paddingBottom: 100 },
-  productItem: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, marginBottom: SPACING.sm, overflow: 'hidden', ...SHADOWS.sm },
+  productItem: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' },
   productImageWrap: { position: 'relative' },
-  productImage: { width: 100, height: 100 },
-  productImagePlaceholder: { width: 100, height: 100, backgroundColor: COLORS.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  productImage: { width: 90, height: 90 },
+  productImagePlaceholder: { width: 90, height: 90, backgroundColor: COLORS.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   imageCountBadge: { position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: RADIUS.sm, paddingHorizontal: 5, paddingVertical: 2 },
   imageCountText: { fontSize: 9, color: 'white', fontWeight: FONTS.bold },
-  productInfo: { flex: 1, padding: SPACING.sm, gap: SPACING.xs },
+  productInfo: { flex: 1, padding: SPACING.sm, gap: 3, justifyContent: 'center' },
   productName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, lineHeight: 18 },
   productPrice: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
   sizesText: { fontSize: FONTS.xs, color: COLORS.textMuted },
   viewsText: { fontSize: FONTS.xs, color: COLORS.info },
-  productMeta: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
-  statusBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: RADIUS.full },
-  statusActive: { backgroundColor: COLORS.successLight },
-  statusInactive: { backgroundColor: COLORS.warningLight },
-  statusText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold, textTransform: 'capitalize' },
-  statusTextActive: { color: COLORS.successText },
-  statusTextInactive: { color: COLORS.warningText },
+  productMeta: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginTop: 2 },
   stockText: { fontSize: FONTS.xs, color: COLORS.textMuted },
   stockDanger: { color: COLORS.danger, fontWeight: FONTS.semiBold },
   stockWarning: { color: COLORS.warning, fontWeight: FONTS.semiBold },
+  metaDivider: { width: 1, height: 10, backgroundColor: COLORS.border },
+  metaStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusDotActive: { backgroundColor: COLORS.success },
+  statusDotInactive: { backgroundColor: COLORS.textLight },
+  metaStatusText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold },
+  statusTextActive: { color: COLORS.successText },
+  statusTextInactive: { color: COLORS.textMuted },
   productActions: { flexDirection: 'column', justifyContent: 'center', padding: SPACING.sm, gap: SPACING.sm },
-  editBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center' },
-  editBtnText: { fontSize: 16 },
-  deleteBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.dangerLight, alignItems: 'center', justifyContent: 'center' },
-  deleteBtnText: { fontSize: 16 },
+  editBtn: { width: 34, height: 34, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center' },
+  editBtnText: { fontSize: 15 },
+  deleteBtn: { width: 34, height: 34, borderRadius: RADIUS.full, backgroundColor: COLORS.dangerLight, alignItems: 'center', justifyContent: 'center' },
+  deleteBtnText: { fontSize: 15 },
   modalContainer: { flex: 1, backgroundColor: COLORS.background },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   modalClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },

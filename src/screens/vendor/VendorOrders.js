@@ -1,5 +1,15 @@
 /**
  * VUMA Store — Vendor Orders Screen
+ * Restyled to match the new VUMA orange design system (Dashboard/Seller
+ * Type screens): orange header, friendly stage labels (New/Preparing/
+ * On the way/Delivered) and matching pill colors on order cards.
+ *
+ * All existing logic is unchanged — fetching, pagination, search, and
+ * the per-item status update modal all work exactly as before. Tab
+ * *labels* are friendlier now, but tab *filter values* are untouched,
+ * since verifying whether the backend order-list endpoint supports
+ * multi-status bucket filtering (matching the Dashboard's richer
+ * grouping) needs its own check before changing real filter behavior.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -35,6 +45,25 @@ const VENDOR_STATUS_OPTIONS = [
     icon: '✅', color: COLORS.success },
 ];
 
+// Friendly display for the order's overall status, matching the same
+// New/Preparing/On the way/Delivered stages used on the Dashboard.
+// This is purely presentational — it doesn't change what data loads.
+const getFriendlyStage = (status) => {
+  if (status === 'pending') return { label: 'New', color: COLORS.primary };
+  if (['confirmed', 'processing', 'ready_for_pickup', 'picked_up'].includes(status)) {
+    return { label: 'Preparing', color: COLORS.warning };
+  }
+  if (['shipped', 'in_transit', 'out_for_delivery'].includes(status)) {
+    return { label: 'On the way', color: COLORS.info };
+  }
+  if (['delivered', 'completed'].includes(status)) {
+    return { label: 'Delivered', color: COLORS.success };
+  }
+  // Exception statuses (cancelled/rejected/returned/refunded/on_hold) —
+  // fall back to the existing shared label/color helpers.
+  return { label: getOrderStatusLabel(status), color: getOrderStatusColor(status) };
+};
+
 export default function VendorOrders({ navigation }) {
   const dispatch = useDispatch();
   const orders = useSelector(selectVendorOrders);
@@ -52,12 +81,13 @@ export default function VendorOrders({ navigation }) {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Tab filter *values* unchanged — only the visible labels are friendlier.
   const STATUS_TABS = [
     { label: t('common.all'), value: '' },
-    { label: t('orders.pending'), value: ORDER_STATUS.PENDING },
-    { label: t('orders.processing'), value: ORDER_STATUS.PROCESSING },
-    { label: t('orders.shipped'), value: ORDER_STATUS.SHIPPED },
-    { label: t('orders.delivered'), value: ORDER_STATUS.DELIVERED },
+    { label: 'New', value: ORDER_STATUS.PENDING },
+    { label: 'Preparing', value: ORDER_STATUS.PROCESSING },
+    { label: 'On the way', value: ORDER_STATUS.SHIPPED },
+    { label: 'Delivered', value: ORDER_STATUS.DELIVERED },
   ];
 
   useEffect(() => { loadOrders(true); }, [activeTab]);
@@ -120,7 +150,7 @@ export default function VendorOrders({ navigation }) {
   });
 
   const OrderCard = ({ order }) => {
-    const statusColor = getOrderStatusColor(order.status);
+    const stage = getFriendlyStage(order.status);
     return (
       <View style={styles.orderCard}>
         <View style={styles.orderHeader}>
@@ -133,12 +163,12 @@ export default function VendorOrders({ navigation }) {
             </Text>
           </View>
           <View style={[styles.statusBadge,
-            { backgroundColor: statusColor + '20' }]}>
+            { backgroundColor: stage.color + '18' }]}>
             <View style={[styles.statusDot,
-              { backgroundColor: statusColor }]} />
+              { backgroundColor: stage.color }]} />
             <Text style={[styles.statusText,
-              { color: statusColor }]}>
-              {getOrderStatusLabel(order.status)}
+              { color: stage.color }]}>
+              {stage.label}
             </Text>
           </View>
         </View>
@@ -300,15 +330,17 @@ export default function VendorOrders({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content"
-        backgroundColor={COLORS.surface} />
+      <StatusBar barStyle="light-content"
+        backgroundColor={COLORS.primary} />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>
           {t('vendor.customerOrders')}
         </Text>
-        <Text style={styles.headerCount}>
-          {filteredOrders.length}
-        </Text>
+        <View style={styles.headerCount}>
+          <Text style={styles.headerCountText}>
+            {filteredOrders.length}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.searchWrap}>
@@ -405,20 +437,21 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.base,
     paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
     paddingBottom: SPACING.base,
-    borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm,
   },
   headerTitle: {
-    fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary,
+    fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: 'white',
   },
   headerCount: {
-    fontSize: FONTS.base, fontWeight: FONTS.bold,
-    color: COLORS.primary, backgroundColor: COLORS.primaryFade,
+    backgroundColor: 'rgba(255,255,255,0.22)',
     paddingHorizontal: SPACING.sm, paddingVertical: 2,
     borderRadius: RADIUS.full,
+  },
+  headerCountText: {
+    fontSize: FONTS.base, fontWeight: FONTS.bold, color: 'white',
   },
   searchWrap: {
     backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base,
@@ -461,7 +494,7 @@ const styles = StyleSheet.create({
   listContent: { padding: SPACING.sm, paddingBottom: 100 },
   orderCard: {
     backgroundColor: COLORS.surface, borderRadius: RADIUS.xl,
-    marginBottom: SPACING.sm, ...SHADOWS.sm, overflow: 'hidden',
+    marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden',
   },
   orderHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
