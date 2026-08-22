@@ -1,12 +1,22 @@
 /**
  * VUMA Store — Home Screen
  * Upgraded: Banners, Trending, Daily Deals, Recently Viewed, Recommendations
+ *
+ * Product grid redesigned to a Coupang-style two-column masonry layout:
+ * one continuous scroll, cards distributed left/right and staggering
+ * naturally by height (not two independently-scrolling panes — that
+ * would fight a single swipe gesture). Infinite scroll is preserved via
+ * a scroll-position listener replacing FlatList's onEndReached, since
+ * true masonry can't use FlatList's row-based numColumns.
+ *
+ * No product data, fetching, filtering, or navigation logic changed —
+ * only how the "All Products" section is laid out.
  */
 
 import { t } from '../../i18n';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, Dimensions, StatusBar, Platform, Image,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -29,7 +39,7 @@ import { EmptyState } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
 
 const { width } = Dimensions.get('window');
-const NUM_COLUMNS = width >= 700 ? 4 : 3;
+const NUM_COLUMNS = width >= 700 ? 4 : 3; // still used by wide-screen horizontal rows above the grid
 
 export default function HomeScreen({ navigation }) {
   const dispatch = useDispatch();
@@ -108,6 +118,16 @@ export default function HomeScreen({ navigation }) {
     if (loading.loadingMore || loading.products || !hasNextPage) return;
     dispatch(fetchProducts({ page: currentPage + 1, category: activeCategory }));
   }, [loading, hasNextPage, currentPage, activeCategory]);
+
+  // Replaces FlatList's onEndReached — true masonry needs a ScrollView,
+  // so infinite scroll is triggered manually near the bottom instead.
+  const handleScroll = useCallback((e) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const paddingToBottom = 400;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+      handleLoadMore();
+    }
+  }, [handleLoadMore]);
 
   const handleCategorySelect = useCallback((slug) => {
     setActiveCategory(slug);
@@ -192,114 +212,42 @@ export default function HomeScreen({ navigation }) {
     );
   };
 
-  const ListHeader = () => (
-    <View>
-      {/* ── Banners ── */}
-      <View style={styles.bannerWrap}>
-        <HomeBanner
-          banners={banners}
-          onBannerPress={handleBannerPress}
-          navigation={navigation}
+  // ── Masonry grid: distribute products into two columns. Strict
+  // alternation (even index -> left, odd -> right) keeps both columns
+  // near-equal length; ProductCard's natural (non-forced) height per
+  // card is what actually creates the staggered look, since columns
+  // are no longer stretched to match a row's tallest cell.
+  const leftColumn = [];
+  const rightColumn = [];
+  products.forEach((p, i) => (i % 2 === 0 ? leftColumn : rightColumn).push(p));
+
+  const MasonryGrid = () => {
+    if (loading.products && products.length === 0) return <SkeletonProductGrid count={6} />;
+    if (products.length === 0) {
+      return (
+        <EmptyState
+          icon="🛍️" title="No products found"
+          message={activeCategory ? 'No products in this category yet.' : 'Check back soon!'}
+          actionLabel={activeCategory ? 'All Products' : null}
+          onAction={activeCategory ? () => handleCategorySelect('') : null}
         />
-      </View>
-
-      {/* Flash Sale — tinted section, distinct from the rest of the feed */}
-      {flashSale?.length > 0 && (
-        <View style={[styles.section, styles.flashSection]}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.flashTitleRow}>
-              <Text style={styles.flashTitle}>⚡ Flash Sale</Text>
-              {flashCountdown > 0 && (
-                <View style={styles.countdownBadge}>
-                  <Text style={styles.countdownText}>{formatCountdown(flashCountdown)}</Text>
-                </View>
-              )}
-            </View>
-            <TouchableOpacity
-              style={styles.seeAllBtn}
-              onPress={() => navigation.navigate('ProductList', { flash_sale: true })}
-            >
-              <Text style={styles.seeAll}>See all</Text>
-              <Text style={styles.seeAllArrow}>›</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-            {flashSale.slice(0, 8).map((p) => (
-              <ProductCard key={p.id} product={p} variant="featured" onPress={() => handleProductPress(p)} style={styles.featuredCard} />
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Daily Deals */}
-      {dailyDeals.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <View style={[styles.sectionAccent, { backgroundColor: COLORS.discount }]} />
-              <Text style={styles.sectionTitle}>Daily Deals</Text>
-            </View>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-            {dailyDeals.map((d, i) => <DealCard key={d.id || i} deal={d} />)}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Trending */}
-      <HorizontalRow title="Trending Now" data={trending} accent={COLORS.info} />
-
-      {/* Recommendations */}
-      {isAuthenticated && recommendations.length > 0 && (
-        <HorizontalRow title="Recommended for You" data={recommendations} accent={COLORS.rating} />
-      )}
-
-      {/* Featured */}
-      {featured?.length > 0 && (
-        <HorizontalRow title="Featured" data={featured} accent={COLORS.secondary} />
-      )}
-
-      {/* Recently Viewed */}
-      {isAuthenticated && recentlyViewed.length > 0 && (
-        <HorizontalRow title="Recently Viewed" data={recentlyViewed} accent={COLORS.textMuted} />
-      )}
-
-      {/* All Products Header */}
-      <View style={styles.allProductsHeader}>
-        <View style={styles.sectionTitleRow}>
-          <View style={[styles.sectionAccent, { backgroundColor: COLORS.primary }]} />
-          <Text style={styles.sectionTitle}>
-            {activeCategory ? allCategories.find((c) => c.slug === activeCategory)?.label || 'Products' : 'All Products'}
-          </Text>
-        </View>
-        <View style={styles.productCountPill}>
-          <Text style={styles.productCount}>{products.length}</Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  const ListFooter = () => loading.loadingMore ? (
-    <View style={styles.loadingMore}><Text style={styles.loadingMoreText}>Loading more…</Text></View>
-  ) : null;
-
-  const ListEmpty = () => {
-    if (loading.products) return <SkeletonProductGrid count={6} />;
+      );
+    }
     return (
-      <EmptyState
-        icon="🛍️" title="No products found"
-        message={activeCategory ? 'No products in this category yet.' : 'Check back soon!'}
-        actionLabel={activeCategory ? 'All Products' : null}
-        onAction={activeCategory ? () => handleCategorySelect('') : null}
-      />
+      <View style={styles.masonryRow}>
+        <View style={styles.masonryColumn}>
+          {leftColumn.map((product) => (
+            <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} />
+          ))}
+        </View>
+        <View style={styles.masonryColumn}>
+          {rightColumn.map((product) => (
+            <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} />
+          ))}
+        </View>
+      </View>
     );
   };
-
-  const renderProduct = useCallback(({ item, index }) => (
-    <View style={styles.productItemWrap}>
-      <ProductCard product={item} variant="grid" onPress={() => handleProductPress(item)} style={styles.productCard} />
-    </View>
-  ), []);
 
   return (
     <View style={styles.container}>
@@ -336,25 +284,103 @@ export default function HomeScreen({ navigation }) {
 
       <CategoryBar categories={allCategories} activeCategory={activeCategory} onSelect={handleCategorySelect} />
 
-      <FlatList
-        data={products}
-        renderItem={renderProduct}
-        keyExtractor={(item) => item.id?.toString()}
-        numColumns={NUM_COLUMNS}
-        columnWrapperStyle={styles.columnWrapper}
-        ListHeaderComponent={ListHeader}
-        ListFooterComponent={ListFooter}
-        ListEmptyComponent={ListEmpty}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.4}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />}
-        contentContainerStyle={styles.flatListContent}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        initialNumToRender={6}
-      />
+        onScroll={handleScroll}
+        scrollEventThrottle={200}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />}
+      >
+        {/* ── Banners ── */}
+        <View style={styles.bannerWrap}>
+          <HomeBanner
+            banners={banners}
+            onBannerPress={handleBannerPress}
+            navigation={navigation}
+          />
+        </View>
+
+        {/* Flash Sale — tinted section, distinct from the rest of the feed */}
+        {flashSale?.length > 0 && (
+          <View style={[styles.section, styles.flashSection]}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.flashTitleRow}>
+                <Text style={styles.flashTitle}>⚡ Flash Sale</Text>
+                {flashCountdown > 0 && (
+                  <View style={styles.countdownBadge}>
+                    <Text style={styles.countdownText}>{formatCountdown(flashCountdown)}</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.seeAllBtn}
+                onPress={() => navigation.navigate('ProductList', { flash_sale: true })}
+              >
+                <Text style={styles.seeAll}>See all</Text>
+                <Text style={styles.seeAllArrow}>›</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+              {flashSale.slice(0, 8).map((p) => (
+                <ProductCard key={p.id} product={p} variant="featured" onPress={() => handleProductPress(p)} style={styles.featuredCard} />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Daily Deals */}
+        {dailyDeals.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <View style={[styles.sectionAccent, { backgroundColor: COLORS.discount }]} />
+                <Text style={styles.sectionTitle}>Daily Deals</Text>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+              {dailyDeals.map((d, i) => <DealCard key={d.id || i} deal={d} />)}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Trending */}
+        <HorizontalRow title="Trending Now" data={trending} accent={COLORS.info} />
+
+        {/* Recommendations */}
+        {isAuthenticated && recommendations.length > 0 && (
+          <HorizontalRow title="Recommended for You" data={recommendations} accent={COLORS.rating} />
+        )}
+
+        {/* Featured */}
+        {featured?.length > 0 && (
+          <HorizontalRow title="Featured" data={featured} accent={COLORS.secondary} />
+        )}
+
+        {/* Recently Viewed */}
+        {isAuthenticated && recentlyViewed.length > 0 && (
+          <HorizontalRow title="Recently Viewed" data={recentlyViewed} accent={COLORS.textMuted} />
+        )}
+
+        {/* All Products Header */}
+        <View style={styles.allProductsHeader}>
+          <View style={styles.sectionTitleRow}>
+            <View style={[styles.sectionAccent, { backgroundColor: COLORS.primary }]} />
+            <Text style={styles.sectionTitle}>
+              {activeCategory ? allCategories.find((c) => c.slug === activeCategory)?.label || 'Products' : 'All Products'}
+            </Text>
+          </View>
+          <View style={styles.productCountPill}>
+            <Text style={styles.productCount}>{products.length}</Text>
+          </View>
+        </View>
+
+        {/* Two-column masonry product grid */}
+        <MasonryGrid />
+
+        {loading.loadingMore && (
+          <View style={styles.loadingMore}><Text style={styles.loadingMoreText}>Loading more…</Text></View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -456,11 +482,11 @@ const styles = StyleSheet.create({
   productCountPill: { backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 3 },
   productCount: { fontSize: FONTS.xs, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
 
-  // ── Grid ──
-  flatListContent: { paddingBottom: 90, paddingTop: 2 },
-  columnWrapper: { paddingHorizontal: SPACING.base, gap: SPACING.xs },
-  productItemWrap: { flex: 1, paddingVertical: SPACING.xs },
-  productCard: { flex: 1 },
+  // ── Masonry grid ──
+  scrollContent: { paddingBottom: 90 },
+  masonryRow: { flexDirection: 'row', paddingHorizontal: SPACING.base, gap: SPACING.xs, paddingTop: SPACING.xs },
+  masonryColumn: { flex: 1, gap: SPACING.xs },
+  masonryCard: { width: '100%' },
 
   loadingMore: { padding: SPACING.xl, alignItems: 'center' },
   loadingMoreText: { fontSize: FONTS.sm, color: COLORS.textMuted },
