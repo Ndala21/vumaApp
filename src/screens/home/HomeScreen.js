@@ -2,7 +2,7 @@
  * VUMA Store — Home Screen
  * Upgraded: Banners, Trending, Daily Deals, Recently Viewed, Recommendations
  *
- * Product grid redesigned to a Coupang-style two-column masonry layout:
+ * Product grid redesigned to a Coupang-style three-column masonry layout:
  * one continuous scroll, cards distributed left/right and staggering
  * naturally by height (not two independently-scrolling panes — that
  * would fight a single swipe gesture). Infinite scroll is preserved via
@@ -217,9 +217,8 @@ export default function HomeScreen({ navigation }) {
   // near-equal length; ProductCard's natural (non-forced) height per
   // card is what actually creates the staggered look, since columns
   // are no longer stretched to match a row's tallest cell.
-  const leftColumn = [];
-  const rightColumn = [];
-  products.forEach((p, i) => (i % 2 === 0 ? leftColumn : rightColumn).push(p));
+  const columns = [[], [], []];
+  products.forEach((p, i) => columns[i % 3].push(p));
 
   const MasonryGrid = () => {
     if (loading.products && products.length === 0) return <SkeletonProductGrid count={6} />;
@@ -235,19 +234,17 @@ export default function HomeScreen({ navigation }) {
     }
     return (
       <View style={styles.masonryRow}>
-        <View style={styles.masonryColumn}>
-          {leftColumn.map((product) => (
-            <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} />
-          ))}
-        </View>
-        <View style={styles.masonryColumn}>
-          {rightColumn.map((product) => (
-            <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} />
-          ))}
-        </View>
+        {columns.map((col, colIndex) => (
+          <View key={colIndex} style={styles.masonryColumn}>
+            {col.map((product) => (
+              <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} />
+            ))}
+          </View>
+        ))}
       </View>
     );
   };
+
 
   return (
     <View style={styles.container}>
