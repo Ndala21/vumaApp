@@ -1,14 +1,12 @@
 /**
  * VUMA Store — Vendor Products Screen
- * Restyled header/tabs/list rows to match the new VUMA orange design
- * system. All existing logic — multi-image upload, AI description,
- * pricing check, variants, image quality checks — is unchanged.
+ * Adds: short description, key features (1-5 bullets), character
+ * counters (title 120 / short desc 300 / description 1000), and a
+ * single product video picker+upload — all backed by real, verified
+ * backend fields and endpoints added tonight.
  *
- * Tab simplified to All / Active / Inactive matching the reference
- * (client-side only, so safe to combine): Inactive = draft + out_of_stock
- * combined, since both mean "not currently sellable" — the underlying
- * product.status field itself still has all 3 real values, this is
- * just how the tabs group them for browsing.
+ * Everything else — multi-image upload, AI description, pricing
+ * check, variants, image quality checks — is unchanged.
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
@@ -50,10 +48,104 @@ const BROWSE_TABS = [
   { key: 'inactive', label: 'Inactive' },
 ];
 
+const TITLE_LIMIT = 120;
+const SHORT_DESC_LIMIT = 300;
+const DESC_LIMIT = 1000;
+const MAX_KEY_FEATURES = 5;
+const MAX_VIDEO_MB = 50;
+
 const EMPTY_FORM = {
-  name: '', description: '', price: '', stock: '',
+  name: '', description: '', short_description: '', price: '', stock: '',
   category: '', categoryId: '', sku: '', weight: '', status: 'active',
-  available_sizes: [], requires_size: false,
+  available_sizes: [], requires_size: false, key_features: [],
+};
+
+// ── Character counter ─────────────────────────────────
+const CharCounter = ({ current, limit }) => (
+  <Text style={[styles.charCounter, current > limit && styles.charCounterOver]}>
+    {current}/{limit}
+  </Text>
+);
+
+// ── Key Features editor ───────────────────────────────
+const KeyFeaturesEditor = ({ features, onChange }) => {
+  const [draft, setDraft] = useState('');
+
+  const addFeature = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    if (features.length >= MAX_KEY_FEATURES) {
+      Alert.alert('Limit reached', `You can add up to ${MAX_KEY_FEATURES} key features.`);
+      return;
+    }
+    onChange([...features, trimmed]);
+    setDraft('');
+  };
+
+  const removeFeature = (index) => {
+    onChange(features.filter((_, i) => i !== index));
+  };
+
+  return (
+    <View>
+      <Text style={styles.fieldLabel}>Key Features <Text style={styles.fieldHint}>({features.length}/{MAX_KEY_FEATURES})</Text></Text>
+      {features.map((f, i) => (
+        <View key={i} style={styles.featureRow}>
+          <Text style={styles.featureBullet}>•</Text>
+          <Text style={styles.featureText} numberOfLines={2}>{f}</Text>
+          <TouchableOpacity onPress={() => removeFeature(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.featureRemove}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+      {features.length < MAX_KEY_FEATURES && (
+        <View style={styles.featureAddRow}>
+          <TextInput
+            style={styles.featureInput}
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="e.g. Waterproof, 2-year warranty"
+            placeholderTextColor={COLORS.textLight}
+            onSubmitEditing={addFeature}
+            returnKeyType="done"
+          />
+          <TouchableOpacity style={styles.featureAddBtn} onPress={addFeature}>
+            <Text style={styles.featureAddBtnText}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+};
+
+// ── Video picker ───────────────────────────────────────
+const VideoPicker = ({ videoAsset, existingVideoUrl, onPick, onRemove, uploading }) => {
+  const hasVideo = videoAsset || existingVideoUrl;
+  return (
+    <View>
+      <Text style={styles.fieldLabel}>Product Video <Text style={styles.fieldHint}>(optional, max {MAX_VIDEO_MB}MB)</Text></Text>
+      {hasVideo ? (
+        <View style={styles.videoPreview}>
+          <Text style={styles.videoPreviewIcon}>🎬</Text>
+          <Text style={styles.videoPreviewText} numberOfLines={1}>
+            {videoAsset ? (videoAsset.fileName || 'New video selected') : 'Current video'}
+          </Text>
+          {uploading ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+            <TouchableOpacity onPress={onRemove}>
+              <Text style={styles.videoRemove}>✕ Remove</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.videoPickBtn} onPress={onPick} activeOpacity={0.8}>
+          <Text style={styles.videoPickIcon}>🎥</Text>
+          <Text style={styles.videoPickText}>Tap to add a short product video</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 };
 
 // ── Category Picker Modal ─────────────────────────────
@@ -116,6 +208,7 @@ const ProductModal = memo(({
   variants, onVariantsChange,
   onGenerateDescription, aiDescLoading,
   onCheckPricing, pricingLoading, pricingSuggestion,
+  videoAsset, existingVideoUrl, onPickVideo, onRemoveVideo, videoUploading,
 }) => (
   <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent={false}>
     <View style={styles.modalContainer}>
@@ -146,25 +239,55 @@ const ProductModal = memo(({
           uploadingIndex={uploadingIndex}
         />
 
+        {/* Video */}
+        <VideoPicker
+          videoAsset={videoAsset}
+          existingVideoUrl={existingVideoUrl}
+          onPick={onPickVideo}
+          onRemove={onRemoveVideo}
+          uploading={videoUploading}
+        />
+
         {/* Name */}
-        <Text style={styles.fieldLabel}>Product Name *</Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.fieldLabel}>Product Name *</Text>
+          <CharCounter current={form.name.length} limit={TITLE_LIMIT} />
+        </View>
         <TextInput
           style={[styles.fieldInput, formErrors.name && styles.fieldInputError]}
-          value={form.name} onChangeText={(v) => setField('name', v)}
+          value={form.name} onChangeText={(v) => setField('name', v.slice(0, TITLE_LIMIT))}
           placeholder="Product name" placeholderTextColor={COLORS.textLight}
-          returnKeyType="next" blurOnSubmit={false}
+          returnKeyType="next" blurOnSubmit={false} maxLength={TITLE_LIMIT}
         />
         {formErrors.name && <Text style={styles.fieldError}>⚠️ {formErrors.name}</Text>}
 
-        {/* Description */}
-        <Text style={styles.fieldLabel}>Description</Text>
+        {/* Short Description */}
+        <View style={styles.labelRow}>
+          <Text style={styles.fieldLabel}>Short Description</Text>
+          <CharCounter current={form.short_description.length} limit={SHORT_DESC_LIMIT} />
+        </View>
+        <TextInput
+          style={styles.fieldInput}
+          value={form.short_description} onChangeText={(v) => setField('short_description', v.slice(0, SHORT_DESC_LIMIT))}
+          placeholder="One or two sentences shown at the top of the product page"
+          placeholderTextColor={COLORS.textLight} maxLength={SHORT_DESC_LIMIT}
+          multiline
+        />
+        {formErrors.short_description && <Text style={styles.fieldError}>⚠️ {formErrors.short_description}</Text>}
+
+        {/* Full Description */}
+        <View style={styles.labelRow}>
+          <Text style={styles.fieldLabel}>Full Description</Text>
+          <CharCounter current={form.description.length} limit={DESC_LIMIT} />
+        </View>
         <TextInput
           style={[styles.fieldInput, styles.textArea]}
-          value={form.description} onChangeText={(v) => setField('description', v)}
+          value={form.description} onChangeText={(v) => setField('description', v.slice(0, DESC_LIMIT))}
           placeholder="Product description..." multiline numberOfLines={4}
           textAlignVertical="top" placeholderTextColor={COLORS.textLight}
-          blurOnSubmit={false}
+          blurOnSubmit={false} maxLength={DESC_LIMIT}
         />
+        {formErrors.description && <Text style={styles.fieldError}>⚠️ {formErrors.description}</Text>}
         <TouchableOpacity
           style={styles.aiBtn}
           onPress={onGenerateDescription}
@@ -177,6 +300,12 @@ const ProductModal = memo(({
             <Text style={styles.aiBtnText}>✨ Generate with AI</Text>
           )}
         </TouchableOpacity>
+
+        {/* Key Features */}
+        <KeyFeaturesEditor
+          features={form.key_features}
+          onChange={(features) => setField('key_features', features)}
+        />
 
         {/* Price & Stock */}
         <View style={styles.rowFields}>
@@ -331,6 +460,11 @@ const ProductItem = memo(({ item, onEdit, onDelete }) => {
             <Text style={styles.imageCountText}>📷 {imageCount}</Text>
           </View>
         )}
+        {item.video_url && (
+          <View style={styles.videoBadge}>
+            <Text style={styles.videoBadgeText}>🎬</Text>
+          </View>
+        )}
       </View>
       <View style={styles.productInfo}>
         <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
@@ -393,6 +527,9 @@ export default function VendorProducts({ navigation, route }) {
   const [aiDescLoading, setAiDescLoading] = useState(false);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingSuggestion, setPricingSuggestion] = useState(null);
+  const [videoAsset, setVideoAsset] = useState(null); // newly picked, not yet uploaded
+  const [existingVideoUrl, setExistingVideoUrl] = useState('');
+  const [videoUploading, setVideoUploading] = useState(false);
 
   useEffect(() => {
     dispatch(fetchMyProducts());
@@ -413,6 +550,8 @@ export default function VendorProducts({ navigation, route }) {
     setProductImages([]);
     setVariants([]);
     setPricingSuggestion(null);
+    setVideoAsset(null);
+    setExistingVideoUrl('');
     setShowModal(true);
   }, []);
 
@@ -421,6 +560,7 @@ export default function VendorProducts({ navigation, route }) {
     setFormState({
       name: product.name || '',
       description: product.description || '',
+      short_description: product.short_description || '',
       price: String(product.price || ''),
       stock: String(product.stock || ''),
       category: product.category_name || '',
@@ -430,6 +570,7 @@ export default function VendorProducts({ navigation, route }) {
       status: product.status || 'active',
       available_sizes: product.available_sizes || [],
       requires_size: product.requires_size || false,
+      key_features: product.key_features || [],
     });
     setFormErrors({});
     // Load existing variants (map API shape -> the plain objects VariantManager expects)
@@ -447,6 +588,8 @@ export default function VendorProducts({ navigation, route }) {
       isExisting: true,
     }));
     setProductImages(existingImages);
+    setVideoAsset(null);
+    setExistingVideoUrl(product.video_url || '');
     setShowModal(true);
   }, []);
 
@@ -493,6 +636,39 @@ export default function VendorProducts({ navigation, route }) {
     });
   }, []);
 
+  // ── Video handlers ──
+  const handlePickVideo = useCallback(async () => {
+    try {
+      const ImagePicker = await import('expo-image-picker');
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Please allow access to your video library.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        quality: 0.8,
+        videoMaxDuration: 60,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const sizeMb = (asset.fileSize || 0) / (1024 * 1024);
+      if (asset.fileSize && sizeMb > MAX_VIDEO_MB) {
+        Alert.alert('Video too large', `Please choose a video under ${MAX_VIDEO_MB}MB (this one is ${sizeMb.toFixed(1)}MB).`);
+        return;
+      }
+      setVideoAsset(asset);
+      setExistingVideoUrl(''); // new pick replaces whatever was there
+    } catch (e) {
+      Alert.alert('Error', 'Could not open video library.');
+    }
+  }, []);
+
+  const handleRemoveVideo = useCallback(() => {
+    setVideoAsset(null);
+    setExistingVideoUrl('');
+  }, []);
+
   const handleGenerateDescription = useCallback(async () => {
     if (!form.name.trim()) {
       Alert.alert('Product Name Required', 'Enter a product name first so the AI knows what to describe.');
@@ -507,7 +683,7 @@ export default function VendorProducts({ navigation, route }) {
         keywords: '',
       });
       if (result?.success && result?.data?.description) {
-        setField('description', result.data.description);
+        setField('description', result.data.description.slice(0, DESC_LIMIT));
       } else {
         Alert.alert('AI Unavailable', 'Could not generate a description right now. Please write one manually.');
       }
@@ -548,6 +724,9 @@ export default function VendorProducts({ navigation, route }) {
   const validateForm = useCallback(() => {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Product name required.';
+    else if (form.name.length > TITLE_LIMIT) errs.name = `Title must be ${TITLE_LIMIT} characters or fewer.`;
+    if (form.short_description.length > SHORT_DESC_LIMIT) errs.short_description = `Short description must be ${SHORT_DESC_LIMIT} characters or fewer.`;
+    if (form.description.length > DESC_LIMIT) errs.description = `Description must be ${DESC_LIMIT} characters or fewer.`;
     if (!form.price || isNaN(form.price) || Number(form.price) <= 0) errs.price = 'Valid price required.';
     if (!form.stock || isNaN(form.stock) || Number(form.stock) < 0) errs.stock = 'Valid stock quantity required.';
     if (!form.categoryId && !form.category) errs.category = 'Please select a category.';
@@ -562,6 +741,8 @@ export default function VendorProducts({ navigation, route }) {
     const productData = {
       name: form.name.trim(),
       description: form.description.trim(),
+      short_description: form.short_description.trim(),
+      key_features: form.key_features,
       price: Number(form.price),
       stock: Number(form.stock),
       category: form.categoryId,
@@ -578,11 +759,19 @@ export default function VendorProducts({ navigation, route }) {
     if (editingProduct) {
       result = await dispatch(updateProduct({ productId: editingProduct.id, data: productData }));
       if (updateProduct.fulfilled.match(result)) savedProduct = result.payload;
-      else { Alert.alert('Error', errors.updateProduct || 'Failed to update.'); return; }
+      else {
+        const data = errors.updateProduct;
+        Alert.alert('Error', typeof data === 'string' ? data : 'Failed to update. Check your description for phone numbers or contact links.');
+        return;
+      }
     } else {
       result = await dispatch(createProduct(productData));
       if (createProduct.fulfilled.match(result)) savedProduct = result.payload;
-      else { Alert.alert('Error', errors.createProduct || 'Failed to create.'); return; }
+      else {
+        const data = errors.createProduct;
+        Alert.alert('Error', typeof data === 'string' ? data : 'Failed to create. Check your description for phone numbers or contact links.');
+        return;
+      }
     }
 
     // Save variants (replaces the full set for this product)
@@ -592,6 +781,25 @@ export default function VendorProducts({ navigation, route }) {
         await productsAPI.bulkSaveVariants(savedProduct.id, variants);
       } catch (e) {
         Alert.alert('Partial Success', 'Product saved, but variants failed to save. Edit the product to retry.');
+      }
+    }
+
+    // Upload video if a new one was picked
+    if (videoAsset && savedProduct?.id) {
+      setVideoUploading(true);
+      try {
+        const { upload } = await import('../../api/client');
+        const formData = new FormData();
+        formData.append('video', {
+          uri: videoAsset.uri,
+          name: videoAsset.fileName || 'product_video.mp4',
+          type: videoAsset.mimeType || 'video/mp4',
+        });
+        await upload(`/products/${savedProduct.id}/video/`, formData);
+      } catch (e) {
+        Alert.alert('Partial Success', 'Product saved, but the video failed to upload. Edit the product to retry.');
+      } finally {
+        setVideoUploading(false);
       }
     }
 
@@ -677,8 +885,10 @@ export default function VendorProducts({ navigation, route }) {
     setEditingProduct(null);
     setVariants([]);
     setProductImages([]);
+    setVideoAsset(null);
+    setExistingVideoUrl('');
     dispatch(fetchMyProducts());
-  }, [form, productImages, editingProduct, validateForm, errors]);
+  }, [form, productImages, editingProduct, validateForm, errors, videoAsset]);
 
   const handleDelete = useCallback((product) => {
     Alert.alert('Delete Product', `Delete "${product.name}"?`, [
@@ -801,6 +1011,11 @@ export default function VendorProducts({ navigation, route }) {
         onCheckPricing={handleCheckPricing}
         pricingLoading={pricingLoading}
         pricingSuggestion={pricingSuggestion}
+        videoAsset={videoAsset}
+        existingVideoUrl={existingVideoUrl}
+        onPickVideo={handlePickVideo}
+        onRemoveVideo={handleRemoveVideo}
+        videoUploading={videoUploading}
       />
 
       <CategoryPickerModal
@@ -852,6 +1067,8 @@ const styles = StyleSheet.create({
   productImagePlaceholder: { width: 90, height: 90, backgroundColor: COLORS.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   imageCountBadge: { position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: RADIUS.sm, paddingHorizontal: 5, paddingVertical: 2 },
   imageCountText: { fontSize: 9, color: 'white', fontWeight: FONTS.bold },
+  videoBadge: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: RADIUS.sm, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  videoBadgeText: { fontSize: 10 },
   productInfo: { flex: 1, padding: SPACING.sm, gap: 3, justifyContent: 'center' },
   productName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, lineHeight: 18 },
   productPrice: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
@@ -879,7 +1096,11 @@ const styles = StyleSheet.create({
   modalClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
   modalTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   modalScroll: { padding: SPACING.base },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs },
+  fieldHint: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.regular },
+  charCounter: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.xs },
+  charCounterOver: { color: COLORS.danger, fontWeight: FONTS.bold },
   fieldInput: { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.base },
   fieldInputError: { borderColor: COLORS.danger, backgroundColor: COLORS.dangerLight },
   textArea: { minHeight: 100, textAlignVertical: 'top', paddingTop: SPACING.sm },
@@ -931,4 +1152,23 @@ const styles = StyleSheet.create({
   pricingResultText: { fontSize: FONTS.xs, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
   pricingResultSuggestion: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4, lineHeight: 16 },
   pricingResultEmpty: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 6, fontStyle: 'italic' },
+
+  // Key Features
+  featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.md, padding: SPACING.sm, marginBottom: 6 },
+  featureBullet: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.bold },
+  featureText: { flex: 1, fontSize: FONTS.sm, color: COLORS.textPrimary },
+  featureRemove: { fontSize: FONTS.sm, color: COLORS.danger, fontWeight: FONTS.bold },
+  featureAddRow: { flexDirection: 'row', gap: 8, marginBottom: SPACING.base },
+  featureInput: { flex: 1, backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, fontSize: FONTS.sm, color: COLORS.textPrimary },
+  featureAddBtn: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, alignItems: 'center', justifyContent: 'center' },
+  featureAddBtnText: { fontSize: FONTS.sm, color: COLORS.primaryDark, fontWeight: FONTS.bold },
+
+  // Video
+  videoPickBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: COLORS.border, borderStyle: 'dashed', borderRadius: RADIUS.lg, paddingVertical: SPACING.base, backgroundColor: COLORS.surfaceAlt, marginBottom: SPACING.base },
+  videoPickIcon: { fontSize: 18 },
+  videoPickText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
+  videoPreview: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.lg, padding: SPACING.sm, marginBottom: SPACING.base },
+  videoPreviewIcon: { fontSize: 18 },
+  videoPreviewText: { flex: 1, fontSize: FONTS.sm, color: COLORS.textPrimary, fontWeight: FONTS.medium },
+  videoRemove: { fontSize: FONTS.xs, color: COLORS.danger, fontWeight: FONTS.bold },
 });
