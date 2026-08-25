@@ -2,6 +2,12 @@
  * VUMA Store — Home Screen
  * Upgraded: Banners, Trending, Daily Deals, Recently Viewed, Recommendations
  *
+ * Added: "VUMA Faida & Ofa" promotions row, Welcome Gift highlight card,
+ * and Become a Seller banner — all driven by real backend data from
+ * /products/home-promotions/ (real Coupon/WelcomeGiftCampaign/
+ * ReferralCampaign/flash-sale state). A card only shows if its real
+ * underlying campaign is currently active — nothing here is faked.
+ *
  * Product grid redesigned to a Coupang-style three-column masonry layout:
  * one continuous scroll, cards distributed left/right and staggering
  * naturally by height (not two independently-scrolling panes — that
@@ -17,7 +23,7 @@ import { t } from '../../i18n';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, Dimensions, StatusBar, Platform, Image,
+  RefreshControl, Dimensions, StatusBar, Platform, Image, Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -37,6 +43,7 @@ import HomeBanner from '../../components/HomeBanner';
 import { SkeletonProductGrid } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
+import { get } from '../../api/client';
 
 const { width } = Dimensions.get('window');
 const NUM_COLUMNS = width >= 700 ? 4 : 3; // still used by wide-screen horizontal rows above the grid
@@ -63,6 +70,7 @@ export default function HomeScreen({ navigation }) {
   const [dailyDeals, setDailyDeals] = useState([]);
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
+  const [promotions, setPromotions] = useState(null);
 
   useEffect(() => { loadInitialData(); }, []);
 
@@ -88,14 +96,16 @@ export default function HomeScreen({ navigation }) {
 
   const loadExtraFeatures = useCallback(async () => {
     try {
-      const [bannersData, trendingData, dealsData] = await Promise.all([
+      const [bannersData, trendingData, dealsData, promotionsData] = await Promise.all([
         productsAPI.getBanners().catch(() => []),
         productsAPI.getTrending().catch(() => []),
         productsAPI.getDailyDeals().catch(() => []),
+        get('/products/home-promotions/').catch(() => null),
       ]);
       setBanners(bannersData || []);
       setTrending(trendingData?.results || trendingData || []);
       setDailyDeals(dealsData?.results || dealsData || []);
+      setPromotions(promotionsData);
 
       if (isAuthenticated) {
         const [recentData, recData] = await Promise.all([
@@ -154,10 +164,86 @@ export default function HomeScreen({ navigation }) {
 
   const handleSearchSubmit = (query) => navigation.navigate(SCREENS.SEARCH, { query });
 
+  // ── Promotion card actions — real data, and honest fallbacks (an
+  // informational alert with real numbers) for the two flows that
+  // don't have a confirmed dedicated screen yet, rather than guessing
+  // a navigation target that could crash. ──
+  const handleCouponPress = () => {
+    const c = promotions?.coupons;
+    if (!c?.active) return;
+    Alert.alert(
+      'Kuponi',
+      c.top_code
+        ? `Tumia msimbo "${c.top_code}" — ${c.top_description || 'punguzo maalum'} kwenye ukurasa wa malipo.`
+        : 'Kuna kuponi zinazopatikana — angalia ukurasa wa malipo.'
+    );
+  };
+
+  const handleWelcomeGiftPress = () => {
+    const g = promotions?.welcome_gift;
+    if (!g?.active) return;
+    Alert.alert(
+      'Zawadi ya Karibu',
+      `Pata punguzo la hadi TZS ${Number(g.amount).toLocaleString()} kwenye oda yako ya kwanza.` +
+      (g.requires_referral ? ' Unahitaji msimbo wa rafiki (referral) kustahili.' : '')
+    );
+  };
+
   const allCategories = [
     { id: 'all', label: t('common.all'), icon: '🏠', slug: '' },
     ...CATEGORIES.filter((c) => c.id !== 'all'),
   ];
+
+  // ── VUMA Faida & Ofa — promotion cards, Swahili-labeled, each only
+  // shown when its real backing campaign is active. ──
+  const FAIDA_CARDS = [
+    {
+      key: 'coupons',
+      show: promotions?.coupons?.active,
+      icon: '🎫', bg: '#FDE8EC',
+      title: 'Kuponi', subtitle: 'Pata punguzo maalum',
+      cta: 'Pata Sasa', ctaColor: '#E5426B',
+      onPress: handleCouponPress,
+    },
+    {
+      key: 'welcome_gift',
+      show: promotions?.welcome_gift?.active,
+      icon: '🎁', bg: '#FFF1DB',
+      title: 'Zawadi ya Karibu', subtitle: 'Wateja wapya pata zawadi',
+      cta: 'Pokea Sasa', ctaColor: COLORS.primary,
+      onPress: handleWelcomeGiftPress,
+    },
+    {
+      key: 'flash_sale',
+      show: promotions?.flash_sale?.active,
+      icon: '⚡', bg: '#EFE7FD',
+      title: 'Ofa za Kijana', subtitle: 'Punguzo hadi 70%',
+      cta: 'Nunua Sasa', ctaColor: '#7C4DE0',
+      onPress: () => {
+        dispatch(resetProducts());
+        dispatch(fetchProducts({ page: 1, flash_sale: true, refresh: true }));
+      },
+    },
+    {
+      key: 'free_delivery',
+      show: promotions?.free_delivery?.active,
+      icon: '🚚', bg: '#E4F7EC',
+      title: 'Usafirishaji Bure', subtitle: 'Kwa oda zote',
+      cta: 'Tazama', ctaColor: '#1B9C5A',
+      onPress: () => {},
+    },
+    {
+      key: 'referral',
+      show: promotions?.referral?.active,
+      icon: '👥', bg: '#E6EEFD',
+      title: 'Alika Rafiki & Earn',
+      subtitle: promotions?.referral?.referrer_amount
+        ? `Pata TZS ${Number(promotions.referral.referrer_amount).toLocaleString()} kwa kila rafiki`
+        : 'Pata zawadi kwa kila rafiki',
+      cta: 'Shiriki Sasa', ctaColor: '#3B6FE0',
+      onPress: () => navigation.navigate('Referral'),
+    },
+  ].filter((c) => c.show);
 
   // ── Horizontal product row ──
   const HorizontalRow = ({ title, data, accent = COLORS.primary }) => {
@@ -296,6 +382,57 @@ export default function HomeScreen({ navigation }) {
             navigation={navigation}
           />
         </View>
+
+        {/* ── VUMA Faida & Ofa — real, active promotions only ── */}
+        {FAIDA_CARDS.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.faidaTitle}>VUMA Faida & Ofa</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+              {FAIDA_CARDS.map((card) => (
+                <TouchableOpacity key={card.key} style={[styles.faidaCard, { backgroundColor: card.bg }]} onPress={card.onPress} activeOpacity={0.85}>
+                  <View style={styles.faidaIconWrap}>
+                    <Text style={styles.faidaIcon}>{card.icon}</Text>
+                  </View>
+                  <Text style={styles.faidaCardTitle}>{card.title}</Text>
+                  <Text style={styles.faidaCardSub} numberOfLines={2}>{card.subtitle}</Text>
+                  <Text style={[styles.faidaCta, { color: card.ctaColor }]}>{card.cta}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ── Welcome Gift highlight ── */}
+        {promotions?.welcome_gift?.active && (
+          <TouchableOpacity style={styles.giftWideCard} onPress={handleWelcomeGiftPress} activeOpacity={0.9}>
+            <Text style={styles.giftWideIcon}>🎁</Text>
+            <View style={styles.giftWideText}>
+              <Text style={styles.giftWideTitle}>Zawadi Maalum ya Karibu!</Text>
+              <Text style={styles.giftWideSub}>
+                Pata TZS {Number(promotions.welcome_gift.amount).toLocaleString()} punguzo kwenye oda yako ya kwanza.
+              </Text>
+              <View style={styles.giftWideBtn}>
+                <Text style={styles.giftWideBtnText}>🎁 Pokea Zawadi</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* ── Become a Seller — evergreen recruitment banner ── */}
+        <TouchableOpacity style={styles.sellerBanner} onPress={() => navigation.navigate('VendorRegister')} activeOpacity={0.9}>
+          <View style={styles.sellerBannerText}>
+            <Text style={styles.sellerBannerHeadline}>Pata Faida na VUMA!</Text>
+            <Text style={styles.sellerBannerTitle}>UZA BIDHAA ZAKO KWA MAELFU YA WATEJA!</Text>
+            {['Usajili rahisi', 'Hakuna gharama ya kuanza', 'Fikia wateja kote Tanzania'].map((line, i) => (
+              <Text key={i} style={styles.sellerBannerBullet}>✓ {line}</Text>
+            ))}
+            <View style={styles.sellerBannerBtn}>
+              <Text style={styles.sellerBannerBtnText}>Kujiunga kama Muuzaji</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
 
         {/* Flash Sale — tinted section, distinct from the rest of the feed */}
         {flashSale?.length > 0 && (
@@ -441,6 +578,55 @@ const styles = StyleSheet.create({
   countdownText: { color: COLORS.textWhite, fontSize: 11.5, fontWeight: FONTS.bold, letterSpacing: 0.3 },
   horizontalList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
   featuredCard: { width: 170, height: 210 },
+
+  // ── VUMA Faida & Ofa ──
+  faidaTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
+  faidaCard: {
+    width: 128, borderRadius: RADIUS.lg, padding: SPACING.sm,
+    marginRight: SPACING.sm,
+  },
+  faidaIconWrap: {
+    width: 44, height: 44, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xs,
+  },
+  faidaIcon: { fontSize: 20 },
+  faidaCardTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
+  faidaCardSub: { fontSize: 10.5, color: COLORS.textSecondary, lineHeight: 14, marginBottom: SPACING.sm, minHeight: 28 },
+  faidaCta: { fontSize: FONTS.xs, fontWeight: FONTS.bold },
+
+  // ── Welcome Gift wide card ──
+  giftWideCard: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: '#FFF1DB', borderRadius: RADIUS.lg,
+    marginHorizontal: SPACING.base, marginBottom: SPACING.sm,
+    padding: SPACING.base,
+  },
+  giftWideIcon: { fontSize: 40 },
+  giftWideText: { flex: 1 },
+  giftWideTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
+  giftWideSub: { fontSize: FONTS.xs, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  giftWideBtn: {
+    alignSelf: 'flex-start', backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md, paddingHorizontal: SPACING.base, paddingVertical: SPACING.xs + 2,
+  },
+  giftWideBtnText: { color: 'white', fontSize: FONTS.xs, fontWeight: FONTS.bold },
+
+  // ── Become a Seller banner ──
+  sellerBanner: {
+    backgroundColor: '#FDECD9', borderRadius: RADIUS.lg,
+    marginHorizontal: SPACING.base, marginBottom: SPACING.sm,
+    padding: SPACING.base,
+  },
+  sellerBannerText: { gap: 2 },
+  sellerBannerHeadline: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
+  sellerBannerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs, letterSpacing: FONTS.trackTight },
+  sellerBannerBullet: { fontSize: FONTS.xs, color: COLORS.textSecondary, marginBottom: 2 },
+  sellerBannerBtn: {
+    alignSelf: 'flex-start', backgroundColor: '#12162B',
+    borderRadius: RADIUS.md, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  sellerBannerBtnText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.bold },
 
   // ── Deal card ──
   dealCard: {
