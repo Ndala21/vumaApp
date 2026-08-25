@@ -32,6 +32,7 @@ import AddressScreen from '../screens/profile/AddressScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import SellerRegisterScreen from '../screens/vendor/SellerRegisterScreen';
+import PromoteProductsScreen from '../screens/vendor/PromoteProductsScreen';
 import MazaoScreen from '../screens/mazao/MazaoScreen';
 import MazaoAddProduct from '../screens/mazao/MazaoProduct';
 import ReferralScreen from '../screens/referral/ReferralScreen';
@@ -136,6 +137,8 @@ function MainStack({ isVendor }) {
 
       {/* Seller Registration */}
       <Stack.Screen name="VendorRegister" component={SellerRegisterScreen} />
+      {/* Promote Products */}
+      <Stack.Screen name="PromoteProducts" component={PromoteProductsScreen} options={{ animation: 'slide_from_right' }} />
 
       {/* Auth — only when guest taps login/register */}
       <Stack.Screen name="Auth" component={AuthNavigator} options={{ animation: 'slide_from_bottom' }} />
