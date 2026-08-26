@@ -258,6 +258,10 @@ export default function MobileMoneyScreen({ navigation, route }) {
         <Text style={styles.successText}>
           TZS {Number(amount).toLocaleString()} paid via {selectedProvider?.name}
         </Text>
+        <View style={styles.successSecureNote}>
+          <Text style={styles.secureIcon}>🔒</Text>
+          <Text style={styles.secureText}>Secured by AzamPay</Text>
+        </View>
         <Button
           title="View Order"
           onPress={() => navigation.replace('OrderDetail', { orderId })}
@@ -453,6 +457,7 @@ const styles = StyleSheet.create({
   successIcon: { fontSize: 80, marginBottom: SPACING.base },
   successTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.success, marginBottom: SPACING.sm },
   successText: { fontSize: FONTS.base, color: COLORS.textSecondary, textAlign: 'center', marginBottom: SPACING.xs },
+  successSecureNote: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginTop: SPACING.sm },
   successSub: { fontSize: FONTS.sm, color: COLORS.textMuted },
   failedIcon: { fontSize: 80, marginBottom: SPACING.base },
   failedTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.danger, marginBottom: SPACING.sm },

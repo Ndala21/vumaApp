@@ -401,40 +401,6 @@ export default function CheckoutScreen({ navigation, route }) {
         enableOnAndroid extraScrollHeight={100}
         showsVerticalScrollIndicator={false}
       >
-        {/* Order Summary */}
-        <View style={styles.summaryCard}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionAccent} />
-            <Text style={styles.summaryTitle}>Order Summary</Text>
-          </View>
-          {purchaseItems.map((item, i) => {
-            const unitPrice = getEffectivePrice(item.product);
-            const lineTotal = unitPrice * item.quantity;
-            return (
-              <View key={i} style={styles.summaryRow}>
-                <Text style={styles.summaryItem} numberOfLines={1}>{item.product?.name} ×{item.quantity}</Text>
-                <Text style={styles.summaryPrice}>TZS {Number(lineTotal || 0).toLocaleString()}</Text>
-              </View>
-            );
-          })}
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryItem}>Delivery</Text>
-            <Text style={[styles.summaryPrice, { color: COLORS.success }]}>FREE</Text>
-          </View>
-          <View style={styles.summaryTotal}>
-            <Text style={styles.summaryTotalLabel}>Total</Text>
-            <Text style={styles.summaryTotalValue}>TZS {Number(cartTotal || 0).toLocaleString()}</Text>
-          </View>
-        </View>
-
-        {/* Commission Breakdown */}
-        <CommissionBreakdown
-          categorySlug={firstItemCategory}
-          price={cartSubtotal}
-          quantity={1}
-          style={styles.commissionCard}
-        />
-
         {/* Saved Addresses */}
         {savedAddresses.length > 0 && (
           <View style={styles.section}>
@@ -650,6 +616,66 @@ export default function CheckoutScreen({ navigation, route }) {
           ))}
         </View>
 
+        {/* Payment Methods We Accept — real logos only, no fabricated
+            "enabled" claims beyond what's actually configured (real
+            AzamPay mobile money channels + real bank options; no card
+            processing is wired up in this integration). */}
+        <View style={styles.section}>
+          <Text style={styles.methodsHeading}>We Accept</Text>
+          <View style={styles.methodsGrid}>
+            {[
+              { code: 'mpesa', label: 'M-Pesa', bg: '#4CAF50' },
+              { code: 'tigopesa', label: 'Tigo Pesa', bg: '#0066B3' },
+              { code: 'airtel', label: 'Airtel Money', bg: '#E4002B' },
+              { code: 'halopesa', label: 'HaloPesa', bg: '#F7941D' },
+              { code: 'nmb', label: 'NMB', bg: '#1B4F72' },
+              { code: 'crdb', label: 'CRDB', bg: '#003D7A' },
+            ].map(m => (
+              <View key={m.code} style={[styles.methodBadge, { backgroundColor: m.bg }]}>
+                <Text style={styles.methodBadgeText}>{m.label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.methodsTrustRow}>
+            <Text style={styles.methodsTrustIcon}>🔒</Text>
+            <Text style={styles.methodsTrustText}>Secure payment — Secured by AzamPay</Text>
+          </View>
+        </View>
+
+        {/* Order Summary */}
+        <View style={styles.summaryCard}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.summaryTitle}>Order Summary</Text>
+          </View>
+          {purchaseItems.map((item, i) => {
+            const unitPrice = getEffectivePrice(item.product);
+            const lineTotal = unitPrice * item.quantity;
+            return (
+              <View key={i} style={styles.summaryRow}>
+                <Text style={styles.summaryItem} numberOfLines={1}>{item.product?.name} ×{item.quantity}</Text>
+                <Text style={styles.summaryPrice}>TZS {Number(lineTotal || 0).toLocaleString()}</Text>
+              </View>
+            );
+          })}
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryItem}>Delivery</Text>
+            <Text style={[styles.summaryPrice, { color: COLORS.success }]}>FREE</Text>
+          </View>
+          <View style={styles.summaryTotal}>
+            <Text style={styles.summaryTotalLabel}>Total</Text>
+            <Text style={styles.summaryTotalValue}>TZS {Number(cartTotal || 0).toLocaleString()}</Text>
+          </View>
+        </View>
+
+        {/* Commission Breakdown */}
+        <CommissionBreakdown
+          categorySlug={firstItemCategory}
+          price={cartSubtotal}
+          quantity={1}
+          style={styles.commissionCard}
+        />
+
         {/* Place Order */}
         <View style={styles.placeOrderSection}>
           <View style={styles.totalRow}>
@@ -790,6 +816,13 @@ const styles = StyleSheet.create({
   radio: { width: 22, height: 22, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.borderStrong, alignItems: 'center', justifyContent: 'center' },
   radioActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   radioTick: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  methodsHeading: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  methodsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, marginBottom: SPACING.sm },
+  methodBadge: { paddingHorizontal: SPACING.sm + 2, paddingVertical: 6, borderRadius: RADIUS.sm },
+  methodBadgeText: { color: 'white', fontSize: 10.5, fontWeight: FONTS.bold },
+  methodsTrustRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  methodsTrustIcon: { fontSize: 11 },
+  methodsTrustText: { fontSize: FONTS.xs, color: COLORS.textMuted },
   placeOrderSection: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.md },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.base },
   totalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
