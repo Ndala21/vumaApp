@@ -71,6 +71,8 @@ export default function HomeScreen({ navigation }) {
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [promotions, setPromotions] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+  const toastTimer = React.useRef(null);
 
   useEffect(() => { loadInitialData(); }, []);
 
@@ -149,6 +151,14 @@ export default function HomeScreen({ navigation }) {
     if (isAuthenticated) productsAPI.trackView(product.id).catch(() => {});
     navigation.navigate(SCREENS.PRODUCT_DETAIL, { productId: product.id, product });
   }, [isAuthenticated]);
+
+  // Temporary "Added to cart" confirmation — replaces the old permanent
+  // checkmark on the product image, matching Coupang-style feedback.
+  const handleAddedToCart = useCallback(() => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMessage('Added to cart ✓');
+    toastTimer.current = setTimeout(() => setToastMessage(''), 1800);
+  }, []);
 
   const handleBannerPress = useCallback((banner) => {
     if (!banner.link_type || banner.link_type === 'none') return;
@@ -323,7 +333,7 @@ export default function HomeScreen({ navigation }) {
         {columns.map((col, colIndex) => (
           <View key={colIndex} style={styles.masonryColumn}>
             {col.map((product) => (
-              <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} />
+              <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} onAddedToCart={handleAddedToCart} />
             ))}
           </View>
         ))}
@@ -404,34 +414,28 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* ── Welcome Gift highlight ── */}
+        {/* ── Welcome Gift highlight — compact single row ── */}
         {promotions?.welcome_gift?.active && (
-          <TouchableOpacity style={styles.giftWideCard} onPress={handleWelcomeGiftPress} activeOpacity={0.9}>
+          <TouchableOpacity style={styles.giftWideCard} onPress={handleWelcomeGiftPress} activeOpacity={0.85}>
             <Text style={styles.giftWideIcon}>🎁</Text>
             <View style={styles.giftWideText}>
               <Text style={styles.giftWideTitle}>Zawadi Maalum ya Karibu!</Text>
-              <Text style={styles.giftWideSub}>
-                Pata TZS {Number(promotions.welcome_gift.amount).toLocaleString()} punguzo kwenye oda yako ya kwanza.
+              <Text style={styles.giftWideSub} numberOfLines={1}>
+                Pata TZS {Number(promotions.welcome_gift.amount).toLocaleString()} kwenye oda ya kwanza
               </Text>
-              <View style={styles.giftWideBtn}>
-                <Text style={styles.giftWideBtnText}>🎁 Pokea Zawadi</Text>
-              </View>
             </View>
+            <Text style={styles.giftWideArrow}>›</Text>
           </TouchableOpacity>
         )}
 
-        {/* ── Become a Seller — evergreen recruitment banner ── */}
-        <TouchableOpacity style={styles.sellerBanner} onPress={() => navigation.navigate('VendorRegister')} activeOpacity={0.9}>
+        {/* ── Become a Seller — compact tile, not a full banner ── */}
+        <TouchableOpacity style={styles.sellerBanner} onPress={() => navigation.navigate('VendorRegister')} activeOpacity={0.85}>
+          <Text style={styles.sellerBannerIcon}>🏪</Text>
           <View style={styles.sellerBannerText}>
-            <Text style={styles.sellerBannerHeadline}>Pata Faida na VUMA!</Text>
-            <Text style={styles.sellerBannerTitle}>UZA BIDHAA ZAKO KWA MAELFU YA WATEJA!</Text>
-            {['Usajili rahisi', 'Hakuna gharama ya kuanza', 'Fikia wateja kote Tanzania'].map((line, i) => (
-              <Text key={i} style={styles.sellerBannerBullet}>✓ {line}</Text>
-            ))}
-            <View style={styles.sellerBannerBtn}>
-              <Text style={styles.sellerBannerBtnText}>Kujiunga kama Muuzaji</Text>
-            </View>
+            <Text style={styles.sellerBannerTitle}>Uza Bidhaa Zako VUMA</Text>
+            <Text style={styles.sellerBannerSub} numberOfLines={1}>Usajili rahisi · Hakuna gharama ya kuanza</Text>
           </View>
+          <Text style={styles.sellerBannerArrow}>›</Text>
         </TouchableOpacity>
 
         {/* Flash Sale — tinted section, distinct from the rest of the feed */}
@@ -515,6 +519,12 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.loadingMore}><Text style={styles.loadingMoreText}>Loading more…</Text></View>
         )}
       </ScrollView>
+
+      {toastMessage !== '' && (
+        <View style={styles.toast} pointerEvents="none">
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -599,34 +609,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     backgroundColor: '#FFF1DB', borderRadius: RADIUS.lg,
     marginHorizontal: SPACING.base, marginBottom: SPACING.sm,
-    padding: SPACING.base,
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2,
   },
-  giftWideIcon: { fontSize: 40 },
+  giftWideIcon: { fontSize: 32 },
   giftWideText: { flex: 1 },
-  giftWideTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
-  giftWideSub: { fontSize: FONTS.xs, color: COLORS.textSecondary, marginBottom: SPACING.sm },
-  giftWideBtn: {
-    alignSelf: 'flex-start', backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.md, paddingHorizontal: SPACING.base, paddingVertical: SPACING.xs + 2,
-  },
-  giftWideBtnText: { color: 'white', fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  giftWideTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
+  giftWideSub: { fontSize: 10.5, color: COLORS.textSecondary },
+  giftWideArrow: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold },
 
-  // ── Become a Seller banner ──
+  // ── Become a Seller banner — compact tile ──
   sellerBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     backgroundColor: '#FDECD9', borderRadius: RADIUS.lg,
     marginHorizontal: SPACING.base, marginBottom: SPACING.sm,
-    padding: SPACING.base,
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2,
   },
-  sellerBannerText: { gap: 2 },
-  sellerBannerHeadline: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
-  sellerBannerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs, letterSpacing: FONTS.trackTight },
-  sellerBannerBullet: { fontSize: FONTS.xs, color: COLORS.textSecondary, marginBottom: 2 },
-  sellerBannerBtn: {
-    alignSelf: 'flex-start', backgroundColor: '#12162B',
-    borderRadius: RADIUS.md, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm,
-    marginTop: SPACING.sm,
-  },
-  sellerBannerBtnText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.bold },
+  sellerBannerIcon: { fontSize: 26 },
+  sellerBannerText: { flex: 1 },
+  sellerBannerTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  sellerBannerSub: { fontSize: 10.5, color: COLORS.textSecondary, marginTop: 1 },
+  sellerBannerArrow: { fontSize: FONTS.xl, color: '#12162B', fontWeight: FONTS.bold },
 
   // ── Deal card ──
   dealCard: {
@@ -673,4 +675,12 @@ const styles = StyleSheet.create({
 
   loadingMore: { padding: SPACING.xl, alignItems: 'center' },
   loadingMoreText: { fontSize: FONTS.sm, color: COLORS.textMuted },
+
+  // ── Toast ──
+  toast: {
+    position: 'absolute', bottom: 24, alignSelf: 'center',
+    backgroundColor: 'rgba(18,22,43,0.92)', borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.base + 4, paddingVertical: SPACING.sm + 2,
+  },
+  toastText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.semiBold },
 });

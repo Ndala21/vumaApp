@@ -11,7 +11,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../utils/constants';
 import { formatPrice, getDiscount, isFlashSale, getEffectivePrice } from '../utils/helpers';
-import { addToCartAndSave, toggleWishlistAndSave, selectIsInCart, selectIsInWishlist } from '../store/cartSlice';
+import { addToCartAndSave, selectIsInCart } from '../store/cartSlice';
 
 // ── Safe Image with fallback ──────────────────────────
 const ProductImage = memo(({ uri, style, placeholderSize = 40 }) => {
@@ -35,10 +35,9 @@ const ProductImage = memo(({ uri, style, placeholderSize = 40 }) => {
   );
 });
 
-function ProductCard({ product, onPress, style, variant = 'grid' }) {
+function ProductCard({ product, onPress, style, variant = 'grid', onAddedToCart }) {
   const dispatch = useDispatch();
   const isInCart = useSelector(selectIsInCart(product?.id));
-  const isWishlisted = useSelector(selectIsInWishlist(product?.id));
 
   if (!product) return null;
 
@@ -52,11 +51,7 @@ function ProductCard({ product, onPress, style, variant = 'grid' }) {
     e.stopPropagation();
     if (outOfStock) return;
     dispatch(addToCartAndSave(product, 1));
-  };
-
-  const handleWishlist = (e) => {
-    e.stopPropagation();
-    dispatch(toggleWishlistAndSave(product.id));
+    onAddedToCart && onAddedToCart(product);
   };
 
   // ── List Variant ──────────────────────────────────
@@ -72,6 +67,7 @@ function ProductCard({ product, onPress, style, variant = 'grid' }) {
           )}
         </View>
         <View style={styles.listInfo}>
+          {product.is_sponsored && <Text style={styles.sponsoredLabel}>Sponsored</Text>}
           <Text style={styles.listName} numberOfLines={2}>{product.name}</Text>
           {product.vendor_name && (
             <Text style={styles.vendorName}>🏪 {product.vendor_name}</Text>
@@ -89,10 +85,10 @@ function ProductCard({ product, onPress, style, variant = 'grid' }) {
           )}
         </View>
         <TouchableOpacity
-          style={[styles.listCartBtn, isInCart && styles.listCartBtnActive, outOfStock && styles.listCartBtnDisabled]}
+          style={[styles.listCartBtn, outOfStock && styles.listCartBtnDisabled]}
           onPress={handleAddToCart} disabled={outOfStock}
         >
-          <Text style={styles.listCartBtnText}>{outOfStock ? '✗' : isInCart ? '✓' : '+'}</Text>
+          <Text style={styles.listCartBtnText}>{outOfStock ? '✗' : '+'}</Text>
         </TouchableOpacity>
       </TouchableOpacity>
     );
@@ -137,23 +133,19 @@ function ProductCard({ product, onPress, style, variant = 'grid' }) {
             <Text style={styles.outOfStockText}>Out of Stock</Text>
           </View>
         )}
+        {/* Small overlay cart button — always shows the same plain icon;
+            adding to cart triggers a temporary toast instead of a
+            permanent checkmark, so the image stays clean. */}
         <TouchableOpacity
-          style={styles.wishlistBtn} onPress={handleWishlist}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <Text style={styles.wishlistIcon}>{isWishlisted ? '❤️' : '🤍'}</Text>
-        </TouchableOpacity>
-        {/* Small overlay cart button, replacing the old full-width Add button */}
-        <TouchableOpacity
-          style={[styles.cartFab, isInCart && styles.cartFabActive, outOfStock && styles.cartFabDisabled]}
+          style={[styles.cartFab, outOfStock && styles.cartFabDisabled]}
           onPress={handleAddToCart} disabled={outOfStock}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         >
-          <Text style={styles.cartFabIcon}>{outOfStock ? '✗' : isInCart ? '✓' : '🛒'}</Text>
+          <Text style={styles.cartFabIcon}>{outOfStock ? '✗' : '🛒'}</Text>
         </TouchableOpacity>
       </View>
-
       <View style={styles.info}>
+        {product.is_sponsored && <Text style={styles.sponsoredLabel}>Sponsored</Text>}
         <Text style={styles.name} numberOfLines={1}>{product.name}</Text>
         <View style={styles.priceRow}>
           <Text style={styles.price}>{formatPrice(effectivePrice)}</Text>
@@ -185,13 +177,11 @@ const styles = StyleSheet.create({
   discountBadgeText: { color: COLORS.textWhite, fontSize: 9, fontWeight: FONTS.bold },
   outOfStockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   outOfStockText: { color: COLORS.textWhite, fontSize: 9.5, fontWeight: FONTS.bold, backgroundColor: COLORS.danger, paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm, textAlign: 'center' },
-  wishlistBtn: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: RADIUS.full, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
-  wishlistIcon: { fontSize: 11 },
   cartFab: { position: 'absolute', bottom: 4, right: 4, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, width: 26, height: 26, alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm },
-  cartFabActive: { backgroundColor: COLORS.success },
   cartFabDisabled: { backgroundColor: COLORS.skeleton },
   cartFabIcon: { fontSize: 12, color: COLORS.textWhite },
   info: { padding: 6 },
+  sponsoredLabel: { fontSize: 8.5, color: COLORS.textMuted, fontWeight: FONTS.medium, marginBottom: 2, letterSpacing: 0.2 },
   vendorName: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: 2 },
   name: { fontSize: 11.5, color: COLORS.textPrimary, lineHeight: 14, fontWeight: FONTS.medium, marginBottom: 3 },
   priceRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 3, marginBottom: 2 },
@@ -208,7 +198,6 @@ const styles = StyleSheet.create({
   listInfo: { flex: 1, padding: SPACING.sm, justifyContent: 'center' },
   listName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, marginBottom: 4, lineHeight: 18 },
   listCartBtn: { width: 32, height: 32, alignSelf: 'center', marginRight: SPACING.sm, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
-  listCartBtnActive: { backgroundColor: COLORS.success },
   listCartBtnDisabled: { backgroundColor: COLORS.skeleton },
   listCartBtnText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.bold, lineHeight: 20 },
   // Featured — unchanged
