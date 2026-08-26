@@ -41,7 +41,7 @@ const MENU_SECTIONS = [
   {
     heading: 'MONEY',
     items: [
-      { key: 'earnings', label: 'Earnings & Payments', icon: '💳', screen: null },
+      { key: 'earnings', label: 'Earnings & Payments', icon: '💳', screen: 'SellerWallet' },
       { key: 'promote_products', label: 'Promote Products', icon: '??', screen: 'PromoteProducts' },
       { key: 'sales', label: 'Sales', icon: '📊', screen: null },
     ],
