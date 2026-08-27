@@ -3,10 +3,10 @@
  * Fixed: uses item.product.* structure, real vendor names, real images
  */
 
-import React, { useState, useCallback, useMemo, memo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  StatusBar, Platform, Alert, Image,
+  StatusBar, Platform, Alert, Image, ScrollView,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -14,6 +14,8 @@ import {
 } from '../../store/cartSlice';
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import ProductCard from '../../components/ProductCard';
+import { productsAPI } from '../../api/products';
 
 const DELIVERY_FEE = 0;
 
@@ -162,6 +164,23 @@ const SellerGroupHeader = memo(({ seller, allSelected, someSelected, onToggleAll
   </View>
 ));
 
+// ── Continue Shopping row — a real horizontal product carousel,
+// reused across "You May Also Like" / "Recommended for You" /
+// "Continue Shopping" so the cart never dead-ends the shopping flow. ──
+const SuggestionRow = memo(({ title, products, onProductPress }) => {
+  if (!products?.length) return null;
+  return (
+    <View style={styles.suggestionSection}>
+      <Text style={styles.suggestionTitle}>{title}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionList}>
+        {products.slice(0, 10).map((p) => (
+          <ProductCard key={p.id} product={p} variant="featured" onPress={() => onProductPress(p)} style={styles.suggestionCard} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+});
+
 export default function CartScreen({ navigation }) {
   const dispatch = useDispatch();
   const cartItems = useSelector(selectCartItems);
@@ -279,6 +298,29 @@ export default function CartScreen({ navigation }) {
     navigation.navigate('Checkout', { items: selectedItems, total, source: 'cart' });
   }, [isAuthenticated, selectedItems, total, navigation]);
 
+  // ── Continue Shopping — real product suggestions below the cart,
+  // so the customer never has to leave this screen to keep browsing. ──
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [recommendedProducts, setRecommendedProducts] = useState([]);
+  const [trendingProducts, setTrendingProducts] = useState([]);
+  const firstCartProductId = cartItems[0]?.product?.id;
+
+  useEffect(() => {
+    productsAPI.getTrending().then((d) => setTrendingProducts(d?.results || d || [])).catch(() => {});
+    if (isAuthenticated) {
+      productsAPI.getRecommendations().then((d) => setRecommendedProducts(d?.results || d || [])).catch(() => {});
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!firstCartProductId) return;
+    productsAPI.getRelatedProducts(firstCartProductId).then((d) => setRelatedProducts(d?.results || d || [])).catch(() => {});
+  }, [firstCartProductId]);
+
+  const handleSuggestionPress = useCallback((product) => {
+    navigation.navigate('ProductDetail', { productId: product.id, product });
+  }, [navigation]);
+
   if (cartItems.length === 0) {
     return (
       <View style={styles.container}>
@@ -352,7 +394,16 @@ export default function CartScreen({ navigation }) {
             </View>
           );
         }}
-        ListFooterComponent={<View style={{ height: 280 }} />}
+        ListFooterComponent={
+          <View>
+            <SuggestionRow title="You May Also Like" products={relatedProducts} onProductPress={handleSuggestionPress} />
+            {isAuthenticated && (
+              <SuggestionRow title="Recommended for You" products={recommendedProducts} onProductPress={handleSuggestionPress} />
+            )}
+            <SuggestionRow title="Continue Shopping" products={trendingProducts} onProductPress={handleSuggestionPress} />
+            <View style={{ height: 280 }} />
+          </View>
+        }
       />
 
       <View style={styles.summary}>
@@ -461,4 +512,10 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: FONTS.sm, color: COLORS.textMuted, marginBottom: SPACING.xl },
   shopNowBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingHorizontal: SPACING['2xl'], paddingVertical: SPACING.base },
   shopNowBtnText: { color: 'white', fontSize: FONTS.base, fontWeight: FONTS.bold },
+
+  // ── Continue Shopping suggestion rows ──
+  suggestionSection: { marginTop: SPACING.base, paddingTop: SPACING.sm },
+  suggestionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, paddingHorizontal: SPACING.sm },
+  suggestionList: { paddingHorizontal: SPACING.sm, gap: SPACING.sm },
+  suggestionCard: { width: 150, height: 200 },
 });
