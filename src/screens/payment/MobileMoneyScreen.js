@@ -7,6 +7,12 @@
  * The order is only marked paid by the backend webhook after the
  * customer actually enters their PIN on their own phone — this screen
  * never collects, displays, logs, or stores that PIN.
+ *
+ * Select-screen layout redesigned to match the provided reference:
+ * orange "Total to Pay" card, 2x2 provider grid, peach secure-payment
+ * info box, "Lipa" pay button, trust badges, provider logo row.
+ * All payment logic below (confirm dialog, STK push, polling,
+ * processing/success/failed/cancelled screens) is unchanged.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -22,7 +28,7 @@ const PROVIDERS = [
   {
     id: 'mpesa',
     name: 'M-Pesa',
-    company: 'Vodacom',
+    company: 'Vodacom Tanzania',
     icon: '📱',
     color: '#E31E2D',
     prefix: '255 07X',
@@ -33,7 +39,7 @@ const PROVIDERS = [
     name: 'Airtel Money',
     company: 'Airtel Tanzania',
     icon: '📱',
-    color: '#FF0000',
+    color: '#E31E2D',
     prefix: '255 068/069',
     numbers: ['068', '069'],
   },
@@ -42,14 +48,14 @@ const PROVIDERS = [
     name: 'Tigo Pesa',
     company: 'Tigo Tanzania',
     icon: '📱',
-    color: '#00A0E3',
+    color: '#0072C6',
     prefix: '255 065/067',
     numbers: ['065', '067'],
   },
   {
     id: 'halopesa',
     name: 'HaloPesa',
-    company: 'Halotel',
+    company: 'Halotel Tanzania',
     icon: '📱',
     color: '#6B2D8B',
     prefix: '255 062',
@@ -86,6 +92,20 @@ export default function MobileMoneyScreen({ navigation, route }) {
     if (pollTimer.current) {
       clearTimeout(pollTimer.current);
       pollTimer.current = null;
+    }
+  };
+
+  const handleCopyOrderNumber = async () => {
+    // Dynamic import matches the same safe pattern api/client.js already
+    // uses for axios — avoids a hard bundling dependency on whichever
+    // clipboard package this project has (or hasn't) installed.
+    if (!orderNumber) return;
+    try {
+      const Clipboard = (await import('@react-native-clipboard/clipboard')).default;
+      Clipboard.setString(String(orderNumber));
+    } catch (e) {
+      // Clipboard package not available — the tap simply does nothing,
+      // rather than crashing the screen.
     }
   };
 
@@ -313,53 +333,61 @@ export default function MobileMoneyScreen({ navigation, route }) {
           <Text style={styles.backBtn}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Pay with Mobile Money</Text>
-        <View style={{ width: 32 }} />
+        <View style={styles.headerSecureBadge}>
+          <Text style={styles.headerSecureIcon}>🛡️</Text>
+          <Text style={styles.headerSecureText}>Secure Payment</Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Amount */}
         <View style={styles.amountCard}>
-          <Text style={styles.amountLabel}>Order #{orderNumber}</Text>
-          <Text style={styles.amountValue}>TZS {Number(amount).toLocaleString()}</Text>
-          <Text style={styles.amountSub}>Total to pay</Text>
+          <View style={styles.amountCardLeft}>
+            <Text style={styles.amountLabel}>Total to Pay</Text>
+            <Text style={styles.amountValue}>TZS {Number(amount).toLocaleString()}</Text>
+            <TouchableOpacity style={styles.orderNumRow} onPress={handleCopyOrderNumber} activeOpacity={0.7}>
+              <Text style={styles.amountSub}>Order #{orderNumber}</Text>
+              <Text style={styles.copyIcon}>📋</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.walletIcon}>👛</Text>
         </View>
 
-        {/* Provider Selection */}
-        <Text style={styles.sectionTitle}>Select Payment Method</Text>
-        {PROVIDERS.map(provider => (
-          <TouchableOpacity
-            key={provider.id}
-            style={[
-              styles.providerCard,
-              selectedProvider?.id === provider.id && { borderColor: provider.color, backgroundColor: provider.color + '10' },
-            ]}
-            onPress={() => setSelectedProvider(provider)}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.providerLogo, { backgroundColor: provider.color }]}>
-              <Text style={styles.providerLogoText}>{provider.icon}</Text>
-            </View>
-            <View style={styles.providerInfo}>
-              <Text style={styles.providerName}>{provider.name}</Text>
-              <Text style={styles.providerCompany}>{provider.company}</Text>
-              <Text style={styles.providerNumbers}>Numbers: {provider.numbers.join(', ')}</Text>
-            </View>
-            <View style={[
-              styles.providerRadio,
-              selectedProvider?.id === provider.id && { backgroundColor: provider.color, borderColor: provider.color },
-            ]}>
-              {selectedProvider?.id === provider.id && <Text style={styles.radioCheck}>✓</Text>}
-            </View>
-          </TouchableOpacity>
-        ))}
+        {/* Provider Selection — 2x2 grid */}
+        <Text style={styles.sectionTitle}>Choose payment method</Text>
+        <View style={styles.providerGrid}>
+          {PROVIDERS.map(provider => {
+            const isSelected = selectedProvider?.id === provider.id;
+            return (
+              <TouchableOpacity
+                key={provider.id}
+                style={[styles.providerCard, isSelected && { borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade }]}
+                onPress={() => setSelectedProvider(provider)}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.providerLogo, { backgroundColor: provider.color }]}>
+                  <Text style={styles.providerLogoText}>{provider.icon}</Text>
+                </View>
+                <View style={styles.providerInfo}>
+                  <Text style={styles.providerName} numberOfLines={1}>{provider.name}</Text>
+                  <Text style={styles.providerCompany} numberOfLines={1}>{provider.company}</Text>
+                </View>
+                <View style={[styles.providerRadio, isSelected && { backgroundColor: COLORS.primary, borderColor: COLORS.primary }]}>
+                  {isSelected && <Text style={styles.radioCheck}>✓</Text>}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {/* Phone Number */}
         {selectedProvider && (
           <View style={styles.phoneSection}>
-            <Text style={styles.sectionTitle}>{selectedProvider.name} Phone Number</Text>
+            <Text style={styles.sectionTitle}>Enter {selectedProvider.name} phone number</Text>
             <View style={styles.phoneInputWrap}>
               <View style={styles.phonePrefix}>
                 <Text style={styles.phonePrefixText}>🇹🇿 +255</Text>
+                <Text style={styles.phonePrefixCaret}>▾</Text>
               </View>
               <TextInput
                 style={styles.phoneInput}
@@ -370,25 +398,68 @@ export default function MobileMoneyScreen({ navigation, route }) {
                 maxLength={12}
                 placeholderTextColor={COLORS.textLight}
               />
+              <View style={styles.contactIconWrap}>
+                <Text style={styles.contactIcon}>👤</Text>
+              </View>
             </View>
             <Text style={styles.phoneHint}>
-              Enter the number registered with {selectedProvider.name}
+              Enter the phone number registered with {selectedProvider.name}
             </Text>
           </View>
         )}
 
+        {/* Secure payment info box */}
+        <View style={styles.secureBox}>
+          <Text style={styles.secureBoxIcon}>🛡️</Text>
+          <View style={styles.secureBoxText}>
+            <Text style={styles.secureBoxTitle}>Secure payment</Text>
+            <Text style={styles.secureBoxDesc}>
+              You will receive a payment prompt on your phone. Enter your PIN to complete the payment.
+            </Text>
+          </View>
+        </View>
+
         {/* Pay Button */}
-        <Button
-          title={`Pay TZS ${Number(amount).toLocaleString()}`}
+        <TouchableOpacity
+          style={[styles.payBtn, (!selectedProvider || !phone.trim()) && styles.payBtnDisabled]}
           onPress={handleTapPay}
           disabled={!selectedProvider || !phone.trim()}
-          fullWidth
-          style={styles.payBtn}
-        />
+          activeOpacity={0.85}
+        >
+          <Text style={styles.payBtnLock}>🔒</Text>
+          <Text style={styles.payBtnText}>Lipa TZS {Number(amount).toLocaleString()}</Text>
+        </TouchableOpacity>
 
-        <View style={styles.secureNote}>
-          <Text style={styles.secureIcon}>🔒</Text>
-          <Text style={styles.secureText}>Powered by AzamPay — Secure Tanzanian Payment Gateway</Text>
+        <Text style={styles.securedByText}>
+          Secured by <Text style={styles.securedByBrand}>AzamPay</Text>
+        </Text>
+
+        {/* Trust badges */}
+        <View style={styles.trustRow}>
+          {[
+            { icon: '🛡️', title: 'Safe & Secure', sub: 'Encrypted' },
+            { icon: '⚡', title: 'Fast Payments', sub: 'Instant' },
+            { icon: '✅', title: 'Trusted by', sub: 'Millions' },
+            { icon: '🎧', title: '24/7 Support', sub: "We're here" },
+          ].map((item, i) => (
+            <View key={i} style={styles.trustItem}>
+              <Text style={styles.trustIcon}>{item.icon}</Text>
+              <Text style={styles.trustTitle}>{item.title}</Text>
+              <Text style={styles.trustSub}>{item.sub}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Provider brand row — styled brand-color text, not
+            reproduced trademarked logo artwork */}
+        <View style={styles.brandRow}>
+          <Text style={[styles.brandText, { color: '#4CAF50' }]}>M-PESA</Text>
+          <View style={styles.brandDivider} />
+          <Text style={[styles.brandText, { color: '#E31E2D' }]}>airtel money</Text>
+          <View style={styles.brandDivider} />
+          <Text style={[styles.brandText, { color: '#0072C6' }]}>tigo pesa</Text>
+          <View style={styles.brandDivider} />
+          <Text style={[styles.brandText, { color: '#6B2D8B' }]}>haloPesa</Text>
         </View>
 
         <View style={{ height: 40 }} />
@@ -404,31 +475,72 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   backBtn: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold },
+  headerSecureBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  headerSecureIcon: { fontSize: 12 },
+  headerSecureText: { fontSize: 11, color: COLORS.primary, fontWeight: FONTS.semiBold },
   scroll: { padding: SPACING.base },
-  amountCard: { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, padding: SPACING.xl, alignItems: 'center', marginBottom: SPACING.xl, ...SHADOWS.md },
-  amountLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.8)', marginBottom: SPACING.xs },
+
+  // Amount card (orange, with wallet icon + copyable order number)
+  amountCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.xl, ...SHADOWS.md },
+  amountCardLeft: { flex: 1 },
+  amountLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.85)', marginBottom: SPACING.xs },
   amountValue: { fontSize: FONTS['4xl'], fontWeight: FONTS.black, color: 'white', letterSpacing: -1 },
-  amountSub: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
+  orderNumRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm },
+  amountSub: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.85)' },
+  copyIcon: { fontSize: 12 },
+  walletIcon: { fontSize: 56, opacity: 0.35, marginLeft: SPACING.sm },
+
   sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, marginTop: SPACING.sm },
-  providerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: COLORS.border, padding: SPACING.base, marginBottom: SPACING.sm, gap: SPACING.base, ...SHADOWS.sm },
-  providerLogo: { width: 48, height: 48, borderRadius: RADIUS.lg, alignItems: 'center', justifyContent: 'center' },
-  providerLogoText: { fontSize: 24 },
+
+  // 2x2 provider grid
+  providerGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: SPACING.sm },
+  providerCard: { width: '48.5%', flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: COLORS.border, padding: SPACING.sm, marginBottom: SPACING.sm, gap: SPACING.sm, ...SHADOWS.sm },
+  providerLogo: { width: 40, height: 40, borderRadius: RADIUS.lg, alignItems: 'center', justifyContent: 'center' },
+  providerLogoText: { fontSize: 18 },
   providerInfo: { flex: 1 },
-  providerName: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  providerCompany: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  providerNumbers: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  providerRadio: { width: 24, height: 24, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  radioCheck: { color: 'white', fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  providerName: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  providerCompany: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
+  providerRadio: { width: 22, height: 22, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  radioCheck: { color: 'white', fontSize: 11, fontWeight: FONTS.bold },
+
   phoneSection: { marginTop: SPACING.base },
-  phoneInputWrap: { flexDirection: 'row', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, overflow: 'hidden', marginBottom: SPACING.xs },
-  phonePrefix: { backgroundColor: COLORS.surfaceAlt, paddingHorizontal: SPACING.sm, justifyContent: 'center', borderRightWidth: 1, borderRightColor: COLORS.border },
+  phoneInputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, overflow: 'hidden', marginBottom: SPACING.xs },
+  phonePrefix: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.surfaceAlt, paddingHorizontal: SPACING.sm, paddingVertical: SPACING.sm + 2, borderRightWidth: 1, borderRightColor: COLORS.border },
   phonePrefixText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  phonePrefixCaret: { fontSize: 10, color: COLORS.textMuted },
   phoneInput: { flex: 1, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.lg, color: COLORS.textPrimary, letterSpacing: 2 },
+  contactIconWrap: { paddingHorizontal: SPACING.sm },
+  contactIcon: { fontSize: 18, opacity: 0.5 },
   phoneHint: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  payBtn: { marginTop: SPACING.xl, borderRadius: RADIUS.xl },
-  secureNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, marginTop: SPACING.base },
-  secureIcon: { fontSize: FONTS.sm },
-  secureText: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center' },
+
+  // Peach secure-payment info box
+  secureBox: { flexDirection: 'row', gap: SPACING.sm, backgroundColor: '#FFF1E6', borderRadius: RADIUS.lg, padding: SPACING.base, marginTop: SPACING.xl },
+  secureBoxIcon: { fontSize: 20 },
+  secureBoxText: { flex: 1 },
+  secureBoxTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
+  secureBoxDesc: { fontSize: FONTS.xs, color: COLORS.textSecondary, lineHeight: 18 },
+
+  // Lipa pay button
+  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingVertical: SPACING.base, marginTop: SPACING.xl, ...SHADOWS.md },
+  payBtnDisabled: { opacity: 0.5 },
+  payBtnLock: { fontSize: FONTS.base },
+  payBtnText: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: 'white' },
+
+  securedByText: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center', marginTop: SPACING.base },
+  securedByBrand: { color: COLORS.primary, fontWeight: FONTS.bold },
+
+  // Trust badges row
+  trustRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.xl, paddingTop: SPACING.base, borderTopWidth: 1, borderTopColor: COLORS.divider },
+  trustItem: { flex: 1, alignItems: 'center', gap: 3 },
+  trustIcon: { fontSize: 18 },
+  trustTitle: { fontSize: 10, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, textAlign: 'center' },
+  trustSub: { fontSize: 9, color: COLORS.textMuted, textAlign: 'center' },
+
+  // Provider brand row (styled text, not real logo artwork)
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.xl, paddingTop: SPACING.base, borderTopWidth: 1, borderTopColor: COLORS.divider },
+  brandText: { fontSize: FONTS.sm, fontWeight: FONTS.black },
+  brandDivider: { width: 1, height: 14, backgroundColor: COLORS.divider },
+
   // Confirm Dialog
   dialogOverlay: { flex: 1, backgroundColor: 'rgba(18,22,43,0.6)', justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
   dialogCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.xl, width: '100%', maxWidth: 380, ...SHADOWS.lg },
@@ -464,4 +576,6 @@ const styles = StyleSheet.create({
   failedText: { fontSize: FONTS.base, color: COLORS.textMuted, textAlign: 'center', marginBottom: SPACING.xl },
   retryBtn: { minWidth: 200, marginBottom: SPACING.base },
   cancelText: { fontSize: FONTS.sm, color: COLORS.textMuted },
+  secureIcon: { fontSize: FONTS.sm },
+  secureText: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center' },
 });

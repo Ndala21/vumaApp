@@ -1,6 +1,11 @@
 /**
  * VUMA Store — Order Detail Screen
  * With Receipt, Return Policy, Share Receipt
+ * Added: real Delivery Tracking card — shows real Shipment data
+ * (provider, tracking number, event timeline) from the universal
+ * logistics platform when one exists for this order. Shows nothing
+ * extra when it doesn't (a brand-new order with no shipment yet) —
+ * the existing 5-step progress tracker above still covers that case.
  */
 
 import React, { useEffect, useCallback, useState } from 'react';
@@ -22,6 +27,7 @@ import { t } from '../../i18n';
 import Button from '../../components/common/Button';
 import Loading from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
+import { get } from '../../api/client';
 
 const ORDER_STEPS = [
   { key: 'pending', label: 'Order Placed', icon: '📋' },
@@ -33,6 +39,23 @@ const ORDER_STEPS = [
 
 const STATUS_ORDER = ['pending', 'paid', 'processing', 'shipped', 'delivered'];
 
+// Universal Shipment status -> friendly label + icon, matching the
+// app's existing tone (short, Tanzanian-friendly, no jargon).
+const SHIPMENT_STATUS_INFO = {
+  pending: { label: 'Preparing', icon: '📦' },
+  ready_for_pickup: { label: 'Ready for pickup', icon: '📦' },
+  pickup_requested: { label: 'Pickup requested', icon: '📞' },
+  picked_up: { label: 'Picked up', icon: '🚚' },
+  in_transit: { label: 'On the way', icon: '🛣️' },
+  out_for_delivery: { label: 'Out for delivery', icon: '🏍️' },
+  delivered: { label: 'Delivered', icon: '✅' },
+  delivery_failed: { label: 'Delivery attempt failed', icon: '⚠️' },
+  return_requested: { label: 'Return requested', icon: '↩️' },
+  return_in_transit: { label: 'Return in progress', icon: '↩️' },
+  returned: { label: 'Returned', icon: '↩️' },
+  cancelled: { label: 'Cancelled', icon: '❌' },
+};
+
 export default function OrderDetailScreen({ navigation, route }) {
   const dispatch = useDispatch();
   const { orderId, order: routeOrder } = route?.params || {};
@@ -42,10 +65,18 @@ export default function OrderDetailScreen({ navigation, route }) {
   const displayOrder = order || routeOrder;
   const [showReceipt, setShowReceipt] = useState(false);
   const [showReturnPolicy, setShowReturnPolicy] = useState(false);
+  const [tracking, setTracking] = useState(null);
 
   useEffect(() => {
     if (orderId) dispatch(fetchOrderDetail(orderId));
     return () => dispatch(clearSelectedOrder());
+  }, [orderId]);
+
+  useEffect(() => {
+    if (!orderId) return;
+    get(`/logistics/shipments/by-order/${orderId}/`)
+      .then((data) => setTracking(data || null))
+      .catch(() => setTracking(null));
   }, [orderId]);
 
   const handleCancel = useCallback(() => {
@@ -118,6 +149,57 @@ export default function OrderDetailScreen({ navigation, route }) {
             </View>
           );
         })}
+      </View>
+    );
+  };
+
+  // ── Real Delivery Tracking — from the universal Shipment system ──
+  const DeliveryTrackingCard = () => {
+    if (!tracking) return null;
+    const currentInfo = SHIPMENT_STATUS_INFO[tracking.status] || { label: tracking.status, icon: '📍' };
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>🚚 Delivery Tracking</Text>
+
+        <View style={styles.trackingHeaderRow}>
+          <View>
+            <Text style={styles.trackingCompany}>{tracking.provider_name}</Text>
+            {tracking.tracking_number ? (
+              <Text style={styles.trackingNum}>Tracking: {tracking.tracking_number}</Text>
+            ) : null}
+          </View>
+          <View style={[styles.trackingStatusPill, { backgroundColor: statusColor + '20' }]}>
+            <Text style={styles.trackingStatusIcon}>{currentInfo.icon}</Text>
+            <Text style={[styles.trackingStatusText, { color: statusColor }]}>{currentInfo.label}</Text>
+          </View>
+        </View>
+
+        {tracking.estimated_delivery_date && (
+          <Text style={styles.trackingEta}>Estimated delivery: {formatDateTime(tracking.estimated_delivery_date)}</Text>
+        )}
+
+        {tracking.events?.length > 0 && (
+          <View style={styles.timeline}>
+            {tracking.events.map((event, i) => {
+              const info = SHIPMENT_STATUS_INFO[event.status] || { label: event.status, icon: '📍' };
+              const isLast = i === tracking.events.length - 1;
+              return (
+                <View key={i} style={styles.timelineRow}>
+                  <View style={styles.timelineDotCol}>
+                    <View style={[styles.timelineDot, isLast && styles.timelineDotLatest]}>
+                      <Text style={styles.timelineDotIcon}>{info.icon}</Text>
+                    </View>
+                    {i < tracking.events.length - 1 && <View style={styles.timelineLine} />}
+                  </View>
+                  <View style={styles.timelineTextCol}>
+                    <Text style={[styles.timelineLabel, isLast && styles.timelineLabelLatest]}>{info.label}</Text>
+                    <Text style={styles.timelineTime}>{formatDateTime(event.timestamp)}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </View>
     );
   };
@@ -351,6 +433,9 @@ export default function OrderDetailScreen({ navigation, route }) {
           <ProgressTracker />
         </View>
 
+        {/* Real Delivery Tracking — only shown when a real Shipment exists */}
+        <DeliveryTrackingCard />
+
         {/* Items */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>📦 Items ({displayOrder.items?.length || 0})</Text>
@@ -492,6 +577,27 @@ const styles = StyleSheet.create({
   cancelledIcon: { fontSize: 32 },
   cancelledTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.dangerText },
   cancelledSub: { fontSize: FONTS.sm, color: COLORS.dangerText, opacity: 0.8, marginTop: 2 },
+
+  // Real Delivery Tracking card
+  trackingHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.sm },
+  trackingCompany: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  trackingNum: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  trackingStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: SPACING.sm, paddingVertical: 5, borderRadius: RADIUS.full },
+  trackingStatusIcon: { fontSize: 12 },
+  trackingStatusText: { fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  trackingEta: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.sm },
+  timeline: { marginTop: SPACING.sm, paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.divider },
+  timelineRow: { flexDirection: 'row', gap: SPACING.sm },
+  timelineDotCol: { alignItems: 'center', width: 28 },
+  timelineDot: { width: 26, height: 26, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.border },
+  timelineDotLatest: { backgroundColor: COLORS.primaryFade, borderColor: COLORS.primary },
+  timelineDotIcon: { fontSize: 12 },
+  timelineLine: { width: 2, flex: 1, minHeight: 16, backgroundColor: COLORS.border, marginTop: 2 },
+  timelineTextCol: { flex: 1, paddingBottom: SPACING.sm },
+  timelineLabel: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
+  timelineLabelLatest: { color: COLORS.textPrimary, fontWeight: FONTS.bold },
+  timelineTime: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+
   orderItem: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: SPACING.sm, gap: SPACING.sm },
   orderItemBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   itemImage: { width: 72, height: 72, borderRadius: RADIUS.lg, backgroundColor: COLORS.skeleton },
