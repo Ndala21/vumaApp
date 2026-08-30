@@ -242,7 +242,7 @@ export default function ProductDetailScreen({ navigation, route }) {
 
   const handleWishlist = () => {
     if (!isAuthenticated) { setPendingAction(null); setShowAuthModal(true); return; }
-    dispatch(toggleWishlistAndSave(displayProduct.id));
+    dispatch(toggleWishlistAndSave(displayProduct));
   };
 
   const handleShare = async () => {

@@ -1,10 +1,23 @@
 /**
  * VUMA Store — Cart Slice
  * Multi-vendor cart with persistence
+ *
+ * Wishlist section updated: previously toggleWishlistAndSave only
+ * wrote to local AsyncStorage (storage.setWishlist) and never called
+ * any API — wishlisted items were lost on reinstall and never synced
+ * across devices. Now backed by the real
+ * apps.products.promotions.WishlistItem backend (GET/POST
+ * /promotions/wishlist/...). Local storage is kept as an offline-first
+ * cache, not the source of truth anymore. Wishlist now stores full
+ * product objects (not just IDs) since a real Wishlist screen needs
+ * image/name/price to render, matching how cart.items already works.
+ * Every existing export name is unchanged so other screens that
+ * already import these keep working.
  */
 import { createSelector } from '@reduxjs/toolkit';
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { storage } from '../utils/storage';
+import { get, post } from '../api/client';
 import {
   calculateCartTotals,
   getEffectivePrice,
@@ -39,13 +52,21 @@ export const saveCart = createAsyncThunk(
 );
 
 /**
- * Load wishlist from storage
+ * Load wishlist — real backend is now the source of truth. Falls
+ * back to the local cache if the request fails (e.g. offline), so the
+ * screen still shows something rather than going blank.
  */
 export const loadWishlist = createAsyncThunk(
   'cart/loadWishlist',
   async () => {
-    const items = await storage.getWishlist();
-    return items || [];
+    try {
+      const products = await get('/promotions/wishlist/');
+      await storage.setWishlist(products);
+      return products || [];
+    } catch (e) {
+      const cached = await storage.getWishlist();
+      return cached || [];
+    }
   }
 );
 
@@ -58,7 +79,7 @@ const initialState = {
   // Each item: { id, product, quantity, addedAt }
   items: [],
 
-  // Wishlist — array of product IDs
+  // Wishlist — array of full product objects (real backend data)
   wishlist: [],
 
   // Totals
@@ -227,42 +248,45 @@ const cartSlice = createSlice({
     },
 
     /**
-     * Toggle wishlist item
+     * Toggle wishlist item — now takes the full product object (not
+     * just an ID) since the wishlist stores full objects for real
+     * screen rendering. Purely local/optimistic; the real add/remove
+     * against the backend happens in toggleWishlistAndSave below.
      */
     toggleWishlist: (state, action) => {
-      const productId = action.payload;
-      const index = state.wishlist.indexOf(productId);
+      const product = action.payload;
+      const index = state.wishlist.findIndex((p) => p.id === product.id);
       if (index >= 0) {
         state.wishlist.splice(index, 1);
       } else {
-        state.wishlist.push(productId);
+        state.wishlist.push(product);
       }
     },
 
     /**
-     * Set wishlist (loaded from storage)
+     * Set wishlist (loaded from server or storage) — full product objects.
      */
     setWishlist: (state, action) => {
       state.wishlist = action.payload || [];
     },
 
     /**
-     * Add to wishlist
+     * Add to wishlist — takes a full product object.
      */
     addToWishlist: (state, action) => {
-      const productId = action.payload;
-      if (!state.wishlist.includes(productId)) {
-        state.wishlist.push(productId);
+      const product = action.payload;
+      if (!state.wishlist.some((p) => p.id === product.id)) {
+        state.wishlist.push(product);
       }
     },
 
     /**
-     * Remove from wishlist
+     * Remove from wishlist by product ID.
      */
     removeFromWishlist: (state, action) => {
       const productId = action.payload;
       state.wishlist = state.wishlist.filter(
-        (id) => id !== productId
+        (p) => p.id !== productId
       );
     },
 
@@ -393,11 +417,36 @@ export const clearCartAndSave = () => async (dispatch) => {
 };
 
 /**
- * Toggle wishlist and persist
+ * Toggle wishlist — real backend call. `product` must be the full
+ * product object (needed for the optimistic local update and for
+ * rendering if the item is being added). Optimistically updates local
+ * state immediately, then confirms/corrects against the real server
+ * response; reverts on failure so local state never drifts from the
+ * real backend.
  */
-export const toggleWishlistAndSave = (productId) =>
+export const toggleWishlistAndSave = (product) =>
   async (dispatch, getState) => {
-    dispatch(toggleWishlist(productId));
+    if (!product || !product.id) return;
+
+    const wasWishlisted = getState().cart.wishlist.some((p) => p.id === product.id);
+    dispatch(toggleWishlist(product));
+
+    try {
+      const result = await post(`/promotions/wishlist/${product.id}/toggle/`);
+      // Reconcile: if the real server state disagrees with our
+      // optimistic guess (e.g. another device toggled it in between),
+      // correct local state to match the real result.
+      const nowWishlisted = getState().cart.wishlist.some((p) => p.id === product.id);
+      if (result.is_wishlisted !== nowWishlisted) {
+        if (result.is_wishlisted) dispatch(addToWishlist(product));
+        else dispatch(removeFromWishlist(product.id));
+      }
+    } catch (e) {
+      // Revert the optimistic change — the real backend call failed.
+      if (wasWishlisted) dispatch(addToWishlist(product));
+      else dispatch(removeFromWishlist(product.id));
+    }
+
     const { wishlist } = getState().cart;
     await storage.setWishlist(wishlist);
   };
@@ -421,7 +470,7 @@ export const selectIsInCart = (productId) => (state) =>
   state.cart.items.some((item) => item.product.id === productId);
 
 export const selectIsInWishlist = (productId) => (state) =>
-  state.cart.wishlist.includes(productId);
+  state.cart.wishlist.some((p) => p.id === productId);
 
 export const selectCartItemByProductId = (productId) => (state) =>
   state.cart.items.find((item) => item.product.id === productId);
