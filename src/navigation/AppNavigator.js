@@ -2,6 +2,9 @@
  * VUMA Store — App Navigator
  * No onboarding, guest browsing, direct home on launch
  * Updated: SellerStore + WelcomeGift screens added
+ * Updated: Wishlist, RecentlyViewed, EditProfile, AccountMenu screens
+ * registered (previously navigated-to but never registered — this is
+ * what was causing those buttons to fail).
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -43,6 +46,12 @@ import SellerStoreScreen from '../screens/vendor/SellerStoreScreen';
 
 // ── Welcome Gift ──────────────────────────────────────
 import WelcomeGiftScreen from '../screens/gift/WelcomeGiftScreen';
+
+// ── Profile: Wishlist, Recently Viewed, Edit Profile, Menu ──
+import WishlistScreen from '../screens/profile/WishlistScreen';
+import RecentlyViewedScreen from '../screens/profile/RecentlyViewedScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import AccountMenuScreen from '../screens/profile/AccountMenuScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -126,6 +135,10 @@ function MainStack({ isVendor }) {
       {/* Profile */}
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Address" component={AddressScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="Wishlist" component={WishlistScreen} options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="RecentlyViewed" component={RecentlyViewedScreen} options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="AccountMenu" component={AccountMenuScreen} options={{ animation: 'slide_from_right' }} />
 
       {/* Referral */}
       <Stack.Screen name="Referral" component={ReferralScreen} options={{ animation: 'slide_from_bottom' }} />
