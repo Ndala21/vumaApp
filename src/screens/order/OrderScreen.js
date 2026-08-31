@@ -23,7 +23,9 @@ import {
 } from '../../utils/helpers';
 import { t } from '../../i18n';
 import { SkeletonListItem } from '../../components/common/Loading';
-import { EmptyState, FullScreenError } from '../../components/common/ErrorMessage';
+import { FullScreenError } from '../../components/common/ErrorMessage';
+import { productsAPI } from '../../api/products';
+import ProductCard from '../../components/ProductCard';
 
 const getStatusTabs = () => [
   { label: t('common.all'), value: '' },
@@ -44,10 +46,17 @@ export default function OrderScreen({ navigation }) {
 
   const [refreshing, setRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  // Real fallback content for the genuine empty case (loaded fine,
+  // zero orders) — same pattern as Cart/Wishlist/Recently Viewed.
+  const [trendingProducts, setTrendingProducts] = useState([]);
 
   useEffect(() => {
     loadOrders(true);
   }, [activeFilter]);
+
+  useEffect(() => {
+    productsAPI.getTrending().then((d) => setTrendingProducts(d?.results || d || [])).catch(() => {});
+  }, []);
 
   const loadOrders = useCallback(async (reset = false) => {
     const page = reset ? 1 : currentPage;
@@ -152,22 +161,41 @@ export default function OrderScreen({ navigation }) {
     if (loading.orders) {
       return <View>{[1,2,3].map(i => <SkeletonListItem key={i} />)}</View>;
     }
+    // Genuine failures (including real session expiry) keep the real
+    // error screen — never paper over an actual problem the customer
+    // needs to act on with a cheerful product grid.
     if (errors.orders) {
       return <FullScreenError error={errors.orders} onRetry={() => loadOrders(true)} />;
     }
+    // Real, successfully-loaded empty state — same Trending Now
+    // fallback pattern as Cart/Wishlist/Recently Viewed, so this
+    // never dead-ends into just a button.
     return (
-      <EmptyState
-        icon="📦"
-        title={activeFilter
-          ? `${t('common.noResults')}`
-          : t('orders.noOrders')}
-        message={activeFilter
-          ? t('common.noResults')
-          : t('orders.noOrdersMessage')}
-        actionLabel={!activeFilter ? t('cart.startShopping') : null}
-        onAction={!activeFilter
-          ? () => navigation.navigate('Home') : null}
-      />
+      <View>
+        <View style={styles.emptyHeader}>
+          <Text style={styles.emptyIcon}>📦</Text>
+          <Text style={styles.emptyTitle}>
+            {activeFilter ? t('common.noResults') : t('orders.noOrders')}
+          </Text>
+          <Text style={styles.emptySub}>
+            {activeFilter ? t('common.noResults') : t('orders.noOrdersMessage')}
+          </Text>
+        </View>
+        {trendingProducts.length > 0 && (
+          <View style={styles.trendingSection}>
+            <Text style={styles.trendingTitle}>Trending Now</Text>
+            <View style={styles.trendingGrid}>
+              {trendingProducts.slice(0, 12).map((p) => (
+                <ProductCard
+                  key={p.id} product={p} variant="grid"
+                  onPress={() => navigation.navigate('ProductDetail', { productId: p.id, product: p })}
+                  style={styles.trendingCard}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -394,4 +422,14 @@ const styles = StyleSheet.create({
   },
   loadingMore: { padding: SPACING.xl, alignItems: 'center' },
   loadingMoreText: { fontSize: FONTS.sm, color: COLORS.textMuted },
+
+  // Empty state + Trending Now fallback
+  emptyHeader: { alignItems: 'center', paddingVertical: SPACING['2xl'], paddingHorizontal: SPACING.xl },
+  emptyIcon: { fontSize: 48, marginBottom: SPACING.sm },
+  emptyTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
+  emptySub: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center' },
+  trendingSection: { paddingTop: SPACING.sm },
+  trendingTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs },
+  trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: SPACING.sm },
+  trendingCard: { width: '48%', marginBottom: SPACING.sm },
 });
