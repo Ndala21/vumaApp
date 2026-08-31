@@ -42,13 +42,16 @@ export default function ProfileScreen({ navigation }) {
   const [totalOrders, setTotalOrders] = useState(null);
   const [buyAgainProducts, setBuyAgainProducts] = useState([]);
   const [recommended, setRecommended] = useState([]);
+  const [trendingProducts, setTrendingProducts] = useState([]);
+  const [dashboardLoaded, setDashboardLoaded] = useState(false);
 
   const loadDashboard = useCallback(() => {
     if (!isAuthenticated) return;
+    setDashboardLoaded(false);
 
     get('/payments/wallet/').then((d) => setWalletBalance(d?.balance ?? 0)).catch(() => setWalletBalance(null));
 
-    get('/orders/').then((d) => {
+    const ordersDone = get('/orders/').then((d) => {
       const results = d?.results || d || [];
       setTotalOrders(d?.count ?? results.length);
       setRecentOrders(results.slice(0, 2));
@@ -73,7 +76,13 @@ export default function ProfileScreen({ navigation }) {
       setBuyAgainProducts(buyAgain.slice(0, 10));
     }).catch(() => {});
 
-    productsAPI.getRecommendations().then((d) => setRecommended(d?.results || d || [])).catch(() => {});
+    const recDone = productsAPI.getRecommendations().then((d) => setRecommended(d?.results || d || [])).catch(() => {});
+
+    // Real fallback content for new accounts with no personal history
+    // yet — genuinely popular products, not fabricated data.
+    const trendDone = productsAPI.getTrending().then((d) => setTrendingProducts(d?.results || d || [])).catch(() => {});
+
+    Promise.allSettled([ordersDone, recDone, trendDone]).then(() => setDashboardLoaded(true));
   }, [isAuthenticated]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
@@ -255,6 +264,44 @@ export default function ProfileScreen({ navigation }) {
 
         {/* ── From here down: continuous real product/order feed ── */}
 
+        {/* Empty state for personalized sections — shown only once
+            loading has genuinely finished and My Orders/Inspired for
+            You/Buy Again all came back empty (new account, no
+            activity yet). Falls straight into a real product grid
+            below rather than a dead end with just a button. */}
+        {dashboardLoaded && recentOrders.length === 0 && recommended.length === 0 && buyAgainProducts.length === 0 && (
+          <View style={styles.emptyFeedHeader}>
+            <Text style={styles.emptyFeedIcon}>🛍️</Text>
+            <Text style={styles.emptyFeedTitle}>Nothing here yet</Text>
+            <Text style={styles.emptyFeedSub}>
+              Start shopping and your orders and recommendations will show up here.
+            </Text>
+          </View>
+        )}
+
+        {/* Trending Now — real, genuinely popular products. Shown as
+            the same fallback content for new accounts, in a real
+            scrollable grid rather than a dead-end button. */}
+        {trendingProducts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Trending Now</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+                <Text style={styles.seeAll}>See all ›</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.trendingGrid}>
+              {trendingProducts.slice(0, 12).map((p) => (
+                <ProductCard
+                  key={p.id} product={p} variant="grid"
+                  onPress={() => navigation.navigate('ProductDetail', { productId: p.id, product: p })}
+                  style={styles.trendingCard}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* My Orders — real data */}
         {recentOrders.length > 0 && (
           <View style={styles.section}>
@@ -429,4 +476,15 @@ const styles = StyleSheet.create({
   orderStatusText: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.success },
   orderDate: { fontSize: FONTS.xs, color: COLORS.textMuted },
   orderMeta: { fontSize: FONTS.xs, color: COLORS.textSecondary },
+
+  // Empty state header (personalized sections only — real product
+  // grid immediately follows, not a dead end)
+  emptyFeedHeader: { alignItems: 'center', backgroundColor: COLORS.surface, marginBottom: SPACING.sm, paddingTop: SPACING['2xl'], paddingBottom: SPACING.base, paddingHorizontal: SPACING.xl },
+  emptyFeedIcon: { fontSize: 40, marginBottom: SPACING.sm },
+  emptyFeedTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
+  emptyFeedSub: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center', lineHeight: 20 },
+
+  // Trending grid (real product fallback)
+  trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: SPACING.base, gap: SPACING.sm },
+  trendingCard: { width: '48%', marginBottom: SPACING.sm },
 });

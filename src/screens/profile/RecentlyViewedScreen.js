@@ -16,6 +16,8 @@ import ProductCard from '../../components/ProductCard';
 export default function RecentlyViewedScreen({ navigation }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Real fallback content — same pattern as CartScreen/WishlistScreen.
+  const [trendingProducts, setTrendingProducts] = useState([]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -23,9 +25,12 @@ export default function RecentlyViewedScreen({ navigation }) {
       .then((d) => setProducts(d?.results || d || []))
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));
+    productsAPI.getTrending().then((d) => setTrendingProducts(d?.results || d || [])).catch(() => {});
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const isEmpty = !loading && products.length === 0;
 
   return (
     <View style={styles.container}>
@@ -42,22 +47,38 @@ export default function RecentlyViewedScreen({ navigation }) {
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyText}>Loading...</Text>
         </View>
-      ) : products.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyIcon}>🕐</Text>
-          <Text style={styles.emptyTitle}>Nothing viewed yet</Text>
-          <Text style={styles.emptySub}>Products you look at will show up here</Text>
-          <TouchableOpacity style={styles.shopBtn} onPress={() => navigation.navigate('Home')}>
-            <Text style={styles.shopBtnText}>Browse Products</Text>
-          </TouchableOpacity>
-        </View>
       ) : (
         <FlatList
           data={products}
           keyExtractor={(item) => item.id}
           numColumns={2}
           contentContainerStyle={styles.grid}
-          columnWrapperStyle={styles.gridRow}
+          columnWrapperStyle={products.length > 0 ? styles.gridRow : undefined}
+          ListHeaderComponent={
+            isEmpty ? (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyIcon}>🕐</Text>
+                <Text style={styles.emptyTitle}>Nothing viewed yet</Text>
+                <Text style={styles.emptySub}>Products you look at will show up here — here's what's trending</Text>
+              </View>
+            ) : null
+          }
+          ListFooterComponent={
+            isEmpty && trendingProducts.length > 0 ? (
+              <View style={styles.trendingSection}>
+                <Text style={styles.trendingTitle}>Trending Now</Text>
+                <View style={styles.trendingGrid}>
+                  {trendingProducts.slice(0, 12).map((p) => (
+                    <ProductCard
+                      key={p.id} product={p} variant="grid"
+                      onPress={() => navigation.navigate('ProductDetail', { productId: p.id, product: p })}
+                      style={styles.trendingCard}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : null
+          }
           renderItem={({ item }) => (
             <ProductCard
               product={item}
@@ -87,4 +108,8 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: FONTS.sm, color: COLORS.textMuted },
   shopBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingHorizontal: SPACING['2xl'], paddingVertical: SPACING.base },
   shopBtnText: { color: 'white', fontSize: FONTS.base, fontWeight: FONTS.bold },
+  trendingSection: { paddingTop: SPACING.base },
+  trendingTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs },
+  trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: SPACING.sm },
+  trendingCard: { width: '48%', marginBottom: SPACING.sm },
 });

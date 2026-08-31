@@ -321,31 +321,14 @@ export default function CartScreen({ navigation }) {
     navigation.navigate('ProductDetail', { productId: product.id, product });
   }, [navigation]);
 
-  if (cartItems.length === 0) {
-    return (
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Cart</Text>
-        </View>
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyIcon}>🛒</Text>
-          <Text style={styles.emptyTitle}>Your cart is empty</Text>
-          <Text style={styles.emptySub}>Add products to start shopping</Text>
-          <TouchableOpacity style={styles.shopNowBtn} onPress={() => navigation.navigate('Home')}>
-            <Text style={styles.shopNowBtnText}>Browse Products</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  const isEmpty = cartItems.length === 0;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Cart ({cartItems.length})</Text>
+        <Text style={styles.headerTitle}>{isEmpty ? 'My Cart' : `My Cart (${cartItems.length})`}</Text>
         {selectedIds.size > 0 && (
           <TouchableOpacity onPress={handleDeleteSelected}>
             <Text style={styles.headerDelete}>🗑 Delete ({selectedIds.size})</Text>
@@ -353,21 +336,32 @@ export default function CartScreen({ navigation }) {
         )}
       </View>
 
-      <View style={styles.selectAllBar}>
-        <Checkbox checked={allSelected} indeterminate={someSelected} onPress={toggleAll} size={22} />
-        <Text style={styles.selectAllText}>
-          {allSelected ? 'Deselect All' : 'Select All'} ({cartItems.length})
-        </Text>
-        {selectedIds.size > 0 && (
-          <Text style={styles.selectedCount}>{selectedIds.size} selected</Text>
-        )}
-      </View>
+      {!isEmpty && (
+        <View style={styles.selectAllBar}>
+          <Checkbox checked={allSelected} indeterminate={someSelected} onPress={toggleAll} size={22} />
+          <Text style={styles.selectAllText}>
+            {allSelected ? 'Deselect All' : 'Select All'} ({cartItems.length})
+          </Text>
+          {selectedIds.size > 0 && (
+            <Text style={styles.selectedCount}>{selectedIds.size} selected</Text>
+          )}
+        </View>
+      )}
 
       <FlatList
         data={sellers}
         keyExtractor={seller => seller}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          isEmpty ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyIcon}>🛒</Text>
+              <Text style={styles.emptyTitle}>Your cart is empty</Text>
+              <Text style={styles.emptySub}>Here's what's trending right now</Text>
+            </View>
+          ) : null
+        }
         renderItem={({ item: seller }) => {
           const sellerItems = groupedBySeller[seller];
           const sellerIds = sellerItems.map(i => i.product?.id);
@@ -406,6 +400,7 @@ export default function CartScreen({ navigation }) {
         }
       />
 
+      {!isEmpty && (
       <View style={styles.summary}>
         <View style={styles.summaryBreakdown}>
           <View style={styles.summaryRow}>
@@ -447,6 +442,7 @@ export default function CartScreen({ navigation }) {
           )}
         </TouchableOpacity>
       </View>
+      )}
     </View>
   );
 }
@@ -506,7 +502,7 @@ const styles = StyleSheet.create({
   checkoutBtnDisabled: { backgroundColor: COLORS.textLight },
   checkoutBtnText: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: 'white' },
   checkoutBtnAmount: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.85)', fontWeight: FONTS.semiBold },
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING['3xl'], paddingHorizontal: SPACING.xl },
   emptyIcon: { fontSize: 72, marginBottom: SPACING.base },
   emptyTitle: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   emptySub: { fontSize: FONTS.sm, color: COLORS.textMuted, marginBottom: SPACING.xl },
