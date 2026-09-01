@@ -13,6 +13,7 @@ import {
   selectOrdersErrors, selectOrdersHasNextPage,
   selectActiveStatusFilter, setStatusFilter, resetOrders,
 } from '../../store/orderSlice';
+import { selectIsAuthenticated } from '../../store/authSlice';
 import {
   COLORS, FONTS, SPACING, RADIUS, SHADOWS,
   ORDER_STATUS, ORDER_STATUS_COLORS,
@@ -43,29 +44,36 @@ export default function OrderScreen({ navigation }) {
   const errors = useSelector(selectOrdersErrors);
   const hasNextPage = useSelector(selectOrdersHasNextPage);
   const activeFilter = useSelector(selectActiveStatusFilter);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
   const [refreshing, setRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  // Real fallback content for the genuine empty case (loaded fine,
-  // zero orders) — same pattern as Cart/Wishlist/Recently Viewed.
+  // Real fallback content for both the guest case and the genuine
+  // empty case (loaded fine, zero orders) — same pattern as
+  // Cart/Wishlist/Recently Viewed.
   const [trendingProducts, setTrendingProducts] = useState([]);
 
   useEffect(() => {
-    loadOrders(true);
-  }, [activeFilter]);
+    // A guest has no orders to fetch — calling this pointlessly hits
+    // an authenticated endpoint, returns a 401, and previously showed
+    // a factually wrong "Session expired" message to someone who
+    // never had a session at all.
+    if (isAuthenticated) loadOrders(true);
+  }, [activeFilter, isAuthenticated]);
 
   useEffect(() => {
     productsAPI.getTrending().then((d) => setTrendingProducts(d?.results || d || [])).catch(() => {});
   }, []);
 
   const loadOrders = useCallback(async (reset = false) => {
+    if (!isAuthenticated) return;
     const page = reset ? 1 : currentPage;
     if (reset) {
       dispatch(resetOrders());
       setCurrentPage(1);
     }
     dispatch(fetchOrders({ page, status: activeFilter }));
-  }, [activeFilter, currentPage]);
+  }, [isAuthenticated, activeFilter, currentPage]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -74,11 +82,11 @@ export default function OrderScreen({ navigation }) {
   }, [loadOrders]);
 
   const handleLoadMore = useCallback(() => {
-    if (loading.loadingMore || loading.orders || !hasNextPage) return;
+    if (!isAuthenticated || loading.loadingMore || loading.orders || !hasNextPage) return;
     const next = currentPage + 1;
     setCurrentPage(next);
     dispatch(fetchOrders({ page: next, status: activeFilter }));
-  }, [loading, hasNextPage, currentPage, activeFilter]);
+  }, [isAuthenticated, loading, hasNextPage, currentPage, activeFilter]);
 
   const STATUS_TABS = getStatusTabs();
 
@@ -167,6 +175,37 @@ export default function OrderScreen({ navigation }) {
     if (errors.orders) {
       return <FullScreenError error={errors.orders} onRetry={() => loadOrders(true)} />;
     }
+    // Guest — accurate messaging (never a fake "session expired"),
+    // real sign-in prompt, same Trending Now fallback below.
+    if (!isAuthenticated) {
+      return (
+        <View>
+          <View style={styles.emptyHeader}>
+            <Text style={styles.emptyIcon}>📦</Text>
+            <Text style={styles.emptyTitle}>Sign in to view your orders</Text>
+            <Text style={styles.emptySub}>Track your orders and order history once you're signed in.</Text>
+            <TouchableOpacity style={styles.signInBtn} onPress={() => navigation.navigate('Auth', { screen: 'Login' })} activeOpacity={0.85}>
+              <Text style={styles.signInBtnText}>Sign In</Text>
+            </TouchableOpacity>
+          </View>
+          {trendingProducts.length > 0 && (
+            <View style={styles.trendingSection}>
+              <Text style={styles.trendingTitle}>Trending Now</Text>
+              <View style={styles.trendingGrid}>
+                {trendingProducts.slice(0, 12).map((p) => (
+                  <ProductCard
+                    key={p.id} product={p} variant="grid"
+                    onPress={() => navigation.navigate('ProductDetail', { productId: p.id, product: p })}
+                    style={styles.trendingCard}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      );
+    }
+
     // Real, successfully-loaded empty state — same Trending Now
     // fallback pattern as Cart/Wishlist/Recently Viewed, so this
     // never dead-ends into just a button.
@@ -428,6 +467,8 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: SPACING.sm },
   emptyTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   emptySub: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center' },
+  signInBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingHorizontal: SPACING['2xl'], paddingVertical: SPACING.base, marginTop: SPACING.base },
+  signInBtnText: { color: 'white', fontSize: FONTS.base, fontWeight: FONTS.bold },
   trendingSection: { paddingTop: SPACING.sm },
   trendingTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs },
   trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: SPACING.sm },
