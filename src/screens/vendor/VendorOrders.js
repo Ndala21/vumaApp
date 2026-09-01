@@ -35,6 +35,24 @@ import { t } from '../../i18n';
 import { SkeletonListItem } from '../../components/common/Loading';
 import { EmptyState, FullScreenError } from '../../components/common/ErrorMessage';
 import Button from '../../components/common/Button';
+import { get } from '../../api/client';
+
+// Universal Shipment status -> friendly label + icon, matching the
+// same mapping used on the customer's OrderDetailScreen tracking card.
+const SHIPMENT_STATUS_INFO = {
+  pending: { label: 'Preparing', icon: '📦' },
+  ready_for_pickup: { label: 'Ready for pickup', icon: '📦' },
+  pickup_requested: { label: 'Pickup requested', icon: '📞' },
+  picked_up: { label: 'Picked up', icon: '🚚' },
+  in_transit: { label: 'On the way', icon: '🛣️' },
+  out_for_delivery: { label: 'Out for delivery', icon: '🏍️' },
+  delivered: { label: 'Delivered', icon: '✅' },
+  delivery_failed: { label: 'Delivery attempt failed', icon: '⚠️' },
+  return_requested: { label: 'Return requested', icon: '↩️' },
+  return_in_transit: { label: 'Return in progress', icon: '↩️' },
+  returned: { label: 'Returned', icon: '↩️' },
+  cancelled: { label: 'Cancelled', icon: '❌' },
+};
 
 const VENDOR_STATUS_OPTIONS = [
   { label: t('orders.processing'), value: 'processing',
@@ -151,6 +169,17 @@ export default function VendorOrders({ navigation }) {
 
   const OrderCard = ({ order }) => {
     const stage = getFriendlyStage(order.status);
+
+    // Real shipment/tracking info — fetched per-card via the
+    // vendor-accessible ShipmentByOrderView. 204 (no shipment yet)
+    // just leaves this null, no error shown.
+    const [shipment, setShipment] = useState(null);
+    useEffect(() => {
+      get(`/logistics/shipments/by-order/${order.id}/`)
+        .then((d) => setShipment(d || null))
+        .catch(() => setShipment(null));
+    }, [order.id]);
+
     return (
       <View style={styles.orderCard}>
         <View style={styles.orderHeader}>
@@ -172,6 +201,20 @@ export default function VendorOrders({ navigation }) {
             </Text>
           </View>
         </View>
+
+        {shipment && (
+          <View style={styles.deliveryRow}>
+            <Text style={styles.deliveryIcon}>
+              {(SHIPMENT_STATUS_INFO[shipment.status] || {}).icon || '🚚'}
+            </Text>
+            <Text style={styles.deliveryText}>
+              {shipment.provider_name} · {(SHIPMENT_STATUS_INFO[shipment.status] || {}).label || shipment.status}
+            </Text>
+            {shipment.tracking_number && (
+              <Text style={styles.deliveryTracking}>{shipment.tracking_number}</Text>
+            )}
+          </View>
+        )}
 
         <View style={styles.customerRow}>
           <Text style={styles.customerIcon}>👤</Text>
@@ -512,6 +555,14 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 6, height: 6, borderRadius: RADIUS.full },
   statusText: { fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  deliveryRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+    paddingHorizontal: SPACING.base, paddingBottom: SPACING.sm,
+    marginTop: -SPACING.xs,
+  },
+  deliveryIcon: { fontSize: FONTS.sm },
+  deliveryText: { flex: 1, fontSize: FONTS.xs, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  deliveryTracking: { fontSize: FONTS.xs, color: COLORS.textMuted, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
   customerRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     paddingHorizontal: SPACING.base, paddingBottom: SPACING.sm,
