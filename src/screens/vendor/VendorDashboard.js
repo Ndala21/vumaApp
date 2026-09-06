@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, Platform, RefreshControl, Alert, Modal,
+  StyleSheet, StatusBar, Platform, RefreshControl, Alert, Modal, Linking,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, logout } from '../../store/authSlice';
@@ -182,6 +182,12 @@ export default function VendorDashboard({ navigation }) {
     );
   };
 
+  const handleOpenSellerCenter = () => {
+    Linking.openURL('https://vumastore.store/seller/').catch(() => {
+      Alert.alert('Could not open Seller Center', 'Please try again or visit vumastore.store/seller in your browser.');
+    });
+  };
+
   const handleLogout = async () => {
     setShowLogoutModal(false);
     try {
@@ -266,6 +272,20 @@ export default function VendorDashboard({ navigation }) {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Seller Center — permanent for approved sellers only */}
+        {dashboard?.is_approved && (
+          <TouchableOpacity style={styles.sellerCenterCard} onPress={handleOpenSellerCenter} activeOpacity={0.85}>
+            <View style={styles.sellerCenterIcon}>
+              <Text style={styles.sellerCenterEmoji}>🖥️</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sellerCenterTitle}>VUMA Seller Center</Text>
+              <Text style={styles.sellerCenterSub}>Manage your store from a desktop — same login</Text>
+            </View>
+            <Text style={styles.sellerCenterArrow}>→</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Orders Overview */}
         <View style={styles.sectionHeaderRow}>
@@ -418,6 +438,17 @@ const styles = StyleSheet.create({
   earningsSplitValue: { fontSize: FONTS.base, color: 'white', fontWeight: FONTS.bold },
   payoutBtn: { marginTop: SPACING.base, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: RADIUS.full, paddingVertical: SPACING.sm, alignItems: 'center' },
   payoutBtnText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.bold },
+
+  sellerCenterCard: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.textPrimary, borderRadius: 14,
+    padding: SPACING.base, marginBottom: SPACING.xl,
+  },
+  sellerCenterIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  sellerCenterEmoji: { fontSize: 19 },
+  sellerCenterTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: 'white' },
+  sellerCenterSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  sellerCenterArrow: { fontSize: 18, color: 'white', fontWeight: FONTS.bold },
 
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
   sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
