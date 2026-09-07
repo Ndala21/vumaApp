@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FF6B00"
+      "backgroundColor": "#FFFFFF"
     },
     "android": {
       "package": "com.vumastore",
@@ -18,7 +18,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FF6B00"
+        "backgroundColor": "#FFFFFF"
       },
       "permissions": [
         "READ_EXTERNAL_STORAGE",

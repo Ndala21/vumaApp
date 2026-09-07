@@ -9,6 +9,7 @@ import { useEffect, useState, useRef, Component } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { post } from './src/api/client';
+import SplashScreen from './src/components/SplashScreen';
 
 // ── Configure foreground notification display ─────────
 Notifications.setNotificationHandler({
@@ -90,6 +91,7 @@ try {
 function App() {
   const [i18nReady, setI18nReady] = useState(false);
   const [langKey, setLangKey] = useState('en');
+  const [splashDone, setSplashDone] = useState(false);
   const notificationListener = useRef(null);
   const responseListener = useRef(null);
 
@@ -178,15 +180,20 @@ function App() {
     );
   }
 
-  if (!i18nReady) return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
-
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
-          <Provider store={store} key={langKey}>
-            <AppNavigator />
-          </Provider>
+          {i18nReady ? (
+            <Provider store={store} key={langKey}>
+              <AppNavigator />
+            </Provider>
+          ) : (
+            <View style={{ flex: 1, backgroundColor: '#fff' }} />
+          )}
+          {!splashDone && (
+            <SplashScreen ready={i18nReady} onFinish={() => setSplashDone(true)} />
+          )}
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
