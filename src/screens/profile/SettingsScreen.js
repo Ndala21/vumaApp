@@ -300,7 +300,7 @@ const SectionToggle = ({ title, section }) => (
         <View style={styles.card}>
           {[
             [t('settings.version'), '1.0.0'],
-            [t('settings.build'), '2024.1'],
+            [t('settings.build'), '2026.1'],
             [t('settings.environment'), __DEV__ ? 'Development' : 'Production'],
           ].map(([label, value]) => (
             <View key={label} style={styles.infoRow}>
