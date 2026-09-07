@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
 
   sellerCenterCard: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.textPrimary, borderRadius: 14,
+    backgroundColor: COLORS.primary, borderRadius: 14,
     padding: SPACING.base, marginBottom: SPACING.xl,
   },
   sellerCenterIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
