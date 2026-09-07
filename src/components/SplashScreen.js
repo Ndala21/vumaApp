@@ -4,7 +4,8 @@
  * Shown briefly on launch (while i18n initializes) instead of a blank
  * white flash, then fades smoothly into the app. Matches the new
  * app icon/native splash.png design: white background, centered
- * VUMA wordmark + tagline, gentle orange wave along the bottom.
+ * real VUMA logo (extracted from the official reference artwork,
+ * not re-rendered text), gentle orange wave along the bottom.
  *
  * No login gate here - this is purely a branding screen. The app
  * still goes straight to the existing Home/product screen once ready,
@@ -15,9 +16,7 @@
  * installed in this project.
  */
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Image } from 'react-native';
-
-const ORANGE = '#FF6B00';
+import { View, StyleSheet, Animated, Image } from 'react-native';
 
 export default function SplashScreen({ onFinish, ready, minDurationMs = 900 }) {
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -42,8 +41,11 @@ export default function SplashScreen({ onFinish, ready, minDurationMs = 900 }) {
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <View style={styles.centerBlock}>
-        <Text style={styles.wordmark}>VUMA</Text>
-        <Text style={styles.tagline}>Shop Smarter. Live Better.</Text>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </View>
       <Image
         source={require('../../assets/wave.png')}
@@ -66,17 +68,9 @@ const styles = StyleSheet.create({
   centerBlock: {
     alignItems: 'center',
   },
-  wordmark: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: ORANGE,
-    letterSpacing: -1,
-  },
-  tagline: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: ORANGE,
-    marginTop: 8,
+  logo: {
+    width: 220,
+    height: 74,
   },
   wave: {
     position: 'absolute',
