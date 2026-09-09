@@ -5,6 +5,9 @@
  * Updated: Wishlist, RecentlyViewed, EditProfile, AccountMenu screens
  * registered (previously navigated-to but never registered — this is
  * what was causing those buttons to fail).
+ * Updated: ApplicationStatus screen registered - shown after a seller
+ * submits their application, and reachable again any time they still
+ * have a pending/approved application (prevents duplicate submissions).
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -52,6 +55,9 @@ import WishlistScreen from '../screens/profile/WishlistScreen';
 import RecentlyViewedScreen from '../screens/profile/RecentlyViewedScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import AccountMenuScreen from '../screens/profile/AccountMenuScreen';
+
+// ── Seller Application Status ─────────────────────────
+import ApplicationStatusScreen from '../screens/vendor/ApplicationStatusScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -151,6 +157,9 @@ function MainStack({ isVendor }) {
 
       {/* Seller Registration */}
       <Stack.Screen name="VendorRegister" component={SellerRegisterScreen} />
+      {/* Seller Application Status — shown after submitting, and any
+          time a seller with a pending/approved application returns */}
+      <Stack.Screen name="ApplicationStatus" component={ApplicationStatusScreen} options={{ animation: 'slide_from_right' }} />
       {/* Promote Products */}
       <Stack.Screen name="PromoteProducts" component={PromoteProductsScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="SellerWallet" component={SellerWalletScreen} options={{ animation: 'slide_from_right' }} />

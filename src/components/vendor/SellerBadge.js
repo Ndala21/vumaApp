@@ -4,6 +4,12 @@
  * Same exports (SellerBadge, SellerInlineBadge, TrustSignals) and same props —
  * now pulls colors from the shared VUMA design tokens instead of a local palette.
  *
+ * Updated: verified_seller badge color changed from blue (COLORS.info)
+ * to VUMA orange (COLORS.primary) - blue didn't match the brand.
+ * TrustSignals rebuilt as one compact, single-line trust badge instead
+ * of a tall card listing every badge with its own description - matches
+ * the app's rounded, minimal style instead of feeling like an info box.
+ *
  * Usage:
  *   <SellerBadge vendor={product.vendor_info} onPress={() => nav.navigate('SellerStore', { vendorId })} />
  */
@@ -12,7 +18,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../../utils/constants';
 
 const BADGE_CONFIG = {
-  verified_seller:   { color: COLORS.info,    bg: COLORS.infoLight,    icon: '✓', short: 'Verified' },
+  verified_seller:   { color: COLORS.primary, bg: COLORS.primaryFade,  icon: '✓', short: 'Verified' },
   verified_business: { color: COLORS.primary, bg: COLORS.primaryFade,  icon: '🏢', short: 'Business' },
   verified_agri:     { color: COLORS.success, bg: COLORS.successLight, icon: '🌾', short: 'Agri' },
   featured:          { color: COLORS.warning, bg: COLORS.warningLight, icon: '⭐', short: 'Featured' },
@@ -103,39 +109,23 @@ export const SellerInlineBadge = ({ badges = [], shopName }) => {
   );
 };
 
-// Trust signal for product detail page
+// Compact trust badge for the product detail page - one small, orange,
+// professional-looking badge rather than a tall info box listing every
+// badge type separately.
 export const TrustSignals = ({ vendor }) => {
   const badges = vendor?.badges || [];
-  if (!badges.length) return null;
+  const isVerified = badges.some(b => ['verified_seller', 'verified_business', 'verified_agri'].includes(b.id));
+  if (!isVerified) return null;
 
   return (
-    <View style={styles.trustCard}>
-      <View style={styles.trustHeader}>
-        <View style={styles.trustIconChip}>
-          <Text style={styles.trustIcon}>🛡</Text>
-        </View>
-        <Text style={styles.trustTitle}>VUMA Verified Seller</Text>
+    <View style={styles.trustBadgeCompact}>
+      <View style={styles.trustBadgeIconWrapCompact}>
+        <Text style={styles.trustBadgeIconCompact}>✓</Text>
       </View>
-      <View style={styles.trustBadges}>
-        {badges.map(b => {
-          const cfg = BADGE_CONFIG[b.id];
-          if (!cfg) return null;
-          return (
-            <View key={b.id} style={styles.trustBadgeItem}>
-              <View style={[styles.trustBadgeIconWrap, { backgroundColor: cfg.bg }]}>
-                <Text style={styles.trustBadgeItemIcon}>{cfg.icon}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.trustBadgeLabel}>{b.label}</Text>
-                <Text style={styles.trustBadgeDesc} numberOfLines={2}>{b.description}</Text>
-              </View>
-            </View>
-          );
-        })}
+      <View style={{ flex: 1 }}>
+        <Text style={styles.trustTitleCompact}>VUMA Verified Seller</Text>
+        <Text style={styles.trustSubCompact}>Identity and business verified by VUMA team</Text>
       </View>
-      <Text style={styles.trustFooter}>
-        All VUMA verified sellers undergo strict identity and business verification
-      </Text>
     </View>
   );
 };
@@ -154,7 +144,7 @@ const styles = StyleSheet.create({
   logoText: { color: COLORS.textWhite, fontWeight: FONTS.extraBold, fontSize: 18 },
   badgeDot: {
     position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: 8,
-    backgroundColor: COLORS.info, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: COLORS.surface,
   },
   badgeDotIcon: { fontSize: 8, color: COLORS.textWhite, fontWeight: FONTS.black },
@@ -175,19 +165,19 @@ const styles = StyleSheet.create({
   inlineBadgeIcon: { fontSize: 9 },
   inlineBadgeText: { fontSize: 9.5, fontWeight: FONTS.bold },
 
-  trustCard: {
-    backgroundColor: COLORS.infoLight, borderRadius: RADIUS.lg, padding: SPACING.base,
-    borderWidth: 1, borderColor: 'rgba(59,130,196,0.25)', marginVertical: SPACING.sm,
+  // Compact trust badge - single row, small, orange, not a big card.
+  trustBadgeCompact: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.md,
+    paddingVertical: SPACING.sm, paddingHorizontal: SPACING.sm + 2,
+    borderWidth: 1, borderColor: 'rgba(255,106,0,0.18)',
+    marginVertical: SPACING.xs, alignSelf: 'flex-start', maxWidth: '100%',
   },
-  trustHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
-  trustIconChip: { width: 28, height: 28, borderRadius: RADIUS.md, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
-  trustIcon: { fontSize: 15 },
-  trustTitle: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.infoText },
-  trustBadges: { gap: SPACING.sm + 2, marginBottom: SPACING.sm + 2 },
-  trustBadgeItem: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm + 2 },
-  trustBadgeIconWrap: { width: 36, height: 36, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
-  trustBadgeItemIcon: { fontSize: 16 },
-  trustBadgeLabel: { fontSize: FONTS.sm + 1, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
-  trustBadgeDesc: { fontSize: FONTS.xs, color: COLORS.textSecondary, lineHeight: 15 },
-  trustFooter: { fontSize: FONTS.xs, color: COLORS.infoText, lineHeight: 16 },
+  trustBadgeIconWrapCompact: {
+    width: 26, height: 26, borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center',
+  },
+  trustBadgeIconCompact: { fontSize: 15, fontWeight: FONTS.black, color: COLORS.primary },
+  trustTitleCompact: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primaryDark },
+  trustSubCompact: { fontSize: 10.5, color: COLORS.textSecondary, marginTop: 1 },
 });

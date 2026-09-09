@@ -4,7 +4,7 @@
  * Individual (NIDA) | Business (BRELA+TIN) | Agricultural Supplier
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
   TextInput, Alert, Platform, Modal, FlatList, Image,
@@ -13,7 +13,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, API } from '../../utils/constants';
 import Button from '../../components/common/Button';
-import { upload, setAuthToken } from '../../api/client';
+import { upload, setAuthToken, get } from '../../api/client';
 import { storage } from '../../utils/storage';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated } from '../../store/authSlice';
@@ -132,6 +132,23 @@ export default function SellerRegisterScreen({ navigation }) {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPayoutPicker, setShowPayoutPicker] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [checkingExisting, setCheckingExisting] = useState(true);
+
+  // Real fix: never let a seller with a pending or approved application
+  // re-submit a duplicate - check first and redirect straight to their
+  // real status instead of showing the form at all.
+  useEffect(() => {
+    if (!isAuthenticated) { setCheckingExisting(false); return; }
+    get('/vendors/applications/my-application/')
+      .then((data) => {
+        if (data && (data.status === 'pending' || data.status === 'approved')) {
+          navigation.replace('ApplicationStatus');
+        } else {
+          setCheckingExisting(false);
+        }
+      })
+      .catch(() => setCheckingExisting(false));
+  }, [isAuthenticated]);
 
   const setField = (key, value) => setFormState(prev => ({ ...prev, [key]: value }));
 
@@ -334,11 +351,7 @@ export default function SellerRegisterScreen({ navigation }) {
 
       await upload('/vendors/applications/apply/', formData);
 
-      Alert.alert(
-        '🎉 Application Submitted!',
-        'Thank you! We will review your application within 24 hours and notify you via SMS.',
-        [{ text: 'OK', onPress: () => navigation.replace('Login') }]
-      );
+      navigation.replace('ApplicationStatus');
     } catch (err) {
       // Show the REAL error instead of a generic connection message.
       // DRF validation errors come back as { field: "message" } or
@@ -701,6 +714,14 @@ export default function SellerRegisterScreen({ navigation }) {
 
   const STEP_LABELS = ['Type', 'Personal', 'Business', 'Verify'];
   const typeColor = selectedType?.color || COLORS.primary;
+
+  if (checkingExisting) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
