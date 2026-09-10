@@ -7,15 +7,20 @@
  * possible. The caller always gets both the raw coordinates (source of
  * truth for delivery) and the human-readable guess (which the customer
  * or seller can freely edit, since Tanzania map data is often incomplete).
+ *
+ * Updated: real location search added, using the backend's Places
+ * Autocomplete/Details proxy endpoints (same server-side-key pattern
+ * as reverse-geocode) - restricted to Tanzania. Selecting a result
+ * jumps the map straight to it, same as tapping a Google Maps result.
  */
 
 import React, { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal,
-  ActivityIndicator, Platform, Dimensions,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal,
+  ActivityIndicator, Platform, Dimensions, FlatList, Keyboard,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, API } from '../utils/constants';
 import { post } from '../api/client';
 
 const { width, height } = Dimensions.get('window');
@@ -38,8 +43,69 @@ export default function MapLocationPicker({ visible, onClose, onConfirm, initial
   const [locating, setLocating] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  // ── Search ────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [resolvingResult, setResolvingResult] = useState(false);
+  const searchDebounceRef = useRef(null);
+
+  const runSearch = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await fetch(
+        `${API.BASE_URL}delivery/places-autocomplete/?query=${encodeURIComponent(query.trim())}`
+      );
+      const data = await res.json();
+      setSearchResults(data.predictions || []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const handleSearchTextChange = (text) => {
+    setSearchQuery(text);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => runSearch(text), 400);
+  };
+
+  const handleSelectResult = async (result) => {
+    Keyboard.dismiss();
+    setResolvingResult(true);
+    try {
+      const res = await fetch(
+        `${API.BASE_URL}delivery/place-details/?place_id=${encodeURIComponent(result.place_id)}`
+      );
+      const data = await res.json();
+      if (data.latitude && data.longitude) {
+        const newRegion = {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        };
+        setRegion(newRegion);
+        mapRef.current?.animateToRegion(newRegion, 500);
+      }
+    } catch {
+      // Silently fail — the customer can still drag the map manually.
+    } finally {
+      setResolvingResult(false);
+      setSearchQuery(result.description || '');
+      setSearchResults([]);
+    }
+  };
+
   const goToMyLocation = useCallback(async () => {
     setLocating(true);
+    setSearchQuery('');
+    setSearchResults([]);
     try {
       const Location = await import('expo-location');
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -104,8 +170,35 @@ export default function MapLocationPicker({ visible, onClose, onConfirm, initial
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Move the map to pin your location</Text>
+          <View style={styles.searchBarWrap}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search for a location in Tanzania..."
+              placeholderTextColor={COLORS.textLight}
+              value={searchQuery}
+              onChangeText={handleSearchTextChange}
+              returnKeyType="search"
+            />
+            {(searching || resolvingResult) && <ActivityIndicator size="small" color={COLORS.primary} />}
+          </View>
         </View>
+
+        {searchResults.length > 0 && (
+          <View style={styles.resultsWrap}>
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.place_id}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.resultItem} onPress={() => handleSelectResult(item)}>
+                  <Text style={styles.resultIcon}>📍</Text>
+                  <Text style={styles.resultText} numberOfLines={2}>{item.description}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        )}
 
         <TouchableOpacity style={styles.myLocationBtn} onPress={goToMyLocation} disabled={locating}>
           {locating ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Text style={styles.myLocationIcon}>🎯</Text>}
@@ -154,7 +247,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center',
   },
   closeBtnText: { fontSize: FONTS.lg, color: COLORS.textPrimary, fontWeight: FONTS.bold },
-  headerTitle: { flex: 1, fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  searchBarWrap: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+    backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.sm, height: 40,
+  },
+  searchIcon: { fontSize: 15 },
+  searchInput: { flex: 1, fontSize: FONTS.sm, color: COLORS.textPrimary, height: '100%' },
+  resultsWrap: {
+    position: 'absolute', top: Platform.OS === 'ios' ? 100 : SPACING.xl + 56, left: SPACING.base, right: SPACING.base,
+    backgroundColor: 'white', borderRadius: RADIUS.lg, maxHeight: 260,
+    ...SHADOWS.lg, zIndex: 20,
+  },
+  resultItem: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2,
+    borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
+  },
+  resultIcon: { fontSize: 15 },
+  resultText: { flex: 1, fontSize: FONTS.sm, color: COLORS.textPrimary },
   myLocationBtn: {
     position: 'absolute', right: SPACING.base, bottom: 140,
     width: 48, height: 48, borderRadius: RADIUS.full,
