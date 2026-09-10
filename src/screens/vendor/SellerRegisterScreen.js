@@ -2,6 +2,9 @@
  * VUMA Store — Tanzania Seller Registration
  * Smart 3-step flow based on seller type
  * Individual (NIDA) | Business (BRELA+TIN) | Agricultural Supplier
+ * Updated: shop location now uses InlineLocationMap - a real,
+ * always-visible interactive map with search, embedded directly in
+ * the form - instead of a button that opened a separate full-screen map.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -17,7 +20,7 @@ import { upload, setAuthToken, get } from '../../api/client';
 import { storage } from '../../utils/storage';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated } from '../../store/authSlice';
-import MapLocationPicker from '../../components/MapLocationPicker';
+import InlineLocationMap from '../../components/InlineLocationMap';
 
 // ── Constants ─────────────────────────────────────────
 const SELLER_TYPES = [
@@ -127,7 +130,6 @@ export default function SellerRegisterScreen({ navigation }) {
   const [step, setStep] = useState(0); // 0=type selection, 1=personal, 2=business, 3=verify
   const [form, setFormState] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [showMapPicker, setShowMapPicker] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPayoutPicker, setShowPayoutPicker] = useState(false);
@@ -154,16 +156,13 @@ export default function SellerRegisterScreen({ navigation }) {
 
   const selectedType = SELLER_TYPES.find(t => t.value === sellerType);
 
-  const getGPS = () => setShowMapPicker(true);
-
-  // Called when the seller confirms a pin on the interactive map. This
-  // form still uses a simple City dropdown + free-text Ward (not the
-  // full Region/District/Ward system Checkout uses), so we do a
-  // best-effort match of the reverse-geocoded district/region name
-  // against the City list, and pre-fill Ward — the seller can correct
-  // either field afterward.
+  // Called whenever InlineLocationMap's pin settles (drag, search
+  // result, or GPS). This form still uses a simple City dropdown +
+  // free-text Ward (not the full Region/District/Ward system Checkout
+  // uses), so we do a best-effort match of the reverse-geocoded
+  // district/region name against the City list, and pre-fill Ward —
+  // the seller can correct either field afterward.
   const handleMapConfirm = ({ latitude: lat, longitude: lng, formattedAddress, suggestedDistrict, suggestedRegion }) => {
-    setShowMapPicker(false);
     setFormState(prev => ({ ...prev, latitude: lat, longitude: lng, formatted_address: formattedAddress }));
 
     const candidateName = suggestedDistrict?.name || suggestedRegion?.name;
@@ -518,17 +517,11 @@ export default function SellerRegisterScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>📍 Location</Text>
 
-      <TouchableOpacity style={[styles.gpsBtn, form.latitude && styles.gpsBtnActive]} onPress={getGPS}>
-        <Text style={styles.gpsBtnIcon}>📍</Text>
-        <View style={styles.gpsBtnContent}>
-          <Text style={[styles.gpsBtnTitle, form.latitude && { color: COLORS.success }]}>
-            {form.latitude ? '✓ Location Pinned' : 'Pin My Shop Location'}
-          </Text>
-          <Text style={styles.gpsBtnSub} numberOfLines={2}>
-            {form.latitude ? (form.formatted_address || `${Number(form.latitude).toFixed(4)}, ${Number(form.longitude).toFixed(4)}`) : 'Tap to open the map and drop a pin'}
-          </Text>
-        </View>
-      </TouchableOpacity>
+      <InlineLocationMap
+        initialLatitude={form.latitude}
+        initialLongitude={form.longitude}
+        onLocationChange={handleMapConfirm}
+      />
 
       <Text style={styles.fieldLabel}>City *</Text>
       <TouchableOpacity style={styles.selector} onPress={() => setShowCityPicker(true)}>
@@ -792,14 +785,6 @@ export default function SellerRegisterScreen({ navigation }) {
         iconFn={item => item.icon}
         onSelect={item => setField('payout_method', item.value)}
         onClose={() => setShowPayoutPicker(false)} />
-
-      <MapLocationPicker
-        visible={showMapPicker}
-        onClose={() => setShowMapPicker(false)}
-        onConfirm={handleMapConfirm}
-        initialLatitude={form.latitude}
-        initialLongitude={form.longitude}
-      />
     </View>
   );
 }
@@ -847,12 +832,6 @@ const styles = StyleSheet.create({
   selector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, marginBottom: SPACING.xs },
   selectorValue: { fontSize: FONTS.base, color: COLORS.textPrimary },
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
-  gpsBtn: { flexDirection: 'row', alignItems: 'center', padding: SPACING.base, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade, marginVertical: SPACING.sm, gap: SPACING.sm },
-  gpsBtnActive: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
-  gpsBtnIcon: { fontSize: 28 },
-  gpsBtnContent: { flex: 1 },
-  gpsBtnTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
-  gpsBtnSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   idTypeRow: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: SPACING.sm },
   idTypeChip: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface },
   idTypeChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },

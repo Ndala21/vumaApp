@@ -9,6 +9,9 @@
  * Added: free-text Village/Mtaa/Street field (Tanzania's official admin
  * data stops at Ward level — this lets customers specify their own
  * village/mtaa/street rather than picking from an incomplete list).
+ * Updated: delivery location now uses InlineLocationMap - a real,
+ * always-visible interactive map with search, embedded directly in the
+ * form - instead of a button that opened a separate full-screen map.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -26,7 +29,7 @@ import { getEffectivePrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
 import { CommissionBreakdown } from '../../components/CommissionCalculator';
-import MapLocationPicker from '../../components/MapLocationPicker';
+import InlineLocationMap from '../../components/InlineLocationMap';
 
 const PickerModal = ({ visible, title, data, onSelect, onClose, loading, searchable, onSearch }) => {
   const [query, setQuery] = useState('');
@@ -111,7 +114,6 @@ export default function CheckoutScreen({ navigation, route }) {
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [formattedAddress, setFormattedAddress] = useState('');
-  const [showMapPicker, setShowMapPicker] = useState(false);
   const [pickupPoint, setPickupPoint] = useState(null);
   const [pickupPoints, setPickupPoints] = useState([]);
   const [loadingPickupPoints, setLoadingPickupPoints] = useState(false);
@@ -228,17 +230,13 @@ export default function CheckoutScreen({ navigation, route }) {
     loadPickupPoints();
   };
 
-  const getGPS = async () => {
-    setShowMapPicker(true);
-  };
-
-  // Called when the customer confirms a pin on the interactive map.
-  // Auto-fills Region -> District -> Ward from the reverse-geocode
-  // suggestion where we got a confident match, and always shows the
-  // human-readable address — the customer can still correct any field
-  // manually afterward, since Tanzania map data isn't always complete.
+  // Called whenever InlineLocationMap's pin settles (drag, search
+  // result, or GPS) — auto-fills Region -> District -> Ward from the
+  // reverse-geocode suggestion where we got a confident match, and
+  // always shows the human-readable address. The customer can still
+  // correct any field manually afterward, since Tanzania map data
+  // isn't always complete.
   const handleMapConfirm = async ({ latitude: lat, longitude: lng, formattedAddress: addr, street, suggestedRegion, suggestedDistrict, suggestedWard }) => {
-    setShowMapPicker(false);
     setLatitude(lat);
     setLongitude(lng);
     setFormattedAddress(addr);
@@ -507,22 +505,12 @@ export default function CheckoutScreen({ navigation, route }) {
               <View style={styles.sectionAccent} />
               <Text style={styles.sectionTitle}>Delivery Address</Text>
             </View>
-            <TouchableOpacity
-              style={[styles.gpsBtn, latitude && styles.gpsBtnDone]}
-              onPress={getGPS}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.gpsBtnIcon}>📍</Text>
-              <View style={styles.gpsBtnText}>
-                <Text style={[styles.gpsBtnTitle, latitude && { color: COLORS.success }]}>
-                  {latitude ? '✓ Location pinned' : 'Pin my location on map'}
-                </Text>
-                <Text style={styles.gpsBtnSub} numberOfLines={2}>
-                  {latitude ? (formattedAddress || `${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}`) : 'Tap to open the map and drop a pin'}
-                </Text>
-              </View>
-              {latitude && <Text style={styles.gpsBtnChange}>Change</Text>}
-            </TouchableOpacity>
+
+            <InlineLocationMap
+              initialLatitude={latitude}
+              initialLongitude={longitude}
+              onLocationChange={handleMapConfirm}
+            />
 
             <Text style={styles.fieldLabel}>Region *</Text>
             <TouchableOpacity style={styles.selector} onPress={() => setShowRegionPicker(true)} activeOpacity={0.8}>
@@ -711,14 +699,6 @@ export default function CheckoutScreen({ navigation, route }) {
         data={pickupPoints} loading={loadingPickupPoints} searchable
         onSearch={(q) => loadPickupPoints(q)}
         onSelect={p => setPickupPoint(p)} onClose={() => setShowPickupPicker(false)} />
-
-      <MapLocationPicker
-        visible={showMapPicker}
-        onClose={() => setShowMapPicker(false)}
-        onConfirm={handleMapConfirm}
-        initialLatitude={latitude}
-        initialLongitude={longitude}
-      />
     </View>
   );
 }
@@ -776,17 +756,6 @@ const styles = StyleSheet.create({
   },
   pickupSelectText: { fontSize: FONTS.base, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
   pickupSelectArrow: { fontSize: FONTS.xl, color: COLORS.primary },
-  gpsBtn: {
-    flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: COLORS.primary,
-    borderRadius: RADIUS.xl, padding: SPACING.base, backgroundColor: COLORS.primaryFade,
-    marginBottom: SPACING.sm, gap: SPACING.sm,
-  },
-  gpsBtnDone: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
-  gpsBtnIcon: { fontSize: 25 },
-  gpsBtnText: { flex: 1 },
-  gpsBtnTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primaryDark },
-  gpsBtnSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  gpsBtnChange: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.bold },
   fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs, marginTop: SPACING.sm },
   optional: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.regular },
   selector: {
