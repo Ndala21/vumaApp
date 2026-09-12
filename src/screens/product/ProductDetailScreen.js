@@ -6,6 +6,9 @@
  * Fixed: Buy Now no longer adds the product to the shared cart before
  * checking out — it navigates straight to Checkout with just that one
  * item, so anything already saved in the cart is left untouched.
+ * Updated: added Similar Products, Frequently Bought Together, and
+ * More From This Seller - real product-detail-specific recommendation
+ * engines, using the shared RecommendationSection component.
  */
 
 import { t } from '../../i18n';
@@ -36,6 +39,7 @@ import Loading, { OverlayLoading } from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
 import { CustomerSizeSelector, requiresSize } from '../../components/SizeSelector';
 import ProductCard from '../../components/ProductCard';
+import RecommendationSection from '../../components/RecommendationSection';
 import { productsAPI } from '../../api/products';
 
 // ── NEW: Seller Badge & Trust Signals ────────────────
@@ -564,6 +568,31 @@ export default function ProductDetailScreen({ navigation, route }) {
           ))}
           {reviews.length === 0 && <Text style={styles.noReviews}>No reviews yet. Be the first!</Text>}
         </View>
+
+        {/* New product-detail recommendation engines — real backend
+            data, self-fetching, each keyed to this specific product so
+            they refresh correctly when navigating between products. */}
+        <RecommendationSection
+          key={`similar-${displayProduct.id}`}
+          title="Similar Products"
+          endpoint="/promotions/similar-products/"
+          params={{ product_id: displayProduct.id }}
+          navigation={navigation}
+        />
+        <RecommendationSection
+          key={`fbt-${displayProduct.id}`}
+          title="Frequently Bought Together"
+          endpoint="/promotions/frequently-bought-together/"
+          params={{ product_id: displayProduct.id }}
+          navigation={navigation}
+        />
+        <RecommendationSection
+          key={`more-seller-${displayProduct.id}`}
+          title="More From This Seller"
+          endpoint="/promotions/more-from-seller/"
+          params={{ product_id: displayProduct.id }}
+          navigation={navigation}
+        />
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (
