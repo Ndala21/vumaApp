@@ -18,12 +18,17 @@
  * Honest scope note carried over: no real Points/loyalty system
  * exists in the backend, so no Points card is shown (Wallet balance
  * covers that row instead, paired with a real Total Orders count).
+ *
+ * Updated: added "Sellers You Might Like" - real vendor recommendations
+ * (order/view history, falling back to top-rated approved vendors) -
+ * the one recommendation type with no other screen integration, since
+ * it returns vendor profiles rather than products.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
-  Platform, ScrollView, Alert,
+  Platform, ScrollView, Alert, Image,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectUser } from '../../store/authSlice';
@@ -31,6 +36,26 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { get } from '../../api/client';
 import { productsAPI } from '../../api/products';
 import ProductCard from '../../components/ProductCard';
+
+// ── Seller card — compact, shows shop logo/name/rating, real vendor
+// data only (no products here, so ProductCard doesn't apply). ──
+function SellerCard({ vendor, onPress }) {
+  return (
+    <TouchableOpacity style={styles.sellerCard} onPress={onPress} activeOpacity={0.85}>
+      {vendor.shop_logo_url ? (
+        <Image source={{ uri: vendor.shop_logo_url }} style={styles.sellerLogo} />
+      ) : (
+        <View style={[styles.sellerLogo, styles.sellerLogoPlaceholder]}>
+          <Text style={styles.sellerLogoText}>{(vendor.shop_name || 'S')[0].toUpperCase()}</Text>
+        </View>
+      )}
+      <Text style={styles.sellerName} numberOfLines={1}>{vendor.shop_name}</Text>
+      {vendor.rating_avg > 0 && (
+        <Text style={styles.sellerRating}>★ {Number(vendor.rating_avg).toFixed(1)}</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
 
 export default function ProfileScreen({ navigation }) {
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -43,6 +68,7 @@ export default function ProfileScreen({ navigation }) {
   const [buyAgainProducts, setBuyAgainProducts] = useState([]);
   const [recommended, setRecommended] = useState([]);
   const [trendingProducts, setTrendingProducts] = useState([]);
+  const [suggestedSellers, setSuggestedSellers] = useState([]);
   const [dashboardLoaded, setDashboardLoaded] = useState(false);
 
   const loadDashboard = useCallback(() => {
@@ -82,7 +108,9 @@ export default function ProfileScreen({ navigation }) {
     // yet — genuinely popular products, not fabricated data.
     const trendDone = productsAPI.getTrending().then((d) => setTrendingProducts(d?.results || d || [])).catch(() => {});
 
-    Promise.allSettled([ordersDone, recDone, trendDone]).then(() => setDashboardLoaded(true));
+    const sellersDone = get('/promotions/sellers-you-might-like/').then((d) => setSuggestedSellers(Array.isArray(d) ? d : (d?.results || []))).catch(() => setSuggestedSellers([]));
+
+    Promise.allSettled([ordersDone, recDone, trendDone, sellersDone]).then(() => setDashboardLoaded(true));
   }, [isAuthenticated]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
@@ -376,6 +404,26 @@ export default function ProfileScreen({ navigation }) {
           </View>
         )}
 
+        {/* Sellers You Might Like — real vendor recommendations, the
+            one recommendation type with no other screen home, since
+            it's vendor data rather than products. */}
+        {suggestedSellers.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Sellers You Might Like</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+              {suggestedSellers.slice(0, 10).map((v) => (
+                <SellerCard
+                  key={v.id}
+                  vendor={v}
+                  onPress={() => navigation.navigate('SellerStore', { vendorId: v.user_id || v.id })}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={{ height: 100 }} />
       </ScrollView>
     </View>
@@ -487,4 +535,12 @@ const styles = StyleSheet.create({
   // Trending grid (real product fallback)
   trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: SPACING.base, gap: SPACING.sm },
   trendingCard: { width: '48%', marginBottom: SPACING.sm },
+
+  // ── Sellers You Might Like ──
+  sellerCard: { width: 100, alignItems: 'center', backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.sm, borderWidth: 1, borderColor: COLORS.borderLight },
+  sellerLogo: { width: 52, height: 52, borderRadius: RADIUS.full, marginBottom: SPACING.xs },
+  sellerLogoPlaceholder: { backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center' },
+  sellerLogoText: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.primary },
+  sellerName: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, textAlign: 'center' },
+  sellerRating: { fontSize: 10.5, color: COLORS.rating, marginTop: 2 },
 });
