@@ -17,6 +17,11 @@
  *
  * No product data, fetching, filtering, or navigation logic changed —
  * only how the "All Products" section is laid out.
+ *
+ * Updated: added Buy It Again, Inspired by Your Recent Searches, Deals
+ * You Might Like, and Need This Now - using the new self-fetching
+ * RecommendationSection component (real backend engines, never
+ * touches this screen's existing data-loading logic).
  */
 
 import { t } from '../../i18n';
@@ -40,6 +45,7 @@ import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
 import HomeBanner from '../../components/HomeBanner';
+import RecommendationSection from '../../components/RecommendationSection';
 import { SkeletonProductGrid } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
@@ -488,6 +494,19 @@ export default function HomeScreen({ navigation }) {
         {isAuthenticated && recommendations.length > 0 && (
           <HorizontalRow title="Recommended for You" data={recommendations} accent={COLORS.rating} />
         )}
+
+        {/* New recommendation sections — self-fetching, real backend
+            engines, render nothing if there's no real data yet. */}
+        {isAuthenticated && (
+          <RecommendationSection title="Buy It Again" endpoint="/promotions/reorder/" navigation={navigation} />
+        )}
+        {isAuthenticated && (
+          <RecommendationSection title="Inspired by Your Recent Searches" endpoint="/promotions/search-inspired/" navigation={navigation} />
+        )}
+        {isAuthenticated && (
+          <RecommendationSection title="Deals You Might Like" endpoint="/promotions/deals-for-you/" navigation={navigation} />
+        )}
+        <RecommendationSection title="Need This Now" endpoint="/promotions/low-stock-deals/" navigation={navigation} />
 
         {/* Featured */}
         {featured?.length > 0 && (
