@@ -16,6 +16,7 @@ import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import ProductCard from '../../components/ProductCard';
 import { productsAPI } from '../../api/products';
+import { get } from '../../api/client';
 
 const DELIVERY_FEE = 0;
 
@@ -303,6 +304,7 @@ export default function CartScreen({ navigation }) {
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [recommendedProducts, setRecommendedProducts] = useState([]);
   const [trendingProducts, setTrendingProducts] = useState([]);
+  const [frequentlyBoughtTogether, setFrequentlyBoughtTogether] = useState([]);
   const firstCartProductId = cartItems[0]?.product?.id;
 
   useEffect(() => {
@@ -315,6 +317,9 @@ export default function CartScreen({ navigation }) {
   useEffect(() => {
     if (!firstCartProductId) return;
     productsAPI.getRelatedProducts(firstCartProductId).then((d) => setRelatedProducts(d?.results || d || [])).catch(() => {});
+    get('/promotions/frequently-bought-together/', { product_id: firstCartProductId })
+      .then((d) => setFrequentlyBoughtTogether(Array.isArray(d) ? d : (d?.results || [])))
+      .catch(() => setFrequentlyBoughtTogether([]));
   }, [firstCartProductId]);
 
   const handleSuggestionPress = useCallback((product) => {
@@ -390,6 +395,7 @@ export default function CartScreen({ navigation }) {
         }}
         ListFooterComponent={
           <View>
+            <SuggestionRow title="Frequently Bought Together" products={frequentlyBoughtTogether} onProductPress={handleSuggestionPress} />
             <SuggestionRow title="You May Also Like" products={relatedProducts} onProductPress={handleSuggestionPress} />
             {isAuthenticated && (
               <SuggestionRow title="Recommended for You" products={recommendedProducts} onProductPress={handleSuggestionPress} />

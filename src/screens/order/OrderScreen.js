@@ -1,5 +1,7 @@
 /**
  * VUMA Store — Order Screen
+ * Updated: added "Buy It Again" at the top of the order list - real
+ * reorder recommendations, the most natural fit for Order History.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -26,6 +28,7 @@ import { t } from '../../i18n';
 import { SkeletonListItem } from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
+import { get } from '../../api/client';
 import ProductCard from '../../components/ProductCard';
 
 const getStatusTabs = () => [
@@ -52,6 +55,9 @@ export default function OrderScreen({ navigation }) {
   // empty case (loaded fine, zero orders) — same pattern as
   // Cart/Wishlist/Recently Viewed.
   const [trendingProducts, setTrendingProducts] = useState([]);
+  // Real reorder recommendations - the most natural fit for Order
+  // History specifically, shown at the top of the real order list too.
+  const [reorderProducts, setReorderProducts] = useState([]);
 
   useEffect(() => {
     // A guest has no orders to fetch — calling this pointlessly hits
@@ -64,6 +70,11 @@ export default function OrderScreen({ navigation }) {
   useEffect(() => {
     productsAPI.getTrending().then((d) => setTrendingProducts(d?.results || d || [])).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setReorderProducts([]); return; }
+    get('/promotions/reorder/').then((d) => setReorderProducts(Array.isArray(d) ? d : (d?.results || []))).catch(() => setReorderProducts([]));
+  }, [isAuthenticated]);
 
   const loadOrders = useCallback(async (reset = false) => {
     if (!isAuthenticated) return;
@@ -87,6 +98,10 @@ export default function OrderScreen({ navigation }) {
     setCurrentPage(next);
     dispatch(fetchOrders({ page: next, status: activeFilter }));
   }, [isAuthenticated, loading, hasNextPage, currentPage, activeFilter]);
+
+  const handleReorderPress = useCallback((product) => {
+    navigation.navigate('ProductDetail', { productId: product.id, product });
+  }, [navigation]);
 
   const STATUS_TABS = getStatusTabs();
 
@@ -164,6 +179,27 @@ export default function OrderScreen({ navigation }) {
       </TouchableOpacity>
     );
   }, []);
+
+  // Shown above the real order list whenever there's real reorder
+  // data - lets a returning customer reorder without hunting through
+  // past orders.
+  const ReorderSection = () => {
+    if (!isAuthenticated || reorderProducts.length === 0) return null;
+    return (
+      <View style={styles.reorderSection}>
+        <Text style={styles.reorderTitle}>Buy It Again</Text>
+        <View style={styles.trendingGrid}>
+          {reorderProducts.slice(0, 6).map((p) => (
+            <ProductCard
+              key={p.id} product={p} variant="grid"
+              onPress={() => handleReorderPress(p)}
+              style={styles.trendingCard}
+            />
+          ))}
+        </View>
+      </View>
+    );
+  };
 
   const ListEmpty = () => {
     if (loading.orders) {
@@ -283,6 +319,7 @@ export default function OrderScreen({ navigation }) {
         data={orders}
         keyExtractor={(item) => item.id?.toString()}
         renderItem={({ item }) => <OrderItem item={item} />}
+        ListHeaderComponent={orders.length > 0 ? ReorderSection : null}
         ListEmptyComponent={ListEmpty}
         ListFooterComponent={() =>
           loading.loadingMore
@@ -473,4 +510,8 @@ const styles = StyleSheet.create({
   trendingTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs },
   trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: SPACING.sm },
   trendingCard: { width: '48%', marginBottom: SPACING.sm },
+
+  // ── Buy It Again ──
+  reorderSection: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
+  reorderTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
 });
