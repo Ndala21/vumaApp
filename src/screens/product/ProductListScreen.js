@@ -1,6 +1,10 @@
 /**
  * VUMA Store — Product List Screen
  * Search results, category listings, filtered products
+ * Updated: added Now Trending and Inspired by Your Recent Searches
+ * above the results grid - real backend engines via the shared
+ * RecommendationSection component, self-hiding when there's no real
+ * data (e.g. Inspired by Recent Searches for a guest with no history).
  */
 
 import { t } from '../../i18n';
@@ -42,6 +46,7 @@ import {
   resetProducts,
 } from '../../store/productSlice';
 import { addToCartAndSave } from '../../store/cartSlice';
+import { selectIsAuthenticated } from '../../store/authSlice';
 import {
   COLORS,
   FONTS,
@@ -53,6 +58,7 @@ import {
 import { formatPrice } from '../../utils/helpers';
 import ProductCard from '../../components/ProductCard';
 import SearchBar from '../../components/SearchBar';
+import RecommendationSection from '../../components/RecommendationSection';
 import {
   SkeletonProductGrid,
 } from '../../components/common/Loading';
@@ -75,6 +81,7 @@ export default function ProductListScreen({
   route,
 }) {
   const dispatch = useDispatch();
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
   // Route params
   const {
@@ -402,23 +409,34 @@ export default function ProductListScreen({
   );
 
   // ── List Components ───────────────────────────────────
+  // Now Trending / Inspired by Your Recent Searches sit above the
+  // results grid, self-hiding when there's no real data (e.g. a guest
+  // with no search history) - real backend engines, not fabricated.
   const ListHeader = () => (
-    <View style={styles.listHeader}>
-      <Text style={styles.resultsCount}>
-        {displayData.length} products
-      </Text>
-      <TouchableOpacity
-        style={styles.sortBtn}
-        onPress={() => setShowSort(!showSort)}
-      >
-        <Text style={styles.sortBtnText}>
-          Sort:{' '}
-          {SORT_OPTIONS.find(
-            (s) => s.value === tempFilters.ordering
-          )?.label || 'Newest'}
-        </Text>
-        <Text>▾</Text>
-      </TouchableOpacity>
+    <View>
+      <RecommendationSection title="Now Trending" endpoint="/promotions/trending/" navigation={navigation} />
+      {isAuthenticated && (
+        <RecommendationSection title="Inspired by Your Recent Searches" endpoint="/promotions/search-inspired/" navigation={navigation} />
+      )}
+      {displayData.length > 0 && (
+        <View style={styles.listHeader}>
+          <Text style={styles.resultsCount}>
+            {displayData.length} products
+          </Text>
+          <TouchableOpacity
+            style={styles.sortBtn}
+            onPress={() => setShowSort(!showSort)}
+          >
+            <Text style={styles.sortBtnText}>
+              Sort:{' '}
+              {SORT_OPTIONS.find(
+                (s) => s.value === tempFilters.ordering
+              )?.label || 'Newest'}
+            </Text>
+            <Text>▾</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
@@ -596,9 +614,7 @@ export default function ProductListScreen({
         renderItem={renderProduct}
         keyExtractor={keyExtractor}
         numColumns={2}
-        ListHeaderComponent={
-          displayData.length > 0 ? ListHeader : null
-        }
+        ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}
         onEndReached={handleLoadMore}
