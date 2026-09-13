@@ -46,6 +46,7 @@ import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
 import HomeBanner from '../../components/HomeBanner';
 import RecommendationSection from '../../components/RecommendationSection';
+import SellersYouMightLike from '../../components/SellersYouMightLike';
 import { SkeletonProductGrid } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
@@ -507,6 +508,9 @@ export default function HomeScreen({ navigation }) {
           <RecommendationSection title="Deals You Might Like" endpoint="/promotions/deals-for-you/" navigation={navigation} />
         )}
         <RecommendationSection title="Need This Now" endpoint="/promotions/low-stock-deals/" navigation={navigation} />
+        {isAuthenticated && (
+          <SellersYouMightLike navigation={navigation} isAuthenticated={isAuthenticated} />
+        )}
 
         {/* Featured */}
         {featured?.length > 0 && (
