@@ -275,7 +275,7 @@ export default function HomeScreen({ navigation }) {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
           {data.slice(0, 8).map((product) => (
-            <ProductCard key={product.id} product={product} variant="featured" onPress={() => handleProductPress(product)} style={styles.featuredCard} />
+            <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.featuredCard} />
           ))}
         </ScrollView>
       </View>
@@ -467,7 +467,7 @@ export default function HomeScreen({ navigation }) {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
               {flashSale.slice(0, 8).map((p) => (
-                <ProductCard key={p.id} product={p} variant="featured" onPress={() => handleProductPress(p)} style={styles.featuredCard} />
+                <ProductCard key={p.id} product={p} variant="grid" onPress={() => handleProductPress(p)} style={styles.featuredCard} />
               ))}
             </ScrollView>
           </View>
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
   countdownBadge: { backgroundColor: COLORS.secondary, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
   countdownText: { color: COLORS.textWhite, fontSize: 11.5, fontWeight: FONTS.bold, letterSpacing: 0.3 },
   horizontalList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
-  featuredCard: { width: 170, height: 210 },
+  featuredCard: { width: 128 },
 
   // ── VUMA Faida & Ofa ──
   faidaTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },

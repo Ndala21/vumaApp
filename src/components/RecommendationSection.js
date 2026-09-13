@@ -76,7 +76,7 @@ export default function RecommendationSection({ title, endpoint, params, navigat
         renderItem={({ item }) => (
           <ProductCard
             product={item}
-            variant="featured"
+            variant="grid"
             onPress={() => handlePress(item)}
             style={styles.card}
           />
@@ -90,5 +90,5 @@ const styles = StyleSheet.create({
   wrap: { marginBottom: SPACING.base },
   title: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, paddingHorizontal: SPACING.base },
   list: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
-  card: { width: 160, height: 200 },
+  card: { width: 128 },
 });

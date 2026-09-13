@@ -352,7 +352,7 @@ export default function ProfileScreen({ navigation }) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
               {recommended.slice(0, 10).map((p) => (
                 <ProductCard
-                  key={p.id} product={p} variant="featured"
+                  key={p.id} product={p} variant="grid"
                   onPress={() => navigation.navigate('ProductDetail', { productId: p.id, product: p })}
                   style={styles.hCard}
                 />
@@ -373,7 +373,7 @@ export default function ProfileScreen({ navigation }) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
               {buyAgainProducts.map((p) => (
                 <ProductCard
-                  key={p.id} product={p} variant="featured"
+                  key={p.id} product={p} variant="grid"
                   onPress={() => navigation.navigate('ProductDetail', { productId: p.id, product: p })}
                   style={styles.hCard}
                 />
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   seeAll: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.semiBold },
   hScroll: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
-  hCard: { width: 140, height: 190 },
+  hCard: { width: 128 },
 
   orderCard: { marginHorizontal: SPACING.base, marginBottom: SPACING.sm, backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.sm + 2, borderWidth: 1, borderColor: COLORS.borderLight },
   orderCardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },

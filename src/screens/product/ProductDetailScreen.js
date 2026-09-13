@@ -610,7 +610,7 @@ export default function ProductDetailScreen({ navigation, route }) {
               renderItem={({ item }) => (
                 <ProductCard
                   product={item}
-                  variant="featured"
+                  variant="grid"
                   onPress={() => handleRelatedProductPress(item)}
                   style={styles.relatedCard}
                 />
@@ -766,7 +766,7 @@ const styles = StyleSheet.create({
   relatedSection: { backgroundColor: COLORS.surface, paddingTop: SPACING.base, paddingBottom: SPACING.sm, marginBottom: SPACING.sm },
   relatedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm, paddingHorizontal: SPACING.base },
   relatedList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
-  relatedCard: { width: 160, height: 200 },
+  relatedCard: { width: 128 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.base },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
   sectionAccent: { width: 4, height: 15, borderRadius: 2, backgroundColor: COLORS.primary },

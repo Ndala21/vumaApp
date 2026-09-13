@@ -175,7 +175,7 @@ const SuggestionRow = memo(({ title, products, onProductPress }) => {
       <Text style={styles.suggestionTitle}>{title}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionList}>
         {products.slice(0, 10).map((p) => (
-          <ProductCard key={p.id} product={p} variant="featured" onPress={() => onProductPress(p)} style={styles.suggestionCard} />
+          <ProductCard key={p.id} product={p} variant="grid" onPress={() => onProductPress(p)} style={styles.suggestionCard} />
         ))}
       </ScrollView>
     </View>
@@ -519,5 +519,5 @@ const styles = StyleSheet.create({
   suggestionSection: { marginTop: SPACING.base, paddingTop: SPACING.sm },
   suggestionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, paddingHorizontal: SPACING.sm },
   suggestionList: { paddingHorizontal: SPACING.sm, gap: SPACING.sm },
-  suggestionCard: { width: 150, height: 200 },
+  suggestionCard: { width: 128 },
 });
