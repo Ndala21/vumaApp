@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, RefreshControl, StatusBar, Platform,
+  StyleSheet, RefreshControl, StatusBar, Platform, ScrollView,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -188,15 +188,15 @@ export default function OrderScreen({ navigation }) {
     return (
       <View style={styles.reorderSection}>
         <Text style={styles.reorderTitle}>Buy It Again</Text>
-        <View style={styles.trendingGrid}>
-          {reorderProducts.slice(0, 6).map((p) => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reorderList}>
+          {reorderProducts.slice(0, 10).map((p) => (
             <ProductCard
               key={p.id} product={p} variant="grid"
               onPress={() => handleReorderPress(p)}
-              style={styles.trendingCard}
+              style={styles.reorderCard}
             />
           ))}
-        </View>
+        </ScrollView>
       </View>
     );
   };
@@ -514,4 +514,6 @@ const styles = StyleSheet.create({
   // ── Buy It Again ──
   reorderSection: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
   reorderTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  reorderList: { gap: SPACING.sm },
+  reorderCard: { width: 128 },
 });
