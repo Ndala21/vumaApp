@@ -270,15 +270,8 @@ export default function ProductListScreen({
 
   // ── Render Product ────────────────────────────────────
   const renderProduct = useCallback(
-    ({ item, index }) => (
-      <View
-        style={[
-          styles.productWrap,
-          index % 2 === 0
-            ? styles.productLeft
-            : styles.productRight,
-        ]}
-      >
+    ({ item }) => (
+      <View style={styles.productWrap}>
         <ProductCard
           product={item}
           variant="grid"
@@ -613,7 +606,7 @@ export default function ProductListScreen({
         data={displayData}
         renderItem={renderProduct}
         keyExtractor={keyExtractor}
-        numColumns={2}
+        numColumns={3}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}
@@ -786,14 +779,6 @@ const styles = StyleSheet.create({
   productWrap: {
     flex: 1,
     padding: SPACING.xs,
-  },
-  productLeft: {
-    paddingLeft: SPACING.sm,
-    paddingRight: SPACING.xs,
-  },
-  productRight: {
-    paddingLeft: SPACING.xs,
-    paddingRight: SPACING.sm,
   },
   productCard: {
     flex: 1,

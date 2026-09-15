@@ -296,7 +296,7 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.seeAll}>See all ›</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.trendingGrid}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
               {trendingProducts.slice(0, 12).map((p) => (
                 <ProductCard
                   key={p.id} product={p} variant="grid"
@@ -304,7 +304,7 @@ export default function ProfileScreen({ navigation }) {
                   style={styles.trendingCard}
                 />
               ))}
-            </View>
+            </ScrollView>
           </View>
         )}
 
@@ -495,8 +495,8 @@ const styles = StyleSheet.create({
   emptyFeedSub: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center', lineHeight: 20 },
 
   // Trending grid (real product fallback)
-  trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: SPACING.base, gap: SPACING.sm },
-  trendingCard: { width: '48%', marginBottom: SPACING.sm },
+  trendingList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
+  trendingCard: { width: 128 },
 
   // ── Sellers You Might Like ──
   sellerCard: { width: 100, alignItems: 'center', backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.sm, borderWidth: 1, borderColor: COLORS.borderLight },

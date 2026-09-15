@@ -227,7 +227,7 @@ export default function OrderScreen({ navigation }) {
           {trendingProducts.length > 0 && (
             <View style={styles.trendingSection}>
               <Text style={styles.trendingTitle}>Trending Now</Text>
-              <View style={styles.trendingGrid}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
                 {trendingProducts.slice(0, 12).map((p) => (
                   <ProductCard
                     key={p.id} product={p} variant="grid"
@@ -235,7 +235,7 @@ export default function OrderScreen({ navigation }) {
                     style={styles.trendingCard}
                   />
                 ))}
-              </View>
+              </ScrollView>
             </View>
           )}
         </View>
@@ -259,7 +259,7 @@ export default function OrderScreen({ navigation }) {
         {trendingProducts.length > 0 && (
           <View style={styles.trendingSection}>
             <Text style={styles.trendingTitle}>Trending Now</Text>
-            <View style={styles.trendingGrid}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
               {trendingProducts.slice(0, 12).map((p) => (
                 <ProductCard
                   key={p.id} product={p} variant="grid"
@@ -267,7 +267,7 @@ export default function OrderScreen({ navigation }) {
                   style={styles.trendingCard}
                 />
               ))}
-            </View>
+            </ScrollView>
           </View>
         )}
       </View>
@@ -508,8 +508,8 @@ const styles = StyleSheet.create({
   signInBtnText: { color: 'white', fontSize: FONTS.base, fontWeight: FONTS.bold },
   trendingSection: { paddingTop: SPACING.sm },
   trendingTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs },
-  trendingGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: SPACING.sm },
-  trendingCard: { width: '48%', marginBottom: SPACING.sm },
+  trendingList: { gap: SPACING.sm },
+  trendingCard: { width: 128 },
 
   // ── Buy It Again ──
   reorderSection: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, ...SHADOWS.sm },
