@@ -45,6 +45,7 @@ import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
 import HomeBanner from '../../components/HomeBanner';
+import FeedBanner from '../../components/FeedBanner';
 import RecommendationSection from '../../components/RecommendationSection';
 import SellersYouMightLike from '../../components/SellersYouMightLike';
 import { SkeletonProductGrid } from '../../components/common/Loading';
@@ -320,8 +321,32 @@ export default function HomeScreen({ navigation }) {
   // near-equal length; ProductCard's natural (non-forced) height per
   // card is what actually creates the staggered look, since columns
   // are no longer stretched to match a row's tallest cell.
-  const columns = [[], [], []];
-  products.forEach((p, i) => columns[i % 3].push(p));
+  //
+  // Chunked into groups of 9 (3 rows worth) so a real FeedBanner can
+  // be inserted between chunks - genuinely interspersed through the
+  // feed rather than only living in one top carousel. Banners cycle
+  // through the real fetched list rather than repeating the same one.
+  const CHUNK_SIZE = 9;
+  const productChunks = [];
+  for (let i = 0; i < products.length; i += CHUNK_SIZE) {
+    productChunks.push(products.slice(i, i + CHUNK_SIZE));
+  }
+
+  const MasonryChunk = ({ chunk }) => {
+    const cols = [[], [], []];
+    chunk.forEach((p, i) => cols[i % 3].push(p));
+    return (
+      <View style={styles.masonryRow}>
+        {cols.map((col, colIndex) => (
+          <View key={colIndex} style={styles.masonryColumn}>
+            {col.map((product) => (
+              <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} onAddedToCart={handleAddedToCart} />
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  };
 
   const MasonryGrid = () => {
     if (loading.products && products.length === 0) return <SkeletonProductGrid count={6} />;
@@ -336,13 +361,18 @@ export default function HomeScreen({ navigation }) {
       );
     }
     return (
-      <View style={styles.masonryRow}>
-        {columns.map((col, colIndex) => (
-          <View key={colIndex} style={styles.masonryColumn}>
-            {col.map((product) => (
-              <ProductCard key={product.id} product={product} variant="grid" onPress={() => handleProductPress(product)} style={styles.masonryCard} onAddedToCart={handleAddedToCart} />
-            ))}
-          </View>
+      <View>
+        {productChunks.map((chunk, chunkIndex) => (
+          <React.Fragment key={chunkIndex}>
+            <MasonryChunk chunk={chunk} />
+            {chunkIndex < productChunks.length - 1 && banners.length > 0 && (
+              <FeedBanner
+                banner={banners[chunkIndex % banners.length]}
+                navigation={navigation}
+                style={styles.feedBanner}
+              />
+            )}
+          </React.Fragment>
         ))}
       </View>
     );
@@ -695,6 +725,7 @@ const styles = StyleSheet.create({
   masonryRow: { flexDirection: 'row', paddingHorizontal: SPACING.base, gap: SPACING.xs, paddingTop: SPACING.xs },
   masonryColumn: { flex: 1, gap: SPACING.xs },
   masonryCard: { width: '100%' },
+  feedBanner: { marginHorizontal: SPACING.base, marginVertical: SPACING.sm },
 
   loadingMore: { padding: SPACING.xl, alignItems: 'center' },
   loadingMoreText: { fontSize: FONTS.sm, color: COLORS.textMuted },
