@@ -17,7 +17,6 @@ import React, {
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
@@ -59,6 +58,7 @@ import { formatPrice } from '../../utils/helpers';
 import ProductCard from '../../components/ProductCard';
 import SearchBar from '../../components/SearchBar';
 import RecommendationSection from '../../components/RecommendationSection';
+import FeedBanner from '../../components/FeedBanner';
 import {
   SkeletonProductGrid,
 } from '../../components/common/Loading';
@@ -67,6 +67,7 @@ import {
   FullScreenError,
 } from '../../components/common/ErrorMessage';
 import Button from '../../components/common/Button';
+import { get } from '../../api/client';
 
 const SORT_OPTIONS = [
   { label: 'Newest', value: '-created_at' },
@@ -115,6 +116,12 @@ export default function ProductListScreen({
     ordering: '-created_at',
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [banners, setBanners] = useState([]);
+
+  useEffect(() => {
+    const params = initialCategory ? { category: initialCategory } : {};
+    get('/products/banners/', params).then((d) => setBanners(Array.isArray(d) ? d : (d?.results || []))).catch(() => setBanners([]));
+  }, [initialCategory]);
 
   // Data to display
   const displayData = isSearchMode ? searchResults : products;
@@ -216,6 +223,18 @@ export default function ProductListScreen({
     tempFilters,
   ]);
 
+  // Replaces FlatList's onEndReached - the grid is now rendered as
+  // chunked Views (to allow real full-width banners between chunks),
+  // so infinite scroll is triggered manually near the bottom instead,
+  // matching the same pattern already used on Home.
+  const handleScroll = useCallback((e) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const paddingToBottom = 400;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+      handleLoadMore();
+    }
+  }, [handleLoadMore]);
+
   const handleApplyFilters = () => {
     setShowFilters(false);
     dispatch(resetProducts());
@@ -267,26 +286,6 @@ export default function ProductListScreen({
         .join(' ');
     return 'All Products';
   };
-
-  // ── Render Product ────────────────────────────────────
-  const renderProduct = useCallback(
-    ({ item }) => (
-      <View style={styles.productWrap}>
-        <ProductCard
-          product={item}
-          variant="grid"
-          onPress={() => handleProductPress(item)}
-          style={styles.productCard}
-        />
-      </View>
-    ),
-    []
-  );
-
-  const keyExtractor = useCallback(
-    (item) => item.id?.toString(),
-    []
-  );
 
   // ── Filter Modal ──────────────────────────────────────
   const FilterModal = () => (
@@ -602,16 +601,10 @@ export default function ProductListScreen({
       )}
 
       {/* Product Grid */}
-      <FlatList
-        data={displayData}
-        renderItem={renderProduct}
-        keyExtractor={keyExtractor}
-        numColumns={3}
-        ListHeaderComponent={ListHeader}
-        ListFooterComponent={ListFooter}
-        ListEmptyComponent={ListEmpty}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.4}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={200}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -621,12 +614,49 @@ export default function ProductListScreen({
           />
         }
         contentContainerStyle={styles.gridContent}
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        initialNumToRender={6}
-      />
+      >
+        <ListHeader />
+        {displayData.length === 0 ? (
+          <ListEmpty />
+        ) : (
+          (() => {
+            const CHUNK_SIZE = 9;
+            const chunks = [];
+            for (let i = 0; i < displayData.length; i += CHUNK_SIZE) {
+              chunks.push(displayData.slice(i, i + CHUNK_SIZE));
+            }
+            return chunks.map((chunk, chunkIndex) => {
+              const cols = [[], [], []];
+              chunk.forEach((p, i) => cols[i % 3].push(p));
+              return (
+                <React.Fragment key={chunkIndex}>
+                  <View style={styles.masonryRow}>
+                    {cols.map((col, colIndex) => (
+                      <View key={colIndex} style={styles.masonryColumn}>
+                        {col.map((product) => (
+                          <ProductCard
+                            key={product.id} product={product} variant="grid"
+                            onPress={() => handleProductPress(product)}
+                            style={styles.masonryCard}
+                          />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                  {chunkIndex < chunks.length - 1 && banners.length > 0 && (
+                    <FeedBanner
+                      banner={banners[chunkIndex % banners.length]}
+                      navigation={navigation}
+                      style={styles.feedBanner}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            });
+          })()
+        )}
+        <ListFooter />
+      </ScrollView>
 
       <FilterModal />
     </View>
@@ -776,13 +806,10 @@ const styles = StyleSheet.create({
   gridContent: {
     paddingBottom: 100,
   },
-  productWrap: {
-    flex: 1,
-    padding: SPACING.xs,
-  },
-  productCard: {
-    flex: 1,
-  },
+  masonryRow: { flexDirection: 'row', paddingHorizontal: SPACING.sm, gap: SPACING.xs, paddingTop: SPACING.xs },
+  masonryColumn: { flex: 1, gap: SPACING.xs },
+  masonryCard: { width: '100%' },
+  feedBanner: { marginHorizontal: SPACING.sm, marginVertical: SPACING.sm },
   loadingMore: {
     padding: SPACING.xl,
     alignItems: 'center',
