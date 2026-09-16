@@ -4,6 +4,13 @@
  * Same props, same paging math (width-based snap), same onPress contract —
  * visual rebuild only. Fallback banner colors now pull from the shared
  * COLORS tokens instead of one-off hex values.
+ *
+ * Updated: the bottom text-scrim was a heavy flat 68%-opacity rectangle
+ * covering 62% of the banner, which read as a hard-edged dark block
+ * rather than a subtle fade once banner backgrounds got cleaner.
+ * Softened to a much lighter, shorter overlay - still keeps white
+ * text readable without dominating the image. A true smooth gradient
+ * would need expo-linear-gradient, which isn't installed yet.
  */
 
 import React, { useState, useEffect, useRef, memo } from 'react';
@@ -190,12 +197,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(18,22,43,0.02)',
   },
   gradientBottom: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, height: '62%',
-    backgroundColor: 'rgba(18,22,43,0.68)',
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: '38%',
+    backgroundColor: 'rgba(18,22,43,0.32)',
   },
   imageOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: SPACING.base },
-  overlayTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite, marginBottom: 3, letterSpacing: FONTS.trackTight },
-  overlaySubtitle: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.82)', marginBottom: SPACING.sm },
+  overlayTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite, marginBottom: 3, letterSpacing: FONTS.trackTight, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  overlaySubtitle: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.9)', marginBottom: SPACING.sm, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
   overlayBtn: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
     backgroundColor: COLORS.primary, borderRadius: RADIUS.full,
