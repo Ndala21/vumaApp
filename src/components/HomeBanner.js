@@ -63,8 +63,6 @@ const BannerSlide = memo(({ item, onPress }) => {
       <TouchableOpacity activeOpacity={0.95} onPress={() => onPress(item)} style={styles.slide}>
         <View style={styles.slideCard}>
           <Image source={{ uri: item.image }} style={styles.bannerImage} resizeMode="cover" />
-          <View style={styles.gradientTop} pointerEvents="none" />
-          <View style={styles.gradientBottom} pointerEvents="none" />
           <View style={styles.imageOverlay}>
             {item.title ? <Text style={styles.overlayTitle} numberOfLines={1}>{item.title}</Text> : null}
             {item.subtitle ? <Text style={styles.overlaySubtitle} numberOfLines={1}>{item.subtitle}</Text> : null}
@@ -192,17 +190,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.secondary, ...SHADOWS.sm,
   },
   bannerImage: { width: '100%', height: '100%' },
-  gradientTop: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
-    backgroundColor: 'rgba(18,22,43,0.02)',
-  },
-  gradientBottom: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, height: '38%',
-    backgroundColor: 'rgba(18,22,43,0.32)',
-  },
   imageOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: SPACING.base },
-  overlayTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite, marginBottom: 3, letterSpacing: FONTS.trackTight, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-  overlaySubtitle: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.9)', marginBottom: SPACING.sm, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  overlayTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite, marginBottom: 3, letterSpacing: FONTS.trackTight, textShadowColor: 'rgba(0,0,0,0.55)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
+  overlaySubtitle: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.92)', marginBottom: SPACING.sm, textShadowColor: 'rgba(0,0,0,0.55)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
   overlayBtn: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
     backgroundColor: COLORS.primary, borderRadius: RADIUS.full,

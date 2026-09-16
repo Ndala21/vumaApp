@@ -109,11 +109,11 @@ const styles = StyleSheet.create({
   sellerChipText: { fontSize: 10.5, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
   overlay: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.42)', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm,
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
   },
-  title: { flex: 1, fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  subtitle: { fontSize: 11, color: 'rgba(255,255,255,0.85)' },
+  title: { flex: 1, fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textWhite, textShadowColor: 'rgba(0,0,0,0.55)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
+  subtitle: { fontSize: 11, color: 'rgba(255,255,255,0.92)', textShadowColor: 'rgba(0,0,0,0.55)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
   cta: { backgroundColor: COLORS.primary, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 4 },
   ctaText: { color: COLORS.textWhite, fontSize: 10.5, fontWeight: FONTS.bold },
 });
