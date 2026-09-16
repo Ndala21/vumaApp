@@ -9,7 +9,7 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Linking } from 'react-native';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, SCREENS } from '../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SCREENS } from '../utils/constants';
 import { post } from '../api/client';
 
 const TYPE_BADGES = {
@@ -91,7 +91,7 @@ export default function FeedBanner({ banner, navigation, style }) {
 const styles = StyleSheet.create({
   wrap: {
     width: '100%', height: 120, borderRadius: RADIUS.lg, overflow: 'hidden',
-    backgroundColor: COLORS.surfaceAlt, position: 'relative', ...SHADOWS.sm,
+    backgroundColor: COLORS.surfaceAlt, position: 'relative',
   },
   image: { width: '100%', height: '100%', position: 'absolute' },
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
