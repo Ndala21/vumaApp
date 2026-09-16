@@ -643,7 +643,7 @@ export default function ProductListScreen({
                       </View>
                     ))}
                   </View>
-                  {chunkIndex < chunks.length - 1 && banners.length > 0 && (
+                  {banners.length > 0 && (
                     <FeedBanner
                       banner={banners[chunkIndex % banners.length]}
                       navigation={navigation}

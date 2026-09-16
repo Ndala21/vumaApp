@@ -365,7 +365,7 @@ export default function HomeScreen({ navigation }) {
         {productChunks.map((chunk, chunkIndex) => (
           <React.Fragment key={chunkIndex}>
             <MasonryChunk chunk={chunk} />
-            {chunkIndex < productChunks.length - 1 && banners.length > 0 && (
+            {banners.length > 0 && (
               <FeedBanner
                 banner={banners[chunkIndex % banners.length]}
                 navigation={navigation}
