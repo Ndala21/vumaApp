@@ -2,6 +2,14 @@
  * VUMA Intelligent Search Bar
  * Real-time suggestions, typo tolerance, Swahili/English synonyms.
  * Same props/handlers/state as before — visual rebuild only.
+ *
+ * Fixed: tapping the input caused the keyboard to flash open and
+ * immediately close. Root cause: focus immediately mounted a new
+ * absolutely-positioned FlatList dropdown (recent/trending items) in
+ * the same render as the keyboard's opening animation began - on
+ * Android this can cause the OS to steal focus back. The dropdown's
+ * appearance is now delayed by a beat so it doesn't compete with the
+ * keyboard transition.
  */
 
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
@@ -17,6 +25,7 @@ import { get, post } from '../api/client';
 const RECENT_KEY = '@vuma_recent_searches';
 const MAX_RECENT = 8;
 const DEBOUNCE_MS = 300;
+const FOCUS_DROPDOWN_DELAY_MS = 200;
 
 const SUGGESTION_ICONS = {
   product: '🛍️',
@@ -64,15 +73,20 @@ export default function SearchBar({
   const [trending, setTrending] = useState([]);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
 
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
+  const focusTimerRef = useRef(null);
   const dropdownAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadRecent();
     loadTrending();
     if (autoFocus) setTimeout(() => inputRef.current?.focus(), 300);
+    return () => {
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
   }, []);
 
   const loadRecent = async () => {
@@ -146,6 +160,7 @@ export default function SearchBar({
     if (!q) return;
     Keyboard.dismiss();
     setFocused(false);
+    setDropdownVisible(false);
     showDropdown(false);
     await saveRecent(q);
     try { await post('/products/search/record/', { query: q }); } catch {}
@@ -160,13 +175,23 @@ export default function SearchBar({
 
   const handleFocus = useCallback(() => {
     setFocused(true);
-    showDropdown(true);
     onFocus?.();
+    // Delay mounting the dropdown FlatList until just after the
+    // keyboard's own opening animation has started - mounting a new
+    // absolutely-positioned view in the same render as focus is
+    // granted can cause Android to steal focus back immediately.
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    focusTimerRef.current = setTimeout(() => {
+      setDropdownVisible(true);
+      showDropdown(true);
+    }, FOCUS_DROPDOWN_DELAY_MS);
   }, [onFocus]);
 
   const handleBlur = useCallback(() => {
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     setTimeout(() => {
       setFocused(false);
+      setDropdownVisible(false);
       showDropdown(false);
     }, 150);
   }, []);
@@ -201,7 +226,7 @@ export default function SearchBar({
     }
   }
 
-  const showDropdownContent = focused && dropdownItems.length > 0;
+  const showDropdownContent = dropdownVisible && dropdownItems.length > 0;
 
   return (
     <View style={[styles.container, style]}>
