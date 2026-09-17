@@ -90,24 +90,25 @@ try {
 
 function App() {
   const [i18nReady, setI18nReady] = useState(false);
-  const [langKey, setLangKey] = useState('en');
   const [splashDone, setSplashDone] = useState(false);
   const notificationListener = useRef(null);
   const responseListener = useRef(null);
 
   // i18n init
+  // Note: previously also tracked a langKey (locale + timestamp) and
+  // used it as Provider's key, which unmounted and remounted the
+  // *entire app* (including whatever had keyboard focus) any time
+  // setLocale() fired its listeners. Language-driven text updates are
+  // already handled by the separate useTranslation()/notifyLanguageChange
+  // mechanism in src/i18n, so a full app remount was never needed for
+  // that - this only ever destructively reset the whole tree.
   useEffect(() => {
     i18n.init().then(() => {
-      setLangKey(i18n.getLocale());
       setI18nReady(true);
     }).catch(e => {
       console.error('i18n init error:', e);
       setI18nReady(true);
     });
-    const unsubscribe = i18n.onChange((locale) => {
-      setLangKey(locale + '_' + Date.now());
-    });
-    return unsubscribe;
   }, []);
 
   // Push notifications setup
@@ -185,7 +186,7 @@ function App() {
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
           {i18nReady ? (
-            <Provider store={store} key={langKey}>
+            <Provider store={store}>
               <AppNavigator />
             </Provider>
           ) : (
