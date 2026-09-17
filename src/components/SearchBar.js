@@ -81,10 +81,12 @@ export default function SearchBar({
   const dropdownAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    console.log('[SearchBar] MOUNTED');
     loadRecent();
     loadTrending();
     if (autoFocus) setTimeout(() => inputRef.current?.focus(), 300);
     return () => {
+      console.log('[SearchBar] UNMOUNTED');
       if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     };
   }, []);
@@ -174,6 +176,7 @@ export default function SearchBar({
   }, [fetchSuggestions]);
 
   const handleFocus = useCallback(() => {
+    console.log('[SearchBar] onFocus fired, autoFocus=' + autoFocus);
     setFocused(true);
     onFocus?.();
     // Delay mounting the dropdown FlatList until just after the
@@ -188,6 +191,7 @@ export default function SearchBar({
   }, [onFocus]);
 
   const handleBlur = useCallback(() => {
+    console.log('[SearchBar] onBlur fired');
     if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     setTimeout(() => {
       setFocused(false);
