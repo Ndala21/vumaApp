@@ -144,7 +144,12 @@ export default function HomeScreen({ navigation }) {
   const handleScroll = useCallback((e) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
     const paddingToBottom = 400;
-    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+    // Require a real minimum scroll distance too - on Android, the
+    // keyboard opening shrinks layoutMeasurement.height (adjustResize),
+    // which could otherwise satisfy this "near bottom" check while
+    // sitting at the very top of the screen and spuriously trigger a
+    // reload that drops keyboard focus.
+    if (contentOffset.y > 200 && layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
       handleLoadMore();
     }
   }, [handleLoadMore]);
