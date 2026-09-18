@@ -393,7 +393,7 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.topSearch}>
           <SearchBar
             value={searchQuery} onChangeText={setSearchQuery}
-            onSubmit={handleSearchSubmit} placeholder="Search products..."
+            onSearch={handleSearchSubmit} placeholder="Search products..."
             showHistory={false} style={styles.searchBar}
           />
         </View>

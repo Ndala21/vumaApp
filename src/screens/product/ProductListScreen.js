@@ -173,6 +173,7 @@ export default function ProductListScreen({
 
   const handleSearch = useCallback(
     (searchText, page = 1) => {
+      setQuery(searchText || '');
       if (!searchText?.trim()) {
         setIsSearchMode(false);
         loadProducts(true);
@@ -489,6 +490,20 @@ export default function ProductListScreen({
     );
   };
 
+  // Real fallback recommendations shown specifically when a search
+  // returns zero results - reuses the same real backend engine, not
+  // fabricated "similar" results.
+  const ListEmptyFooter = () => {
+    if (isLoading || errors.products || errors.search || !isSearchMode) return null;
+    return (
+      <RecommendationSection
+        title="You Might Like"
+        endpoint="/promotions/recommendations/"
+        navigation={navigation}
+      />
+    );
+  };
+
   // ── Render ────────────────────────────────────────────
   return (
     <View style={styles.container}>
@@ -509,15 +524,8 @@ export default function ProductListScreen({
 
         <View style={styles.searchWrap}>
           <SearchBar
-            value={query}
-            onChangeText={setQuery}
-            onSubmit={(q) => {
+            onSearch={(q) => {
               handleSearch(q);
-            }}
-            onClear={() => {
-              setQuery('');
-              setIsSearchMode(false);
-              loadProducts(true);
             }}
             placeholder={
               initialCategory
@@ -622,7 +630,10 @@ export default function ProductListScreen({
       >
         <ListHeader />
         {displayData.length === 0 ? (
-          <ListEmpty />
+          <>
+            <ListEmpty />
+            <ListEmptyFooter />
+          </>
         ) : (
           (() => {
             const CHUNK_SIZE = 9;
