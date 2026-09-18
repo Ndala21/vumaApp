@@ -1,6 +1,16 @@
 /**
  * VUMA Store — Product Slice
  * Products, categories, search, wishlist state
+ *
+ * Updated: added a separate `browse` sub-state + fetchBrowseProducts
+ * thunk for the Search screen's own non-search "all products" view.
+ * Previously, Search (ProductListScreen) used the exact same
+ * state.items/fetchProducts as Home - since both Home and Search stay
+ * mounted simultaneously as tabs (React Navigation's default), each
+ * screen's own mount-time fetch silently overwrote the other's
+ * results, causing search results (or Home's list) to appear on the
+ * wrong screen. Search's browse mode now has its own fully
+ * independent state, so the two screens can never collide again.
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
@@ -36,6 +46,45 @@ export const fetchProducts = createAsyncThunk(
         page,
         category,
         q,
+        ordering,
+        min_price,
+        max_price,
+        featured,
+        flash_sale,
+      });
+      return { data, page, refresh };
+    } catch (error) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
+/**
+ * Fetch products for the Search screen's own "browse" (non-search)
+ * view - completely independent from Home's fetchProducts/items, so
+ * the two screens (which stay mounted simultaneously as tabs) can
+ * never overwrite each other's product list.
+ */
+export const fetchBrowseProducts = createAsyncThunk(
+  'products/fetchBrowseProducts',
+  async (
+    {
+      page = 1,
+      category = '',
+      ordering = '-created_at',
+      min_price = '',
+      max_price = '',
+      featured = false,
+      flash_sale = false,
+      refresh = false,
+    } = {},
+    { rejectWithValue }
+  ) => {
+    try {
+      const { productsAPI } = await import('../api/products');
+      const data = await productsAPI.getProducts({
+        page,
+        category,
         ordering,
         min_price,
         max_price,
@@ -226,12 +275,20 @@ export const deleteProduct = createAsyncThunk(
 // ══════════════════════════════════════════════════════
 
 const initialState = {
-  // Product list
+  // Product list (Home screen)
   items: [],
   currentPage: 1,
   totalPages: 1,
   totalCount: 0,
   hasNextPage: false,
+
+  // Product list (Search screen's own "browse"/non-search view) -
+  // fully independent from items/currentPage/etc above.
+  browseItems: [],
+  browseCurrentPage: 1,
+  browseTotalPages: 1,
+  browseTotalCount: 0,
+  browseHasNextPage: false,
 
   // Selected product detail
   selectedProduct: null,
@@ -266,6 +323,7 @@ const initialState = {
   // Loading states
   loading: {
     products: false,
+    browseProducts: false,
     detail: false,
     categories: false,
     featured: false,
@@ -277,11 +335,13 @@ const initialState = {
     updateProduct: false,
     deleteProduct: false,
     loadingMore: false,
+    browseLoadingMore: false,
   },
 
   // Errors
   errors: {
     products: null,
+    browseProducts: null,
     detail: null,
     categories: null,
     search: null,
@@ -343,12 +403,21 @@ const productSlice = createSlice({
       }
     },
 
-    // Reset product list (for pull-to-refresh)
+    // Reset product list (for pull-to-refresh) — Home screen only
     resetProducts: (state) => {
       state.items = [];
       state.currentPage = 1;
       state.totalPages = 1;
       state.hasNextPage = false;
+    },
+
+    // Reset Search screen's own browse list — fully independent from
+    // resetProducts above, so it can never touch Home's state.
+    resetBrowseProducts: (state) => {
+      state.browseItems = [];
+      state.browseCurrentPage = 1;
+      state.browseTotalPages = 1;
+      state.browseHasNextPage = false;
     },
 
     // Update single product in list
@@ -378,7 +447,7 @@ const productSlice = createSlice({
   },
 
   extraReducers: (builder) => {
-    // ── Fetch Products ────────────────────────────────
+    // ── Fetch Products (Home) ─────────────────────────
     builder
       .addCase(fetchProducts.pending, (state, action) => {
         const isLoadMore = action.meta.arg?.page > 1;
@@ -417,6 +486,46 @@ const productSlice = createSlice({
         state.loading.products = false;
         state.loading.loadingMore = false;
         state.errors.products = action.payload;
+      });
+
+    // ── Fetch Browse Products (Search screen's own, independent) ──
+    builder
+      .addCase(fetchBrowseProducts.pending, (state, action) => {
+        const isLoadMore = action.meta.arg?.page > 1;
+        if (isLoadMore) {
+          state.loading.browseLoadingMore = true;
+        } else {
+          state.loading.browseProducts = true;
+        }
+        state.errors.browseProducts = null;
+      })
+      .addCase(fetchBrowseProducts.fulfilled, (state, action) => {
+        state.loading.browseProducts = false;
+        state.loading.browseLoadingMore = false;
+        const { data, page, refresh } = action.payload;
+        const results = data.results || data;
+        if (page === 1 || refresh) {
+          state.browseItems = results;
+        } else {
+          const existingIds = new Set(
+            state.browseItems.map((p) => p.id)
+          );
+          const newItems = results.filter(
+            (p) => !existingIds.has(p.id)
+          );
+          state.browseItems = [...state.browseItems, ...newItems];
+        }
+        state.browseCurrentPage = page;
+        state.browseTotalCount = data.count || results.length;
+        state.browseTotalPages = Math.ceil(
+          (data.count || results.length) / PAGINATION.pageSize
+        );
+        state.browseHasNextPage = !!data.next;
+      })
+      .addCase(fetchBrowseProducts.rejected, (state, action) => {
+        state.loading.browseProducts = false;
+        state.loading.browseLoadingMore = false;
+        state.errors.browseProducts = action.payload;
       });
 
     // ── Fetch Product Detail ──────────────────────────
@@ -638,6 +747,7 @@ export const {
   clearSearch,
   clearProductError,
   resetProducts,
+  resetBrowseProducts,
   updateProductInList,
   removeProductFromList,
 } = productSlice.actions;
@@ -647,6 +757,7 @@ export const {
 // ══════════════════════════════════════════════════════
 
 export const selectProducts = (state) => state.products.items;
+export const selectBrowseProducts = (state) => state.products.browseItems;
 export const selectSelectedProduct = (state) =>
   state.products.selectedProduct;
 export const selectCategories = (state) =>
@@ -667,8 +778,12 @@ export const selectProductsErrors = (state) =>
   state.products.errors;
 export const selectHasNextPage = (state) =>
   state.products.hasNextPage;
+export const selectBrowseHasNextPage = (state) =>
+  state.products.browseHasNextPage;
 export const selectCurrentPage = (state) =>
   state.products.currentPage;
+export const selectBrowseCurrentPage = (state) =>
+  state.products.browseCurrentPage;
 export const selectTotalCount = (state) =>
   state.products.totalCount;
 export const selectFilters = (state) => state.products.filters;

@@ -28,21 +28,21 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  fetchProducts,
+  fetchBrowseProducts,
   searchProducts,
-  selectProducts,
+  selectBrowseProducts,
   selectSearchResults,
   selectSearchQuery,
   selectSearchHasMore,
   selectProductsLoading,
   selectProductsErrors,
-  selectHasNextPage,
-  selectCurrentPage,
+  selectBrowseHasNextPage,
+  selectBrowseCurrentPage,
   setFilters,
   resetFilters,
   selectFilters,
   clearSearch,
-  resetProducts,
+  resetBrowseProducts,
 } from '../../store/productSlice';
 import { addToCartAndSave } from '../../store/cartSlice';
 import { selectIsAuthenticated } from '../../store/authSlice';
@@ -94,14 +94,14 @@ export default function ProductListScreen({
   } = route?.params || {};
 
   // Redux
-  const products = useSelector(selectProducts);
+  const products = useSelector(selectBrowseProducts);
   const searchResults = useSelector(selectSearchResults);
   const searchQuery = useSelector(selectSearchQuery);
   const searchHasMore = useSelector(selectSearchHasMore);
   const loading = useSelector(selectProductsLoading);
   const errors = useSelector(selectProductsErrors);
-  const hasNextPage = useSelector(selectHasNextPage);
-  const currentPage = useSelector(selectCurrentPage);
+  const hasNextPage = useSelector(selectBrowseHasNextPage);
+  const currentPage = useSelector(selectBrowseCurrentPage);
   const filters = useSelector(selectFilters);
 
   // Local state
@@ -130,7 +130,7 @@ export default function ProductListScreen({
     : hasNextPage;
   const isLoading = isSearchMode
     ? loading.search
-    : loading.products;
+    : loading.browseProducts;
 
   // ── Init ────────────────────────────────────────────
   useEffect(() => {
@@ -141,16 +141,16 @@ export default function ProductListScreen({
     }
     return () => {
       dispatch(clearSearch());
-      dispatch(resetProducts());
+      dispatch(resetBrowseProducts());
     };
   }, []);
 
   // ── Load Products ────────────────────────────────────
   const loadProducts = useCallback(
     (reset = false) => {
-      if (reset) dispatch(resetProducts());
+      if (reset) dispatch(resetBrowseProducts());
       dispatch(
-        fetchProducts({
+        fetchBrowseProducts({
           page: reset ? 1 : currentPage,
           category: initialCategory,
           featured: initialFeatured,
@@ -198,7 +198,7 @@ export default function ProductListScreen({
   }, [isSearchMode, query, loadProducts]);
 
   const handleLoadMore = useCallback(() => {
-    if (loading.loadingMore || loading.search || !displayHasMore)
+    if (loading.browseLoadingMore || loading.search || !displayHasMore)
       return;
     if (isSearchMode) {
       const nextPage =
@@ -206,7 +206,7 @@ export default function ProductListScreen({
       handleSearch(query, Math.floor(nextPage));
     } else {
       dispatch(
-        fetchProducts({
+        fetchBrowseProducts({
           page: currentPage + 1,
           category: initialCategory,
           ordering: tempFilters.ordering,
@@ -243,9 +243,9 @@ export default function ProductListScreen({
 
   const handleApplyFilters = () => {
     setShowFilters(false);
-    dispatch(resetProducts());
+    dispatch(resetBrowseProducts());
     dispatch(
-      fetchProducts({
+      fetchBrowseProducts({
         page: 1,
         category: initialCategory,
         ordering: tempFilters.ordering,
@@ -439,7 +439,7 @@ export default function ProductListScreen({
   );
 
   const ListFooter = () => {
-    if (!loading.loadingMore && !loading.search) {
+    if (!loading.browseLoadingMore && !loading.search) {
       return null;
     }
     return (
@@ -453,10 +453,10 @@ export default function ProductListScreen({
 
   const ListEmpty = () => {
     if (isLoading) return <SkeletonProductGrid count={6} />;
-    if (errors.products || errors.search) {
+    if (errors.browseProducts || errors.search) {
       return (
         <FullScreenError
-          error={errors.products || errors.search}
+          error={errors.browseProducts || errors.search}
           onRetry={handleRefresh}
         />
       );
@@ -494,7 +494,7 @@ export default function ProductListScreen({
   // returns zero results - reuses the same real backend engine, not
   // fabricated "similar" results.
   const ListEmptyFooter = () => {
-    if (isLoading || errors.products || errors.search || !isSearchMode) return null;
+    if (isLoading || errors.browseProducts || errors.search || !isSearchMode) return null;
     return (
       <RecommendationSection
         title="You Might Like"
@@ -583,9 +583,9 @@ export default function ProductListScreen({
                   ordering: opt.value,
                 }));
                 setShowSort(false);
-                dispatch(resetProducts());
+                dispatch(resetBrowseProducts());
                 dispatch(
-                  fetchProducts({
+                  fetchBrowseProducts({
                     page: 1,
                     category: initialCategory,
                     ordering: opt.value,
