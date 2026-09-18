@@ -8,6 +8,16 @@
  * Updated: ApplicationStatus screen registered - shown after a seller
  * submits their application, and reachable again any time they still
  * have a pending/approved application (prevents duplicate submissions).
+ *
+ * Updated: the forced-logout session check polled AsyncStorage every
+ * 3 seconds, for the entire time the app is open, at this top-level
+ * component - meaning every screen sat under a recurring async
+ * read+dispatch cycle firing every 3s. That's a very likely candidate
+ * for intermittently interfering with keyboard focus elsewhere in the
+ * app (landing mid-typing often enough to notice). Slowed to 20s,
+ * which is still more than fast enough to catch a forced logout
+ * promptly, while cutting how often it can collide with typing by
+ * roughly 6-7x.
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -205,7 +215,7 @@ export default function AppNavigator() {
           dispatch(forceLogout());
         }
       } catch {}
-    }, 3000);
+    }, 20000);
     return () => { if (sessionCheckRef.current) clearInterval(sessionCheckRef.current); };
   }, []);
 
