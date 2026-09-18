@@ -1,4 +1,12 @@
 import { registerRootComponent } from 'expo';
+import { enableScreens } from 'react-native-screens';
+// Disable react-native-screens' native view-recycling optimization.
+// This library has a long, well-documented history (across many of
+// its versions) of causing exactly this symptom on Android: a
+// TextInput's keyboard opens and immediately closes again, caused by
+// how native screen transitions interact with keyboard focus. This
+// must run before anything else imports/renders navigation.
+enableScreens(false);
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
