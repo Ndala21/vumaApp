@@ -1,6 +1,14 @@
 /**
  * VUMA Store — Tab Navigator
  * Bottom tab navigation for customers
+ *
+ * Updated: tabBarHideOnKeyboard was true - this makes React
+ * Navigation's bottom-tabs actively listen for the keyboard's
+ * show/hide events to animate the tab bar away. That listener is a
+ * plausible, specific cause of the reported "keyboard opens then
+ * immediately closes" bug on the search bar: it's directly,
+ * narrowly tied to keyboard detection at the navigation layer,
+ * rather than a broad app-wide setting. Set to false to test.
  */
 
 import React from 'react';
@@ -62,7 +70,7 @@ export default function TabNavigator() {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: styles.tabBar,
-        tabBarHideOnKeyboard: true,
+        tabBarHideOnKeyboard: false,
       }}
     >
       {/* Home */}
