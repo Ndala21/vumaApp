@@ -263,37 +263,53 @@ export default function SearchBar({
         </TouchableOpacity>
       </View>
 
-      {showDropdownContent && (
-        <Animated.View style={[styles.dropdown, { opacity: dropdownAnim, transform: [{ translateY: dropdownAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] }]}>
-          <FlatList
-            data={dropdownItems}
-            keyExtractor={item => item.key}
-            keyboardShouldPersistTaps="always"
-            showsVerticalScrollIndicator={false}
-            renderItem={({ item }) => {
-              if (item.type === 'header') {
-                return (
-                  <View style={styles.headerRow}>
-                    <View style={styles.headerTitleRow}>
-                      <View style={styles.headerDot} />
-                      <Text style={styles.sectionHeader}>{item.title}</Text>
-                    </View>
-                    {item.showClear && (
-                      <TouchableOpacity onPress={clearRecent}>
-                        <Text style={styles.clearRecent}>Clear</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              }
+      {/* Always mounted - never conditionally added/removed from the
+          tree. Confirmed via diagnostic logging that mounting a new
+          view hierarchy here while the TextInput was focused caused
+          Android to steal focus back, triggering blur -> unmount ->
+          refocus -> remount, in a self-sustaining loop. Visibility is
+          now controlled purely through opacity/height/pointerEvents,
+          so nothing ever mounts or unmounts based on focus state. */}
+      <Animated.View
+        pointerEvents={showDropdownContent ? 'auto' : 'none'}
+        style={[
+          styles.dropdown,
+          {
+            opacity: dropdownAnim,
+            maxHeight: showDropdownContent ? 420 : 0,
+            borderWidth: showDropdownContent ? 1 : 0,
+            transform: [{ translateY: dropdownAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
+          },
+        ]}
+      >
+        <FlatList
+          data={dropdownItems}
+          keyExtractor={item => item.key}
+          keyboardShouldPersistTaps="always"
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => {
+            if (item.type === 'header') {
               return (
-                <SuggestionRow item={item} onPress={handleSubmit} onFill={handleFillQuery} />
+                <View style={styles.headerRow}>
+                  <View style={styles.headerTitleRow}>
+                    <View style={styles.headerDot} />
+                    <Text style={styles.sectionHeader}>{item.title}</Text>
+                  </View>
+                  {item.showClear && (
+                    <TouchableOpacity onPress={clearRecent}>
+                      <Text style={styles.clearRecent}>Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               );
-            }}
-            style={styles.dropdownList}
-          />
-        </Animated.View>
-      )}
+            }
+            return (
+              <SuggestionRow item={item} onPress={handleSubmit} onFill={handleFillQuery} />
+            );
+          }}
+          style={styles.dropdownList}
+        />
+      </Animated.View>
     </View>
   );
 }
