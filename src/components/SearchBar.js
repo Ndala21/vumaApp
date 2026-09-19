@@ -19,10 +19,6 @@
  * This removes any path by which gaining/losing focus could itself
  * trigger a structural change that Android might read as a reason to
  * steal focus back.
- *
- * TEMPORARY: still instrumented with diagLog() (visible on-screen,
- * no ADB needed) to verify the oscillation is actually gone. Remove
- * the diagLog import and calls once confirmed fixed.
  */
 
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
@@ -34,7 +30,6 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { get, post } from '../api/client';
-import { diagLog } from './diagnosticLog';
 
 const RECENT_KEY = '@vuma_recent_searches';
 const MAX_RECENT = 8;
@@ -72,8 +67,6 @@ const SuggestionRow = memo(({ item, onPress, onFill }) => (
   </TouchableOpacity>
 ));
 
-let instanceCounter = 0;
-
 // ── Main SearchBar Component ──────────────────────────
 export default function SearchBar({
   onSearch,
@@ -82,9 +75,6 @@ export default function SearchBar({
   autoFocus = false,
   style,
 }) {
-  const instanceId = useRef(++instanceCounter).current;
-  diagLog(`SearchBar#${instanceId}: RENDER`);
-
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
@@ -97,11 +87,9 @@ export default function SearchBar({
   const dropdownAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    diagLog(`SearchBar#${instanceId}: MOUNTED`);
     loadRecent();
     loadTrending();
     if (autoFocus) setTimeout(() => inputRef.current?.focus(), 300);
-    return () => diagLog(`SearchBar#${instanceId}: UNMOUNTED`);
   }, []);
 
   const loadRecent = async () => {
@@ -152,7 +140,6 @@ export default function SearchBar({
   }, []);
 
   const handleChangeText = useCallback((text) => {
-    diagLog(`SearchBar#${instanceId}: onChangeText "${text}"`);
     setQuery(text);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (text.length >= 2) {
@@ -182,13 +169,11 @@ export default function SearchBar({
   // never trigger a style change, layout change, or conditional
   // mount/unmount anywhere in this component.
   const handleFocus = useCallback(() => {
-    diagLog(`SearchBar#${instanceId}: onFocus`);
     focusedRef.current = true;
     onFocus?.();
   }, [onFocus]);
 
   const handleBlur = useCallback(() => {
-    diagLog(`SearchBar#${instanceId}: onBlur`);
     focusedRef.current = false;
   }, []);
 
