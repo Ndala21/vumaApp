@@ -44,6 +44,9 @@ import { formatPrice, formatCountdown, secondsUntil } from '../../utils/helpers'
 import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
+import MinimalDiagnosticInput from '../../components/MinimalDiagnosticInput';
+import DiagnosticLogView from '../../components/DiagnosticLogView';
+import { diagLog } from '../../components/diagnosticLog';
 import HomeBanner from '../../components/HomeBanner';
 import FeedBanner from '../../components/FeedBanner';
 import RecommendationSection from '../../components/RecommendationSection';
@@ -57,6 +60,12 @@ const { width } = Dimensions.get('window');
 const NUM_COLUMNS = width >= 700 ? 4 : 3; // still used by wide-screen horizontal rows above the grid
 
 export default function HomeScreen({ navigation }) {
+  diagLog('HomeScreen: RENDER');
+  useEffect(() => {
+    diagLog('HomeScreen: MOUNTED');
+    return () => diagLog('HomeScreen: UNMOUNTED');
+  }, []);
+
   const dispatch = useDispatch();
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const products = useSelector(selectProducts);
@@ -387,6 +396,9 @@ export default function HomeScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+
+      <DiagnosticLogView />
+      <MinimalDiagnosticInput />
 
       <View style={styles.topBar}>
         <Text style={styles.logoWord}>VUMA</Text>
