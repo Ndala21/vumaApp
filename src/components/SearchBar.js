@@ -1,12 +1,28 @@
 /**
- * VUMA Intelligent Search Bar
+ * VUMA Intelligent Search Bar — REBUILT
  * Real-time suggestions, typo tolerance, Swahili/English synonyms.
  *
- * TEMPORARY: instrumented with diagLog() calls (visible on-screen,
- * no ADB needed) to trace mount/unmount/focus/blur/render events and
- * find the real root cause of the keyboard-dismiss bug. Remove the
- * diagLog import and all diagLog(...) calls once fixed - everything
- * else is the real, unmodified component logic.
+ * Rebuilt from scratch after diagnostic evidence (visible on-screen
+ * lifecycle logging) proved the previous version had a self-sustaining
+ * focus/blur oscillation loop (onFocus -> render -> onBlur -> render
+ * -> onFocus...), confirmed by comparison against a zero-dependency
+ * TextInput on the same screen that stayed perfectly stable.
+ *
+ * Key architectural change: focus state (`focused`) is now used ONLY
+ * to read whether the input is active for logic purposes - it never
+ * drives any style change, layout change, or conditional mount/unmount
+ * anywhere in this component. The dropdown's visibility is derived
+ * entirely from whether there's real content to show (query length +
+ * suggestions, or recent/trending when empty) - never from focus
+ * state directly - and the dropdown view itself is permanently
+ * mounted, with only its opacity/height/touch-passthrough animated.
+ * This removes any path by which gaining/losing focus could itself
+ * trigger a structural change that Android might read as a reason to
+ * steal focus back.
+ *
+ * TEMPORARY: still instrumented with diagLog() (visible on-screen,
+ * no ADB needed) to verify the oscillation is actually gone. Remove
+ * the diagLog import and calls once confirmed fixed.
  */
 
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
@@ -67,21 +83,17 @@ export default function SearchBar({
   style,
 }) {
   const instanceId = useRef(++instanceCounter).current;
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-  diagLog(`SearchBar#${instanceId}: RENDER #${renderCount.current}`);
+  diagLog(`SearchBar#${instanceId}: RENDER`);
 
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
   const [trending, setTrending] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const [dropdownVisible, setDropdownVisible] = useState(false);
+  const focusedRef = useRef(false);
 
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
-  const focusTimerRef = useRef(null);
   const dropdownAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -89,10 +101,7 @@ export default function SearchBar({
     loadRecent();
     loadTrending();
     if (autoFocus) setTimeout(() => inputRef.current?.focus(), 300);
-    return () => {
-      diagLog(`SearchBar#${instanceId}: UNMOUNTED`);
-      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    };
+    return () => diagLog(`SearchBar#${instanceId}: UNMOUNTED`);
   }, []);
 
   const loadRecent = async () => {
@@ -124,14 +133,6 @@ export default function SearchBar({
       setTrending(data?.trending || []);
     } catch {}
   };
-
-  const showDropdown = useCallback((show) => {
-    Animated.timing(dropdownAnim, {
-      toValue: show ? 1 : 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
-  }, []);
 
   const fetchSuggestions = useCallback(async (text) => {
     if (!text || text.length < 2) {
@@ -166,9 +167,6 @@ export default function SearchBar({
     const q = searchQuery.trim();
     if (!q) return;
     Keyboard.dismiss();
-    setFocused(false);
-    setDropdownVisible(false);
-    showDropdown(false);
     await saveRecent(q);
     try { await post('/products/search/record/', { query: q }); } catch {}
     onSearch?.(q);
@@ -180,25 +178,18 @@ export default function SearchBar({
     fetchSuggestions(text);
   }, [fetchSuggestions]);
 
+  // Focus/blur are logged and tracked for logic purposes only - they
+  // never trigger a style change, layout change, or conditional
+  // mount/unmount anywhere in this component.
   const handleFocus = useCallback(() => {
     diagLog(`SearchBar#${instanceId}: onFocus`);
-    setFocused(true);
+    focusedRef.current = true;
     onFocus?.();
-    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    focusTimerRef.current = setTimeout(() => {
-      setDropdownVisible(true);
-      showDropdown(true);
-    }, 200);
   }, [onFocus]);
 
   const handleBlur = useCallback(() => {
     diagLog(`SearchBar#${instanceId}: onBlur`);
-    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    setTimeout(() => {
-      setFocused(false);
-      setDropdownVisible(false);
-      showDropdown(false);
-    }, 150);
+    focusedRef.current = false;
   }, []);
 
   const clearQuery = useCallback(() => {
@@ -220,7 +211,7 @@ export default function SearchBar({
       dropdownItems.push({ key: 'h_suggestions', type: 'header', title: 'Suggestions' });
       rest.forEach((s, i) => dropdownItems.push({ ...s, key: `sugg_${i}` }));
     }
-  } else {
+  } else if (query.length === 0) {
     if (recentSearches.length > 0) {
       dropdownItems.push({ key: 'h_recent', type: 'header', title: 'Recent Searches', showClear: true });
       recentSearches.slice(0, 5).forEach((r, i) => dropdownItems.push({ key: `rec_${i}`, text: r, type: 'recent', icon: '🕒', category: '' }));
@@ -231,11 +222,20 @@ export default function SearchBar({
     }
   }
 
-  const showDropdownContent = dropdownVisible && dropdownItems.length > 0;
+  // Derived purely from content, never from focus state directly.
+  const hasDropdownContent = dropdownItems.length > 0;
+
+  useEffect(() => {
+    Animated.timing(dropdownAnim, {
+      toValue: hasDropdownContent ? 1 : 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+  }, [hasDropdownContent]);
 
   return (
     <View style={[styles.container, style]}>
-      <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
+      <View style={styles.inputWrap}>
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           ref={inputRef}
@@ -263,22 +263,17 @@ export default function SearchBar({
         </TouchableOpacity>
       </View>
 
-      {/* Always mounted - never conditionally added/removed from the
-          tree. Confirmed via diagnostic logging that mounting a new
-          view hierarchy here while the TextInput was focused caused
-          Android to steal focus back, triggering blur -> unmount ->
-          refocus -> remount, in a self-sustaining loop. Visibility is
-          now controlled purely through opacity/height/pointerEvents,
-          so nothing ever mounts or unmounts based on focus state. */}
+      {/* Permanently mounted - visibility controlled purely via
+          opacity/maxHeight/pointerEvents, derived from real content,
+          never from focus state. */}
       <Animated.View
-        pointerEvents={showDropdownContent ? 'auto' : 'none'}
+        pointerEvents={hasDropdownContent ? 'auto' : 'none'}
         style={[
           styles.dropdown,
           {
             opacity: dropdownAnim,
-            maxHeight: showDropdownContent ? 420 : 0,
-            borderWidth: showDropdownContent ? 1 : 0,
-            transform: [{ translateY: dropdownAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
+            maxHeight: hasDropdownContent ? 420 : 0,
+            borderWidth: hasDropdownContent ? 1 : 0,
           },
         ]}
       >
@@ -320,12 +315,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.surfaceSunken,
     borderRadius: RADIUS.full,
-    borderWidth: 1.5, borderColor: 'transparent',
     paddingHorizontal: SPACING.md,
     paddingVertical: Platform.OS === 'ios' ? SPACING.xs + 2 : 2,
     gap: SPACING.xs,
   },
-  inputWrapFocused: { borderColor: COLORS.primary, backgroundColor: COLORS.surface, ...SHADOWS.sm },
   searchIcon: { fontSize: 15, opacity: 0.55 },
   input: { flex: 1, fontSize: FONTS.base, color: COLORS.textPrimary, paddingVertical: SPACING.sm },
   loader: { marginRight: SPACING.xs },
@@ -340,10 +333,10 @@ const styles = StyleSheet.create({
   dropdown: {
     position: 'absolute', top: '100%', left: 0, right: 0, marginTop: SPACING.sm,
     backgroundColor: COLORS.surface, borderRadius: RADIUS.xl,
-    borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.lg,
-    maxHeight: 420, zIndex: 999,
+    borderColor: COLORS.border, ...SHADOWS.lg,
+    zIndex: 999, overflow: 'hidden',
   },
-  dropdownList: { borderRadius: RADIUS.xl, overflow: 'hidden' },
+  dropdownList: { borderRadius: RADIUS.xl },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.base, paddingTop: SPACING.md, paddingBottom: SPACING.xs },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   headerDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primary },
