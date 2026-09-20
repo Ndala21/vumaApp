@@ -1,6 +1,11 @@
 /**
  * VUMA Store — Category Bar Component
  * Horizontal scrollable category wheel. Same props/handlers — visual rebuild only.
+ *
+ * TEMPORARY: instrumented with diagLog() calls to trace exactly what
+ * fires when a category is tapped, to find the real cause of category
+ * taps sometimes triggering search-related behavior instead of
+ * filtering. Remove the diagLog import and calls once fixed.
  */
 
 import React, { memo, useRef } from 'react';
@@ -18,6 +23,7 @@ import {
   SPACING,
   SHADOWS,
 } from '../utils/constants';
+import { diagLog } from './diagnosticLog';
 
 function CategoryBar({
   categories,
@@ -46,11 +52,11 @@ function CategoryBar({
             <TouchableOpacity
               key={cat.id || cat.slug}
               style={styles.item}
-              onPress={() =>
-                onSelect?.(
-                  isActive ? '' : cat.slug || cat.id
-                )
-              }
+              onPress={() => {
+                const value = isActive ? '' : cat.slug || cat.id;
+                diagLog(`CategoryBar: TAP "${cat.label}" -> onSelect("${value}")`);
+                onSelect?.(value);
+              }}
               activeOpacity={0.75}
             >
               <View

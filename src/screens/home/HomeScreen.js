@@ -44,6 +44,8 @@ import { formatPrice, formatCountdown, secondsUntil } from '../../utils/helpers'
 import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
+import DiagnosticLogView from '../../components/DiagnosticLogView';
+import { diagLog } from '../../components/diagnosticLog';
 import HomeBanner from '../../components/HomeBanner';
 import FeedBanner from '../../components/FeedBanner';
 import RecommendationSection from '../../components/RecommendationSection';
@@ -155,6 +157,7 @@ export default function HomeScreen({ navigation }) {
   }, [handleLoadMore]);
 
   const handleCategorySelect = useCallback((slug) => {
+    diagLog(`HomeScreen: handleCategorySelect("${slug}") CALLED`);
     setActiveCategory(slug);
     dispatch(resetProducts());
     dispatch(fetchProducts({ page: 1, category: slug, refresh: true }));
@@ -387,6 +390,8 @@ export default function HomeScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
+
+      <DiagnosticLogView />
 
       <View style={styles.topBar}>
         <Text style={styles.logoWord}>VUMA</Text>
