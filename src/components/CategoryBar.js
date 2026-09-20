@@ -1,11 +1,21 @@
 /**
  * VUMA Store — Category Bar Component
- * Horizontal scrollable category wheel. Same props/handlers — visual rebuild only.
+ * Horizontal scrollable category wheel.
  *
- * TEMPORARY: instrumented with diagLog() calls to trace exactly what
- * fires when a category is tapped, to find the real cause of category
- * taps sometimes triggering search-related behavior instead of
- * filtering. Remove the diagLog import and calls once fixed.
+ * Rebuilt after diagnostic evidence showed a genuine duplicate tap
+ * event firing on the same category button roughly 1-2 seconds after
+ * a real tap - specifically on "All" and "Others" (the first and last
+ * items, i.e. the scroll boundaries). This points at the horizontal
+ * ScrollView's overscroll/bounce-back behavior interacting with the
+ * touch, rather than anything in the press-handling logic itself
+ * (which was already confirmed correct via logging).
+ *
+ * Two changes: overscroll/bounce disabled entirely on both platforms,
+ * and a defensive guard that ignores a second press on the same item
+ * within 1 second of the first - a robust safety net regardless of
+ * the exact native mechanism producing the duplicate.
+ *
+ * TEMPORARY: still instrumented with diagLog() for verification.
  */
 
 import React, { memo, useRef } from 'react';
@@ -25,6 +35,8 @@ import {
 } from '../utils/constants';
 import { diagLog } from './diagnosticLog';
 
+const DUPLICATE_PRESS_GUARD_MS = 1000;
+
 function CategoryBar({
   categories,
   activeCategory = '',
@@ -32,6 +44,7 @@ function CategoryBar({
   style,
 }) {
   const scrollRef = useRef(null);
+  const lastPressRef = useRef({ key: null, time: 0 });
 
   if (!categories || categories.length === 0) return null;
 
@@ -43,16 +56,28 @@ function CategoryBar({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         decelerationRate="fast"
+        bounces={false}
+        overScrollMode="never"
       >
         {categories.map((cat) => {
           const isActive =
             activeCategory === cat.slug ||
             activeCategory === cat.id;
+          const itemKey = cat.id || cat.slug;
           return (
             <TouchableOpacity
-              key={cat.id || cat.slug}
+              key={itemKey}
               style={styles.item}
               onPress={() => {
+                const now = Date.now();
+                if (
+                  lastPressRef.current.key === itemKey &&
+                  now - lastPressRef.current.time < DUPLICATE_PRESS_GUARD_MS
+                ) {
+                  diagLog(`CategoryBar: IGNORED duplicate tap on "${cat.label}" (${now - lastPressRef.current.time}ms after previous)`);
+                  return;
+                }
+                lastPressRef.current = { key: itemKey, time: now };
                 const value = isActive ? '' : cat.slug || cat.id;
                 diagLog(`CategoryBar: TAP "${cat.label}" -> onSelect("${value}")`);
                 onSelect?.(value);
