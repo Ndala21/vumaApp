@@ -25,7 +25,7 @@
  */
 
 import { t } from '../../i18n';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   RefreshControl, Dimensions, StatusBar, Platform, Image, Alert,
@@ -215,10 +215,17 @@ export default function HomeScreen({ navigation }) {
     );
   };
 
-  const allCategories = [
+  // Memoized so the array reference stays stable across re-renders -
+  // previously a brand-new array was created on every HomeScreen
+  // render (including the very re-render a category tap itself
+  // triggers via setActiveCategory/dispatch), which defeated
+  // CategoryBar's memo() and could cause its re-render to happen
+  // while a touch gesture was still settling, occasionally producing
+  // a duplicate tap on the same category button.
+  const allCategories = useMemo(() => [
     { id: 'all', label: t('common.all'), icon: '🏠', slug: '' },
     ...CATEGORIES.filter((c) => c.id !== 'all'),
-  ];
+  ], []);
 
   // ── VUMA Faida & Ofa — promotion cards, Swahili-labeled, each only
   // shown when its real backing campaign is active. ──
