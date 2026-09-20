@@ -219,7 +219,7 @@ export default function SearchBar({
   }, [hasDropdownContent]);
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, { zIndex: hasDropdownContent ? 100 : 0 }, style]}>
       <View style={styles.inputWrap}>
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
@@ -295,7 +295,7 @@ export default function SearchBar({
 }
 
 const styles = StyleSheet.create({
-  container: { position: 'relative', zIndex: 100 },
+  container: { position: 'relative' },
   inputWrap: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.surfaceSunken,
