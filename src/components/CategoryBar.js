@@ -15,7 +15,6 @@
  * within 1 second of the first - a robust safety net regardless of
  * the exact native mechanism producing the duplicate.
  *
- * TEMPORARY: still instrumented with diagLog() for verification.
  */
 
 import React, { memo, useRef } from 'react';
@@ -33,7 +32,6 @@ import {
   SPACING,
   SHADOWS,
 } from '../utils/constants';
-import { diagLog } from './diagnosticLog';
 
 const DUPLICATE_PRESS_GUARD_MS = 1000;
 
@@ -74,12 +72,10 @@ function CategoryBar({
                   lastPressRef.current.key === itemKey &&
                   now - lastPressRef.current.time < DUPLICATE_PRESS_GUARD_MS
                 ) {
-                  diagLog(`CategoryBar: IGNORED duplicate tap on "${cat.label}" (${now - lastPressRef.current.time}ms after previous)`);
                   return;
                 }
                 lastPressRef.current = { key: itemKey, time: now };
                 const value = isActive ? '' : cat.slug || cat.id;
-                diagLog(`CategoryBar: TAP "${cat.label}" -> onSelect("${value}")`);
                 onSelect?.(value);
               }}
               activeOpacity={0.75}

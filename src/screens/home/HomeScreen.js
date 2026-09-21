@@ -44,8 +44,6 @@ import { formatPrice, formatCountdown, secondsUntil } from '../../utils/helpers'
 import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
-import DiagnosticLogView from '../../components/DiagnosticLogView';
-import { diagLog } from '../../components/diagnosticLog';
 import HomeBanner from '../../components/HomeBanner';
 import FeedBanner from '../../components/FeedBanner';
 import RecommendationSection from '../../components/RecommendationSection';
@@ -89,10 +87,6 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => { loadInitialData(); }, []);
 
   useEffect(() => {
-    diagLog(`HomeScreen: products CHANGED - count=${products.length}, first="${products[0]?.name || 'none'}" (category=${products[0]?.category_name || 'n/a'}), activeCategory="${activeCategory}"`);
-  }, [products]);
-
-  useEffect(() => {
     if (!flashSale?.length) return;
     const endTime = flashSale[0]?.flash_sale_end;
     if (!endTime) return;
@@ -102,7 +96,6 @@ export default function HomeScreen({ navigation }) {
   }, [flashSale]);
 
   const loadInitialData = useCallback(async () => {
-    diagLog('HomeScreen: loadInitialData() CALLED - fetchProducts(category="")');
     dispatch(resetProducts());
     await Promise.all([
       dispatch(fetchProducts({ page: 1, category: '', refresh: true })),
@@ -138,7 +131,6 @@ export default function HomeScreen({ navigation }) {
   }, [isAuthenticated]);
 
   const handleRefresh = useCallback(async () => {
-    diagLog('HomeScreen: handleRefresh() CALLED (pull-to-refresh triggered)');
     setRefreshing(true);
     await loadInitialData();
     setRefreshing(false);
@@ -146,7 +138,6 @@ export default function HomeScreen({ navigation }) {
 
   const handleLoadMore = useCallback(() => {
     if (loading.loadingMore || loading.products || !hasNextPage) return;
-    diagLog(`HomeScreen: handleLoadMore() CALLED - fetchProducts(category="${activeCategory}", page=${currentPage + 1})`);
     dispatch(fetchProducts({ page: currentPage + 1, category: activeCategory }));
   }, [loading, hasNextPage, currentPage, activeCategory]);
 
@@ -166,7 +157,6 @@ export default function HomeScreen({ navigation }) {
   }, [handleLoadMore]);
 
   const handleCategorySelect = useCallback((slug) => {
-    diagLog(`HomeScreen: handleCategorySelect("${slug}") CALLED`);
     setActiveCategory(slug);
     dispatch(resetProducts());
     dispatch(fetchProducts({ page: 1, category: slug, refresh: true }));
@@ -614,15 +604,6 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
       )}
-
-      {/* Floating, absolutely-positioned overlay - completely outside
-          the normal layout flow, so its own re-renders (on every new
-          log line) can never shift CategoryBar's or anything else's
-          position. pointerEvents="box-none" lets touches pass through
-          the empty space around it straight to the content below. */}
-      <View style={styles.diagOverlay} pointerEvents="box-none">
-        <DiagnosticLogView />
-      </View>
     </View>
   );
 }
@@ -782,7 +763,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.base + 4, paddingVertical: SPACING.sm + 2,
   },
   toastText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.semiBold },
-  diagOverlay: {
-    position: 'absolute', bottom: 90, left: 0, right: 0,
-  },
 });
