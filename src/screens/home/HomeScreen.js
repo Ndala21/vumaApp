@@ -87,6 +87,10 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => { loadInitialData(); }, []);
 
   useEffect(() => {
+    diagLog(`HomeScreen: products CHANGED - count=${products.length}, first="${products[0]?.name || 'none'}" (category=${products[0]?.category_name || 'n/a'}), activeCategory="${activeCategory}"`);
+  }, [products]);
+
+  useEffect(() => {
     if (!flashSale?.length) return;
     const endTime = flashSale[0]?.flash_sale_end;
     if (!endTime) return;
@@ -96,6 +100,7 @@ export default function HomeScreen({ navigation }) {
   }, [flashSale]);
 
   const loadInitialData = useCallback(async () => {
+    diagLog('HomeScreen: loadInitialData() CALLED - fetchProducts(category="")');
     dispatch(resetProducts());
     await Promise.all([
       dispatch(fetchProducts({ page: 1, category: '', refresh: true })),
@@ -131,6 +136,7 @@ export default function HomeScreen({ navigation }) {
   }, [isAuthenticated]);
 
   const handleRefresh = useCallback(async () => {
+    diagLog('HomeScreen: handleRefresh() CALLED (pull-to-refresh triggered)');
     setRefreshing(true);
     await loadInitialData();
     setRefreshing(false);
@@ -138,6 +144,7 @@ export default function HomeScreen({ navigation }) {
 
   const handleLoadMore = useCallback(() => {
     if (loading.loadingMore || loading.products || !hasNextPage) return;
+    diagLog(`HomeScreen: handleLoadMore() CALLED - fetchProducts(category="${activeCategory}", page=${currentPage + 1})`);
     dispatch(fetchProducts({ page: currentPage + 1, category: activeCategory }));
   }, [loading, hasNextPage, currentPage, activeCategory]);
 
