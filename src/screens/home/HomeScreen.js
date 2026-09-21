@@ -83,6 +83,8 @@ export default function HomeScreen({ navigation }) {
   const [promotions, setPromotions] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const toastTimer = React.useRef(null);
+  const mainScrollRef = useRef(null);
+  const allProductsYRef = useRef(0);
 
   useEffect(() => { loadInitialData(); }, []);
 
@@ -168,6 +170,15 @@ export default function HomeScreen({ navigation }) {
     setActiveCategory(slug);
     dispatch(resetProducts());
     dispatch(fetchProducts({ page: 1, category: slug, refresh: true }));
+    // Auto-scroll to the filtered results so a category tap has
+    // immediate, visible feedback - previously the top of the screen
+    // (banners, recommendations, deals) never changed on category
+    // selection, so unless the user manually scrolled all the way
+    // down, a tap on an empty or lightly-stocked category looked like
+    // nothing happened at all.
+    setTimeout(() => {
+      mainScrollRef.current?.scrollTo({ y: Math.max(0, allProductsYRef.current - 12), animated: true });
+    }, 100);
   }, []);
 
   const handleProductPress = useCallback((product) => {
@@ -438,6 +449,7 @@ export default function HomeScreen({ navigation }) {
       <CategoryBar categories={allCategories} activeCategory={activeCategory} onSelect={handleCategorySelect} />
 
       <ScrollView
+        ref={mainScrollRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
@@ -576,7 +588,10 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {/* All Products Header */}
-        <View style={styles.allProductsHeader}>
+        <View
+          style={styles.allProductsHeader}
+          onLayout={(e) => { allProductsYRef.current = e.nativeEvent.layout.y; }}
+        >
           <View style={styles.sectionTitleRow}>
             <View style={[styles.sectionAccent, { backgroundColor: COLORS.primary }]} />
             <Text style={styles.sectionTitle}>
