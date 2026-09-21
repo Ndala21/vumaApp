@@ -416,8 +416,6 @@ export default function HomeScreen({ navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
-      <DiagnosticLogView />
-
       <View style={styles.topBar}>
         <Text style={styles.logoWord}>VUMA</Text>
         <View style={styles.topSearch}>
@@ -616,6 +614,15 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
       )}
+
+      {/* Floating, absolutely-positioned overlay - completely outside
+          the normal layout flow, so its own re-renders (on every new
+          log line) can never shift CategoryBar's or anything else's
+          position. pointerEvents="box-none" lets touches pass through
+          the empty space around it straight to the content below. */}
+      <View style={styles.diagOverlay} pointerEvents="box-none">
+        <DiagnosticLogView />
+      </View>
     </View>
   );
 }
@@ -775,4 +782,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.base + 4, paddingVertical: SPACING.sm + 2,
   },
   toastText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.semiBold },
+  diagOverlay: {
+    position: 'absolute', bottom: 90, left: 0, right: 0,
+  },
 });
