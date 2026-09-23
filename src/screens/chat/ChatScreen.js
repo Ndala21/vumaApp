@@ -1,6 +1,12 @@
 /**
  * VUMA AI Chat Assistant Screen
  * Claude-powered, English/Swahili, escalation to human support
+ *
+ * MVP launch-blocker fix: KeyboardAvoidingView's behavior was
+ * explicitly `undefined` on Android, meaning it did nothing at all on
+ * that platform - the keyboard could cover the input with no
+ * adjustment whatsoever. Now uses 'height' on Android, the standard,
+ * reliable behavior for this exact case.
  */
 
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
@@ -242,7 +248,7 @@ export default function AIChatScreen({ navigation }) {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
         {/* Messages */}

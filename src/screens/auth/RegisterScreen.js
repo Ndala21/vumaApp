@@ -4,13 +4,27 @@
  * - Auto login after registration
  * - Clear error messages
  * - 15s timeout safety
+ *
+ * MVP launch-blocker fixes:
+ * - Terms & Conditions / Privacy Policy text is now actually tappable
+ *   and opens an in-app modal with the real content (previously plain
+ *   <Text> with no onPress at all - styled like a link, did nothing).
+ *   Content below is placeholder MVP-launch text - replace with real,
+ *   lawyer-reviewed Terms/Privacy before public launch.
+ * - After successful registration, the user is now explicitly
+ *   navigated to the main app (Tabs/Home) via navigation.reset().
+ *   Previously the code only set isAuthenticated=true and assumed
+ *   AppNavigator would "auto-switch" - but Auth/Register is just one
+ *   more screen pushed onto the same stack as Tabs, so nothing ever
+ *   actually navigated away, leaving the user stuck on this screen
+ *   after a successful signup.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   KeyboardAvoidingView, Platform, StatusBar, Alert,
-  ActivityIndicator, TextInput, ToastAndroid,
+  ActivityIndicator, TextInput, ToastAndroid, Modal,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -23,6 +37,63 @@ import { storage } from '../../utils/storage';
 import { setAuthToken } from '../../api/client';
 
 const TIMEOUT_MS = 15000;
+
+// Placeholder MVP-launch legal text - replace with real, lawyer-reviewed
+// Terms & Conditions and Privacy Policy before public launch.
+const TERMS_TEXT = `Welcome to VUMA Store.
+
+By creating an account and using the VUMA Store app, you agree to the following:
+
+1. Account Registration
+You must provide accurate information when creating your account. You are responsible for maintaining the confidentiality of your login credentials.
+
+2. Marketplace
+VUMA Store is a multi-vendor marketplace. Products are listed and sold by independent vendors. VUMA Store facilitates the transaction but individual vendors are responsible for the accuracy of their listings and the quality of their products.
+
+3. Orders & Payments
+All prices are shown in Tanzanian Shillings (TZS) unless otherwise noted. Payment is processed through our supported payment partners (mobile money, card, wallet, or bank transfer).
+
+4. Delivery
+Delivery times are estimates and may vary based on vendor location and courier availability.
+
+5. Returns & Refunds
+Please contact the vendor or VUMA Support within a reasonable time of delivery for any issues with your order.
+
+6. Prohibited Use
+You agree not to use VUMA Store for any unlawful purpose or to violate any applicable laws.
+
+7. Changes
+These terms may be updated from time to time. Continued use of the app after changes constitutes acceptance.
+
+For questions, contact support@vumastore.store.`;
+
+const PRIVACY_TEXT = `VUMA Store Privacy Policy
+
+We collect information you provide directly to us, such as your name, email, phone number, and delivery address, in order to process your orders and provide our services.
+
+Information We Collect
+- Account information (username, email, phone)
+- Order and payment history
+- Delivery addresses
+- App usage data to improve our service
+
+How We Use Your Information
+- To process and fulfill your orders
+- To communicate with you about your account and orders
+- To improve VUMA Store's products and services
+- To send order updates and, where you've opted in, promotional offers
+
+Sharing of Information
+We share order details with the relevant vendor and delivery partner as needed to fulfill your order. We do not sell your personal information to third parties.
+
+Data Security
+We take reasonable measures to protect your information, but no method of transmission over the internet is 100% secure.
+
+Your Choices
+You may update your account information at any time in Settings. You may request account deletion by contacting support@vumastore.store.
+
+Contact
+Questions about this policy can be sent to support@vumastore.store.`;
 
 export default function RegisterScreen({ navigation }) {
   const dispatch = useDispatch();
@@ -37,17 +108,20 @@ export default function RegisterScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [legalModal, setLegalModal] = useState(null); // 'terms' | 'privacy' | null
 
   const emailRef    = useRef(null);
   const passwordRef = useRef(null);
   const phoneRef    = useRef(null);
   const timeoutRef  = useRef(null);
   const mountedRef  = useRef(true);
+  const navigateTimerRef = useRef(null);
 
   useEffect(() => {
     return () => {
       mountedRef.current = false;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (navigateTimerRef.current) clearTimeout(navigateTimerRef.current);
       dispatch(clearError());
     };
   }, []);
@@ -57,6 +131,7 @@ export default function RegisterScreen({ navigation }) {
     if (isAuthenticated && isLoading) {
       stopLoading();
       showToast('✅ Account created! Welcome to VUMA!');
+      navigateToHome();
     }
   }, [isAuthenticated]);
 
@@ -86,6 +161,27 @@ export default function RegisterScreen({ navigation }) {
     if (Platform.OS === 'android') {
       ToastAndroid.showWithGravity(msg, ToastAndroid.LONG, ToastAndroid.CENTER);
     }
+  };
+
+  // Explicitly navigate to the main app after a successful signup - a
+  // brief delay lets the success toast actually be seen first.
+  // RegisterScreen lives inside the nested Auth navigator, so
+  // navigation.reset() here would try to reset that nested navigator
+  // (which has no "Tabs" route) rather than the parent stack that
+  // actually contains "Tabs" - getParent() targets that parent stack
+  // directly, and reset() clears Auth/Register from its history
+  // entirely so the user can't navigate "back" into the form.
+  const navigateToHome = () => {
+    if (navigateTimerRef.current) clearTimeout(navigateTimerRef.current);
+    navigateTimerRef.current = setTimeout(() => {
+      if (!mountedRef.current) return;
+      const parent = navigation.getParent();
+      if (parent) {
+        parent.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+      } else {
+        navigation.navigate('Tabs');
+      }
+    }, 900);
   };
 
   const setField = (key, value) => {
@@ -150,7 +246,7 @@ export default function RegisterScreen({ navigation }) {
 
         stopLoading();
         showToast('✅ Account created! Welcome to VUMA!');
-        // AppNavigator auto-switches via isAuthenticated → true
+        navigateToHome();
 
       } else if (register.rejected.match(result)) {
         stopLoading();
@@ -305,21 +401,27 @@ export default function RegisterScreen({ navigation }) {
           <FieldError field="confirmPassword" />
 
           {/* Terms */}
-          <TouchableOpacity
-            style={styles.termsRow}
-            onPress={() => setAgreedToTerms(v => !v)}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.checkbox, agreedToTerms && styles.checkboxOn]}>
-              {agreedToTerms && <Text style={styles.tick}>✓</Text>}
-            </View>
+          <View style={styles.termsRow}>
+            <TouchableOpacity
+              onPress={() => setAgreedToTerms(v => !v)}
+              activeOpacity={0.75}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <View style={[styles.checkbox, agreedToTerms && styles.checkboxOn]}>
+                {agreedToTerms && <Text style={styles.tick}>✓</Text>}
+              </View>
+            </TouchableOpacity>
             <Text style={styles.termsText}>
               I agree to VUMA's{' '}
-              <Text style={styles.termsLink}>Terms & Conditions</Text>
+              <Text style={styles.termsLink} onPress={() => setLegalModal('terms')}>
+                Terms & Conditions
+              </Text>
               {' '}and{' '}
-              <Text style={styles.termsLink}>Privacy Policy</Text>
+              <Text style={styles.termsLink} onPress={() => setLegalModal('privacy')}>
+                Privacy Policy
+              </Text>
             </Text>
-          </TouchableOpacity>
+          </View>
           {fieldErrors.terms && <Text style={styles.fieldError}>{fieldErrors.terms}</Text>}
 
           {/* Register Button */}
@@ -355,6 +457,39 @@ export default function RegisterScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </KeyboardAwareScrollView>
+
+      {/* Terms / Privacy modal */}
+      <Modal
+        visible={legalModal !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLegalModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {legalModal === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}
+              </Text>
+              <TouchableOpacity onPress={() => setLegalModal(null)} style={styles.modalCloseBtn}>
+                <Text style={styles.modalCloseIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator>
+              <Text style={styles.modalText}>
+                {legalModal === 'terms' ? TERMS_TEXT : PRIVACY_TEXT}
+              </Text>
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.modalDoneBtn}
+              onPress={() => setLegalModal(null)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalDoneBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -385,7 +520,7 @@ const styles = StyleSheet.create({
   checkboxOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   tick: { color: COLORS.textWhite, fontSize: 11, fontWeight: FONTS.black },
   termsText: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20 },
-  termsLink: { color: COLORS.primary, fontWeight: FONTS.semiBold },
+  termsLink: { color: COLORS.primary, fontWeight: FONTS.semiBold, textDecorationLine: 'underline' },
   registerBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: SPACING.md + 2, alignItems: 'center', marginTop: SPACING.lg, ...SHADOWS.primary },
   registerBtnLoading: { opacity: 0.85, shadowOpacity: 0, elevation: 0 },
   registerBtnText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.bold },
@@ -395,4 +530,15 @@ const styles = StyleSheet.create({
   dividerText: { fontSize: 11, color: COLORS.textLight, fontWeight: FONTS.semiBold },
   loginBtn: { borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center' },
   loginBtnText: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
+  // Legal modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,16,26,0.55)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '80%', paddingBottom: Platform.OS === 'ios' ? 24 : SPACING.base },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: SPACING.lg, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
+  modalTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
+  modalCloseIcon: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.bold },
+  modalBody: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md },
+  modalText: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 22, paddingBottom: SPACING.lg },
+  modalDoneBtn: { marginHorizontal: SPACING.lg, marginTop: SPACING.sm, backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center' },
+  modalDoneBtnText: { color: COLORS.textWhite, fontSize: FONTS.base, fontWeight: FONTS.bold },
 });
