@@ -196,7 +196,18 @@ export default function SearchBar({
       dropdownItems.push({ key: 'h_suggestions', type: 'header', title: 'Suggestions' });
       rest.forEach((s, i) => dropdownItems.push({ ...s, key: `sugg_${i}` }));
     }
-  } else if (query.length < 2) {
+  } else {
+    // Fallback shown whenever real suggestions aren't available yet -
+    // not gated by query length. Suggestions are fetched with a 300ms
+    // debounce, so the instant query.length reaches 2, suggestions is
+    // still empty for a beat while the fetch is in flight. Gating this
+    // fallback by query length created a real gap during that beat
+    // where dropdown content (and therefore its visible structure)
+    // collapsed to nothing right as the user kept typing - which is
+    // exactly the kind of change next to a focused input that can
+    // cause Android to drop focus. Showing recent/trending here
+    // regardless of length keeps something on screen through that
+    // gap, so nothing structurally collapses mid-keystroke.
     if (recentSearches.length > 0) {
       dropdownItems.push({ key: 'h_recent', type: 'header', title: 'Recent Searches', showClear: true });
       recentSearches.slice(0, 5).forEach((r, i) => dropdownItems.push({ key: `rec_${i}`, text: r, type: 'recent', icon: '🕒', category: '' }));
