@@ -196,7 +196,7 @@ export default function SearchBar({
       dropdownItems.push({ key: 'h_suggestions', type: 'header', title: 'Suggestions' });
       rest.forEach((s, i) => dropdownItems.push({ ...s, key: `sugg_${i}` }));
     }
-  } else if (query.length === 0) {
+  } else if (query.length < 2) {
     if (recentSearches.length > 0) {
       dropdownItems.push({ key: 'h_recent', type: 'header', title: 'Recent Searches', showClear: true });
       recentSearches.slice(0, 5).forEach((r, i) => dropdownItems.push({ key: `rec_${i}`, text: r, type: 'recent', icon: '🕒', category: '' }));
