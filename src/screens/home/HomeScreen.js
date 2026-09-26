@@ -22,13 +22,22 @@
  * You Might Like, and Need This Now - using the new self-fetching
  * RecommendationSection component (real backend engines, never
  * touches this screen's existing data-loading logic).
+ *
+ * Updated: "VUMA Faida & Ofa" row now also fetches campaigns from the
+ * new Promotion/Offer Engine (/products/promo-campaigns/) - Admin can
+ * create/edit/schedule these from Internal Admin, and they show here
+ * automatically, no app update needed. This is additive: the existing
+ * coupons/welcome_gift/flash_sale/free_delivery/referral cards are
+ * untouched (they're still powered by their own real, working
+ * backends) - dynamic campaigns are appended after them in the same
+ * row, in the admin-defined display order.
  */
 
 import { t } from '../../i18n';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, Dimensions, StatusBar, Platform, Image, Alert,
+  RefreshControl, Dimensions, StatusBar, Platform, Image, Alert, Linking,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -51,7 +60,7 @@ import SellersYouMightLike from '../../components/SellersYouMightLike';
 import { SkeletonProductGrid } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
-import { get } from '../../api/client';
+import { get, post } from '../../api/client';
 
 const { width } = Dimensions.get('window');
 const NUM_COLUMNS = width >= 700 ? 4 : 3; // still used by wide-screen horizontal rows above the grid
@@ -79,6 +88,7 @@ export default function HomeScreen({ navigation }) {
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [promotions, setPromotions] = useState(null);
+  const [dynamicOffers, setDynamicOffers] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
   const toastTimer = React.useRef(null);
   const mainScrollRef = useRef(null);
@@ -108,16 +118,18 @@ export default function HomeScreen({ navigation }) {
 
   const loadExtraFeatures = useCallback(async () => {
     try {
-      const [bannersData, trendingData, dealsData, promotionsData] = await Promise.all([
+      const [bannersData, trendingData, dealsData, promotionsData, offersData] = await Promise.all([
         productsAPI.getBanners().catch(() => []),
         productsAPI.getTrending().catch(() => []),
         productsAPI.getDailyDeals().catch(() => []),
         get('/products/home-promotions/').catch(() => null),
+        get('/products/promo-campaigns/').catch(() => null),
       ]);
       setBanners(bannersData || []);
       setTrending(trendingData?.results || trendingData || []);
       setDailyDeals(dealsData?.results || dealsData || []);
       setPromotions(promotionsData);
+      setDynamicOffers(offersData?.campaigns || []);
 
       if (isAuthenticated) {
         const [recentData, recData] = await Promise.all([
@@ -223,6 +235,30 @@ export default function HomeScreen({ navigation }) {
     );
   };
 
+  // ── Dynamic offer card press — routes based on admin-set
+  // cta_destination_type, and records a real click for analytics. ──
+  const handleDynamicOfferPress = useCallback((offer) => {
+    post(`/products/promo-campaigns/${offer.id}/track/`, { action: 'click' }).catch(() => {});
+    switch (offer.cta_destination_type) {
+      case 'screen':
+        if (offer.cta_destination_value) navigation.navigate(offer.cta_destination_value);
+        break;
+      case 'category':
+        if (offer.cta_destination_value) handleCategorySelect(offer.cta_destination_value);
+        break;
+      case 'product':
+        if (offer.cta_destination_value) {
+          navigation.navigate(SCREENS.PRODUCT_DETAIL, { productId: offer.cta_destination_value });
+        }
+        break;
+      case 'external_url':
+        if (offer.cta_destination_value) Linking.openURL(offer.cta_destination_value).catch(() => {});
+        break;
+      default:
+        break;
+    }
+  }, [navigation, handleCategorySelect]);
+
   // Memoized so the array reference stays stable across re-renders -
   // previously a brand-new array was created on every HomeScreen
   // render (including the very re-render a category tap itself
@@ -284,6 +320,21 @@ export default function HomeScreen({ navigation }) {
       cta: 'Shiriki Sasa', ctaColor: '#3B6FE0',
       onPress: () => navigation.navigate('Referral'),
     },
+    // Dynamic campaigns from the Promotion/Offer Engine, appended
+    // after the existing hardcoded cards - Admin-created, admin-
+    // scheduled, admin-ordered. Nothing here is faked: the backend
+    // already only returns currently-active, eligible campaigns.
+    ...dynamicOffers.map((offer) => ({
+      key: `dyn_${offer.id}`,
+      show: true,
+      icon: offer.icon || '🎁',
+      bg: offer.bg_color || '#FFF1DB',
+      title: offer.title,
+      subtitle: offer.subtitle || '',
+      cta: offer.cta_text || 'Angalia',
+      ctaColor: COLORS.primary,
+      onPress: () => handleDynamicOfferPress(offer),
+    })),
   ].filter((c) => c.show);
 
   // ── Horizontal product row ──
