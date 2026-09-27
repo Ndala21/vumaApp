@@ -247,8 +247,20 @@ export default function HomeScreen({ navigation }) {
         if (offer.cta_destination_value) handleCategorySelect(offer.cta_destination_value);
         break;
       case 'product':
-        if (offer.cta_destination_value) {
-          navigation.navigate(SCREENS.PRODUCT_DETAIL, { productId: offer.cta_destination_value });
+        // Uses the real target_product_ids array (from Internal
+        // Admin's product picker). Single product goes straight to
+        // its detail page. Multiple products open a dedicated
+        // results screen, passing just the campaign id - that screen
+        // fetches full product details for this campaign's targets
+        // in one call, rather than the app fetching each product
+        // individually from a list of raw ids.
+        if (offer.target_product_ids?.length === 1) {
+          navigation.navigate(SCREENS.PRODUCT_DETAIL, { productId: offer.target_product_ids[0] });
+        } else if (offer.target_product_ids?.length > 1) {
+          navigation.navigate('PromotionProducts', {
+            campaignId: offer.id,
+            title: offer.title,
+          });
         }
         break;
       case 'external_url':

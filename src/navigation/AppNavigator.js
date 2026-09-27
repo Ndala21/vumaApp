@@ -18,6 +18,10 @@
  * which is still more than fast enough to catch a forced logout
  * promptly, while cutting how often it can collide with typing by
  * roughly 6-7x.
+ *
+ * Updated: PromotionProducts screen registered - the dedicated
+ * results screen shown when a Home screen promotion targets multiple
+ * products, rather than one.
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -69,6 +73,9 @@ import AccountMenuScreen from '../screens/profile/AccountMenuScreen';
 // ── Seller Application Status ─────────────────────────
 import ApplicationStatusScreen from '../screens/vendor/ApplicationStatusScreen';
 
+// ── Promotion Products (multi-product promotion results) ──
+import PromotionProductsScreen from '../screens/promotion/PromotionProductsScreen';
+
 const Stack = createNativeStackNavigator();
 
 // Deep linking — routes for email CTA buttons (order updates, referral
@@ -119,6 +126,9 @@ function MainStack({ isVendor }) {
       {/* Products */}
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="ProductList" component={HomeScreen} />
+
+      {/* Promotion Products — multi-product promotion results */}
+      <Stack.Screen name="PromotionProducts" component={PromotionProductsScreen} options={{ animation: 'slide_from_right' }} />
 
       {/* Seller Store — tap seller badge → full store page */}
       <Stack.Screen
