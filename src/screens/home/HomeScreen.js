@@ -340,6 +340,7 @@ export default function HomeScreen({ navigation }) {
       key: `dyn_${offer.id}`,
       show: true,
       icon: offer.icon || '🎁',
+      image: offer.image || null,
       bg: offer.bg_color || '#FFF1DB',
       title: offer.title,
       subtitle: offer.subtitle || '',
@@ -525,9 +526,13 @@ export default function HomeScreen({ navigation }) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
               {FAIDA_CARDS.map((card) => (
                 <TouchableOpacity key={card.key} style={[styles.faidaCard, { backgroundColor: card.bg }]} onPress={card.onPress} activeOpacity={0.85}>
-                  <View style={styles.faidaIconWrap}>
-                    <Text style={styles.faidaIcon}>{card.icon}</Text>
-                  </View>
+                  {card.image ? (
+                    <Image source={{ uri: card.image }} style={styles.faidaImageWrap} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.faidaIconWrap}>
+                      <Text style={styles.faidaIcon}>{card.icon}</Text>
+                    </View>
+                  )}
                   <Text style={styles.faidaCardTitle}>{card.title}</Text>
                   <Text style={styles.faidaCardSub} numberOfLines={2}>{card.subtitle}</Text>
                   <Text style={[styles.faidaCta, { color: card.ctaColor }]}>{card.cta}</Text>
@@ -740,6 +745,10 @@ const styles = StyleSheet.create({
   faidaIconWrap: {
     width: 44, height: 44, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.7)',
     alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xs,
+  },
+  faidaImageWrap: {
+    width: 44, height: 44, borderRadius: RADIUS.md, marginBottom: SPACING.xs,
+    backgroundColor: COLORS.skeleton,
   },
   faidaIcon: { fontSize: 20 },
   faidaCardTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
