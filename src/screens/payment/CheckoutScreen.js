@@ -12,13 +12,18 @@
  * Updated: delivery location now uses InlineLocationMap - a real,
  * always-visible interactive map with search, embedded directly in the
  * form - instead of a button that opened a separate full-screen map.
+ * Updated: the "We Accept" row shows real payment-partner logos (served
+ * by the backend's mobile-money providers endpoint, sourced from
+ * AzamPay's own partner list). Any method without a logo on file — or
+ * whose logo fails to load — keeps its original text label, so the row
+ * never shows a broken image.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Alert, Platform, StatusBar, ActivityIndicator,
-  Modal, FlatList,
+  Modal, FlatList, Image,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
@@ -81,6 +86,28 @@ const PickerModal = ({ visible, title, data, onSelect, onClose, loading, searcha
   );
 };
 
+// One tile in the "We Accept" row. Shows the real logo when we have
+// one; otherwise (no logo on file, or the image fails to load) shows
+// the method's name as colored text. Each tile tracks its own load
+// failure so one bad image never affects the others.
+const MethodBadge = ({ label, color, logoUrl }) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <View style={styles.methodBadge}>
+      {logoUrl && !failed ? (
+        <Image
+          source={{ uri: logoUrl }}
+          style={styles.methodBadgeImg}
+          resizeMode="contain"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <Text style={[styles.methodBadgeText, { color }]} numberOfLines={1}>{label}</Text>
+      )}
+    </View>
+  );
+};
+
 export default function CheckoutScreen({ navigation, route }) {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
@@ -128,6 +155,10 @@ export default function CheckoutScreen({ navigation, route }) {
   const [showWardPicker, setShowWardPicker] = useState(false);
   const [showPickupPicker, setShowPickupPicker] = useState(false);
   const [pickupSearch, setPickupSearch] = useState('');
+  // provider id -> logo URL, loaded from the backend. Empty until it
+  // arrives (or forever if the request fails) — the "We Accept" row
+  // just shows its text labels in that case.
+  const [logos, setLogos] = useState({});
 
   // Subtotal/total are computed ONLY from the items this specific purchase
   // is for (Buy Now's single item, or whichever items were selected on the
@@ -143,6 +174,26 @@ export default function CheckoutScreen({ navigation, route }) {
     if (isAuthenticated) loadSavedAddresses();
     loadRegions();
   }, [isAuthenticated]);
+
+  // Fetch payment logos once. Purely cosmetic — any failure is ignored
+  // so it can never affect placing an order.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await get('/payments/mobile-money/providers/');
+        if (cancelled) return;
+        const map = {};
+        (data?.providers || []).forEach((p) => {
+          if (p?.id && p?.logo_url) map[p.id] = p.logo_url;
+        });
+        setLogos(map);
+      } catch (e) {
+        // ignore — text labels stay
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const loadSavedAddresses = async () => {
     try {
@@ -604,24 +655,23 @@ export default function CheckoutScreen({ navigation, route }) {
           ))}
         </View>
 
-        {/* Payment Methods We Accept — real logos only, no fabricated
-            "enabled" claims beyond what's actually configured (real
-            AzamPay mobile money channels + real bank options; no card
-            processing is wired up in this integration). */}
+        {/* Payment Methods We Accept — real partner logos where we have
+            them (from the backend, sourced from AzamPay's partner list);
+            methods without a logo on file show their name as colored
+            text instead. No card processing is wired up in this
+            integration, so none is shown. */}
         <View style={styles.section}>
           <Text style={styles.methodsHeading}>We Accept</Text>
           <View style={styles.methodsGrid}>
             {[
-              { code: 'mpesa', label: 'M-Pesa', bg: '#4CAF50' },
-              { code: 'tigopesa', label: 'Tigo Pesa', bg: '#0066B3' },
-              { code: 'airtel', label: 'Airtel Money', bg: '#E4002B' },
-              { code: 'halopesa', label: 'HaloPesa', bg: '#F7941D' },
-              { code: 'nmb', label: 'NMB', bg: '#1B4F72' },
-              { code: 'crdb', label: 'CRDB', bg: '#003D7A' },
+              { code: 'mpesa', label: 'M-Pesa', color: '#4CAF50' },
+              { code: 'tigopesa', label: 'Tigo Pesa', color: '#0066B3' },
+              { code: 'airtel', label: 'Airtel Money', color: '#E4002B' },
+              { code: 'halopesa', label: 'HaloPesa', color: '#F7941D' },
+              { code: 'nmb', label: 'NMB', color: '#1B4F72' },
+              { code: 'crdb', label: 'CRDB', color: '#003D7A' },
             ].map(m => (
-              <View key={m.code} style={[styles.methodBadge, { backgroundColor: m.bg }]}>
-                <Text style={styles.methodBadgeText}>{m.label}</Text>
-              </View>
+              <MethodBadge key={m.code} label={m.label} color={m.color} logoUrl={logos[m.code]} />
             ))}
           </View>
           <View style={styles.methodsTrustRow}>
@@ -787,8 +837,12 @@ const styles = StyleSheet.create({
   radioTick: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
   methodsHeading: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.sm },
   methodsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, marginBottom: SPACING.sm },
-  methodBadge: { paddingHorizontal: SPACING.sm + 2, paddingVertical: 6, borderRadius: RADIUS.sm },
-  methodBadgeText: { color: 'white', fontSize: 10.5, fontWeight: FONTS.bold },
+  // Every tile is the same white, bordered size — holding either the
+  // real logo or (fallback) the method's name in its brand color — so
+  // the row looks consistent whether or not a logo is available.
+  methodBadge: { minWidth: 72, height: 34, paddingHorizontal: SPACING.sm, borderRadius: RADIUS.sm, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  methodBadgeImg: { width: 56, height: 24 },
+  methodBadgeText: { fontSize: 10.5, fontWeight: FONTS.bold },
   methodsTrustRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   methodsTrustIcon: { fontSize: 11 },
   methodsTrustText: { fontSize: FONTS.xs, color: COLORS.textMuted },
