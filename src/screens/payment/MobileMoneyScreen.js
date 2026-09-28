@@ -13,16 +13,22 @@
  * info box, "Lipa" pay button, trust badges, provider logo row.
  * All payment logic below (confirm dialog, STK push, polling,
  * processing/success/failed/cancelled screens) is unchanged.
+ *
+ * Updated: provider cards show the real payment-partner logo (served
+ * by the backend's providers endpoint, sourced from AzamPay's own
+ * partner list) instead of the placeholder emoji. If a logo is
+ * missing, hasn't loaded yet, or fails to load, the original colored
+ * emoji tile is shown instead — checkout never shows a broken image.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
-  TextInput, Alert, Platform, ActivityIndicator, ScrollView, Modal,
+  TextInput, Alert, Platform, ActivityIndicator, ScrollView, Modal, Image,
 } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import Button from '../../components/common/Button';
-import { post } from '../../api/client';
+import { get, post } from '../../api/client';
 
 const PROVIDERS = [
   {
@@ -68,6 +74,32 @@ const PROVIDERS = [
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 30;
 
+// Shows the provider's real logo when we have one; otherwise (no logo
+// on file, still loading, or the image fails to load) falls back to
+// the original colored emoji tile. Each tile tracks its own load
+// failure so one bad image never affects the others.
+function ProviderLogo({ provider, logoUrl }) {
+  const [failed, setFailed] = useState(false);
+
+  if (logoUrl && !failed) {
+    return (
+      <View style={styles.providerLogoImgWrap}>
+        <Image
+          source={{ uri: logoUrl }}
+          style={styles.providerLogoImg}
+          resizeMode="contain"
+          onError={() => setFailed(true)}
+        />
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.providerLogo, { backgroundColor: provider.color }]}>
+      <Text style={styles.providerLogoText}>{provider.icon}</Text>
+    </View>
+  );
+}
+
 export default function MobileMoneyScreen({ navigation, route }) {
   const { orderId, amount, orderNumber } = route?.params || {};
 
@@ -79,6 +111,10 @@ export default function MobileMoneyScreen({ navigation, route }) {
   const [step, setStep] = useState('select');
   const [txRef, setTxRef] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  // provider id -> logo URL, loaded from the backend. Empty until it
+  // arrives (or forever if the request fails) — cards just show the
+  // emoji fallback in that case.
+  const [logos, setLogos] = useState({});
 
   const pollTimer = useRef(null);
   const pollAttempts = useRef(0);
@@ -86,6 +122,26 @@ export default function MobileMoneyScreen({ navigation, route }) {
 
   useEffect(() => {
     return () => stopPolling();
+  }, []);
+
+  // Fetch provider logos once. Purely cosmetic — any failure is
+  // ignored so it can never affect the payment flow itself.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await get('/payments/mobile-money/providers/');
+        if (cancelled) return;
+        const map = {};
+        (data?.providers || []).forEach((p) => {
+          if (p?.id && p?.logo_url) map[p.id] = p.logo_url;
+        });
+        setLogos(map);
+      } catch (e) {
+        // ignore — emoji fallback stays
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const stopPolling = () => {
@@ -365,9 +421,7 @@ export default function MobileMoneyScreen({ navigation, route }) {
                 onPress={() => setSelectedProvider(provider)}
                 activeOpacity={0.85}
               >
-                <View style={[styles.providerLogo, { backgroundColor: provider.color }]}>
-                  <Text style={styles.providerLogoText}>{provider.icon}</Text>
-                </View>
+                <ProviderLogo provider={provider} logoUrl={logos[provider.id]} />
                 <View style={styles.providerInfo}>
                   <Text style={styles.providerName} numberOfLines={1}>{provider.name}</Text>
                   <Text style={styles.providerCompany} numberOfLines={1}>{provider.company}</Text>
@@ -497,6 +551,10 @@ const styles = StyleSheet.create({
   providerCard: { width: '48.5%', flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, borderWidth: 2, borderColor: COLORS.border, padding: SPACING.sm, marginBottom: SPACING.sm, gap: SPACING.sm, ...SHADOWS.sm },
   providerLogo: { width: 40, height: 40, borderRadius: RADIUS.lg, alignItems: 'center', justifyContent: 'center' },
   providerLogoText: { fontSize: 18 },
+  // Real logo tile — white background so any logo reads cleanly,
+  // contained (never cropped or stretched) inside the same 40x40 slot.
+  providerLogoImgWrap: { width: 40, height: 40, borderRadius: RADIUS.lg, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 4 },
+  providerLogoImg: { width: '100%', height: '100%' },
   providerInfo: { flex: 1 },
   providerName: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   providerCompany: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
