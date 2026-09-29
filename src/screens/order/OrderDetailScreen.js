@@ -115,6 +115,19 @@ export default function OrderDetailScreen({ navigation, route }) {
       : displayOrder.shipping_address)
     : null;
 
+  // The current checkout flow (Region -> District -> Ward) sends a
+  // different address shape than this screen originally read
+  // (address_line1/city/country - fields the app no longer sends at
+  // all, so this section was showing blank/incomplete info for every
+  // real order). Derived once here for both the Delivery Address card
+  // and the Receipt's "DELIVER TO" section below, so they can't drift
+  // out of sync with each other. Pickup orders carry their own shape
+  // entirely (pickup_point_name), handled separately.
+  const isPickupOrder = addr?.delivery_type === 'pickup';
+  const homeAddressLines = addr && !isPickupOrder
+    ? [addr.village, addr.landmark, addr.ward, addr.district, addr.region].filter(Boolean)
+    : [];
+
   const ProgressTracker = () => {
     if (isCancelled) {
       return (
@@ -252,11 +265,20 @@ export default function OrderDetailScreen({ navigation, route }) {
             {/* Delivery Address */}
             {addr && (
               <View style={styles.receiptSection}>
-                <Text style={styles.receiptSectionTitle}>DELIVER TO</Text>
-                <Text style={styles.receiptAddressName}>{addr.full_name}</Text>
-                <Text style={styles.receiptAddressLine}>{addr.phone}</Text>
-                <Text style={styles.receiptAddressLine}>{addr.address_line1}</Text>
-                <Text style={styles.receiptAddressLine}>{addr.city}, {addr.country}</Text>
+                <Text style={styles.receiptSectionTitle}>{isPickupOrder ? 'PICKUP STATION' : 'DELIVER TO'}</Text>
+                {isPickupOrder ? (
+                  <>
+                    <Text style={styles.receiptAddressName}>{addr.pickup_point_name || 'Pickup station'}</Text>
+                    {addr.phone ? <Text style={styles.receiptAddressLine}>{addr.phone}</Text> : null}
+                  </>
+                ) : (
+                  <>
+                    {addr.full_name ? <Text style={styles.receiptAddressName}>{addr.full_name}</Text> : null}
+                    {addr.phone ? <Text style={styles.receiptAddressLine}>{addr.phone}</Text> : null}
+                    {homeAddressLines.length > 0 && <Text style={styles.receiptAddressLine}>{homeAddressLines.join(', ')}</Text>}
+                    {addr.building_detail ? <Text style={styles.receiptAddressLine}>{addr.building_detail}</Text> : null}
+                  </>
+                )}
               </View>
             )}
 
@@ -465,12 +487,21 @@ export default function OrderDetailScreen({ navigation, route }) {
         {/* Shipping Address */}
         {addr && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>📍 Delivery Address</Text>
+            <Text style={styles.cardTitle}>📍 {isPickupOrder ? 'Pickup Station' : 'Delivery Address'}</Text>
             <View style={styles.addressBlock}>
-              <Text style={styles.addressName}>{addr.full_name}</Text>
-              <Text style={styles.addressLine}>{addr.phone}</Text>
-              <Text style={styles.addressLine}>{addr.address_line1}{addr.address_line2 ? `, ${addr.address_line2}` : ''}</Text>
-              <Text style={styles.addressLine}>{addr.city}{addr.state ? `, ${addr.state}` : ''}, {addr.country}</Text>
+              {isPickupOrder ? (
+                <>
+                  <Text style={styles.addressName}>{addr.pickup_point_name || 'Pickup station'}</Text>
+                  {addr.phone ? <Text style={styles.addressLine}>{addr.phone}</Text> : null}
+                </>
+              ) : (
+                <>
+                  {addr.full_name ? <Text style={styles.addressName}>{addr.full_name}</Text> : null}
+                  {addr.phone ? <Text style={styles.addressLine}>{addr.phone}</Text> : null}
+                  {homeAddressLines.length > 0 && <Text style={styles.addressLine}>{homeAddressLines.join(', ')}</Text>}
+                  {addr.building_detail ? <Text style={styles.addressLine}>{addr.building_detail}</Text> : null}
+                </>
+              )}
             </View>
           </View>
         )}
