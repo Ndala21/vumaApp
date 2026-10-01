@@ -37,6 +37,22 @@ export const authAPI = {
     }),
 
   /**
+   * Sign in or register with a Google ID token (from the on-device
+   * Google Sign-In library). Backend independently re-verifies the
+   * token with Google before trusting anything in it. Returns the
+   * exact same { access, refresh, user } shape as login/register, so
+   * nothing downstream needs special-case handling.
+   * Path hardcoded (rather than an API.* constant) since this is a
+   * newly added endpoint - add API.GOOGLE_LOGIN alongside the others
+   * in utils/constants.js later if you'd like full consistency.
+   */
+  googleLogin: (data) =>
+    post('/users/google/', {
+      id_token: data.id_token,
+      fcm_token: data.fcm_token || '',
+    }),
+
+  /**
    * Logout — blacklists refresh token
    */
   logout: (refreshToken) =>

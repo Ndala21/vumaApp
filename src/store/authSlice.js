@@ -121,6 +121,50 @@ export const login = createAsyncThunk(
   }
 );
 
+// Google Sign-In — takes the on-device ID token (already verified by
+// the Google Sign-In native library against the user's real Google
+// account) and exchanges it for VUMA's own JWT via the backend's
+// /users/google/ endpoint, which independently re-verifies the token
+// with Google's own servers before ever trusting the email in it.
+// Shares the same 'login' loading/error state as normal email/password
+// login, since from the UI's perspective this is just another way to
+// reach the same signed-in state - not a separate flow to track.
+export const googleLogin = createAsyncThunk(
+  'auth/googleLogin',
+  async ({ idToken, fcmToken = '' }, { rejectWithValue }) => {
+    try {
+      const { authAPI } = await import('../api/auth');
+
+      const data = await authAPI.googleLogin({
+        id_token: idToken,
+        fcm_token: fcmToken,
+      });
+
+      if (!data || !data.access) {
+        return rejectWithValue('Google sign-in failed. Please try again.');
+      }
+
+      await storage.saveAuthData({
+        accessToken: data.access,
+        refreshToken: data.refresh,
+        user: data.user,
+        rememberMe: true,
+      });
+
+      setAuthToken(data.access);
+
+      return { ...data, rememberMe: true };
+    } catch (error) {
+      const msg =
+        error?.message ||
+        error?.payload ||
+        (typeof error === 'string' ? error : null) ||
+        'Google sign-in failed. Please try again.';
+      return rejectWithValue(msg);
+    }
+  }
+);
+
 export const biometricLogin = createAsyncThunk(
   'auth/biometricLogin',
   async (_, { rejectWithValue }) => {
@@ -334,6 +378,25 @@ const authSlice = createSlice({
         state.errors.login = null;
       })
       .addCase(login.rejected, (state, action) => {
+        state.loading.login = false;
+        state.errors.login = action.payload;
+        state.isAuthenticated = false;
+      });
+
+    // Google Login — shares the 'login' loading/error slots with
+    // normal email/password login (see googleLogin thunk comment).
+    builder
+      .addCase(googleLogin.pending, (state) => { state.loading.login = true; state.errors.login = null; })
+      .addCase(googleLogin.fulfilled, (state, action) => {
+        state.loading.login = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.access;
+        state.refreshToken = action.payload.refresh;
+        state.rememberMe = action.payload.rememberMe;
+        state.errors.login = null;
+      })
+      .addCase(googleLogin.rejected, (state, action) => {
         state.loading.login = false;
         state.errors.login = action.payload;
         state.isAuthenticated = false;
