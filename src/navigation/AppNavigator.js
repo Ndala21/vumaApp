@@ -197,7 +197,6 @@ export default function AppNavigator() {
   const isApprovedVendor = useSelector((state) =>
     state.auth?.user?.role === 'vendor' && state.auth?.user?.vendor_status === 'approved'
   );
-  const isVendor = useSelector((state) => state.auth?.user?.role === 'vendor');
   const sessionCheckRef = useRef(null);
 
   useEffect(() => { dispatch(initializeAuth()); }, []);
@@ -235,7 +234,15 @@ export default function AppNavigator() {
     <NavigationContainer linking={linking} fallback={<SplashScreen />}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Main" options={{ animation: 'fade' }}>
-          {() => <MainStack isVendor={isApprovedVendor || isVendor} />}
+          {/* isApprovedVendor alone - isVendor (role === 'vendor' with
+              no status check) was a strict superset of isApprovedVendor,
+              making the old `isApprovedVendor || isVendor` a no-op: any
+              user whose role was still 'vendor' got the full Seller
+              Center regardless of vendor_status, which is exactly what
+              let a suspended or rejected seller keep using it. The
+              backend now keeps role and vendor_status in sync on every
+              suspend/reject/approve, so this check alone is correct. */}
+          {() => <MainStack isVendor={isApprovedVendor} />}
         </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
