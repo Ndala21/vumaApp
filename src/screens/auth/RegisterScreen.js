@@ -18,6 +18,11 @@
  *   more screen pushed onto the same stack as Tabs, so nothing ever
  *   actually navigated away, leaving the user stuck on this screen
  *   after a successful signup.
+ *
+ * Updated: Google Sign-In added as another way to create an account -
+ * shares the exact same success path (navigateToHome) as normal
+ * registration, so a brand-new Google user lands in the app the same
+ * way a password-registered one does.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -28,15 +33,28 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  register, clearError, selectAuthLoading,
+  register, googleLogin, clearError, selectAuthLoading,
   selectAuthErrors, selectIsAuthenticated,
 } from '../../store/authSlice';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, LANGUAGES } from '../../utils/constants';
 import { storage } from '../../utils/storage';
 import { setAuthToken } from '../../api/client';
 
 const TIMEOUT_MS = 15000;
+
+// Web Client ID from Google Cloud Console - required even for
+// Android/iOS sign-in, since this is what lets the backend verify
+// the resulting ID token's audience. Not a secret (it ships inside
+// the app itself either way). Safe to configure again here even if
+// LoginScreen already did - GoogleSignin.configure() is idempotent.
+const GOOGLE_WEB_CLIENT_ID = '532626175456-qppebcnam0qu1m0shlh63uto8jsg6sqc.apps.googleusercontent.com';
+
+GoogleSignin.configure({
+  webClientId: GOOGLE_WEB_CLIENT_ID,
+  offlineAccess: false,
+});
 
 // Placeholder MVP-launch legal text - replace with real, lawyer-reviewed
 // Terms & Conditions and Privacy Policy before public launch.
@@ -106,6 +124,7 @@ export default function RegisterScreen({ navigation }) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [legalModal, setLegalModal] = useState(null); // 'terms' | 'privacy' | null
@@ -267,6 +286,49 @@ export default function RegisterScreen({ navigation }) {
     } catch (e) {
       stopLoading();
       Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (isGoogleLoading || isLoading) return;
+    setIsGoogleLoading(true);
+    dispatch(clearError('login'));
+
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const result = await GoogleSignin.signIn();
+
+      // The library's response shape differs by version - newer ones
+      // wrap everything under result.data, older ones return it
+      // directly. This covers both without needing to know which.
+      const idToken = result?.data?.idToken || result?.idToken;
+      if (!idToken) {
+        throw new Error('Could not get a Google ID token. Please try again.');
+      }
+
+      const dispatched = await dispatch(googleLogin({ idToken }));
+
+      if (googleLogin.fulfilled.match(dispatched)) {
+        setIsGoogleLoading(false);
+        showToast('✅ Account created! Welcome to VUMA!');
+        navigateToHome();
+      } else if (googleLogin.rejected.match(dispatched)) {
+        setIsGoogleLoading(false);
+        const payload = dispatched.payload;
+        const msg = typeof payload === 'string' ? payload : 'Google sign-in failed. Please try again.';
+        Alert.alert('Google Sign-In Failed', msg);
+        dispatch(clearError('login'));
+      }
+    } catch (error) {
+      setIsGoogleLoading(false);
+      // A cancelled sign-in (user backed out of the Google picker) is
+      // not an error worth interrupting them about.
+      if (error?.code === statusCodes?.SIGN_IN_CANCELLED) return;
+      if (error?.code === statusCodes?.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Google Play Services Required', 'Please update Google Play Services and try again.');
+        return;
+      }
+      Alert.alert('Google Sign-In Failed', error?.message || 'Something went wrong. Please try again.');
     }
   };
 
@@ -441,6 +503,32 @@ export default function RegisterScreen({ navigation }) {
             )}
           </TouchableOpacity>
 
+          {/* Google Sign-In */}
+          <View style={styles.googleDivider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR CONTINUE WITH</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.googleBtn, isGoogleLoading && styles.registerBtnLoading]}
+            onPress={handleGoogleSignIn}
+            disabled={isGoogleLoading || isLoading}
+            activeOpacity={0.85}
+          >
+            {isGoogleLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={COLORS.textPrimary} size="small" />
+                <Text style={styles.googleBtnText}>Signing in...</Text>
+              </View>
+            ) : (
+              <View style={styles.loadingRow}>
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>Already have an account?</Text>
@@ -524,7 +612,15 @@ const styles = StyleSheet.create({
   registerBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: SPACING.md + 2, alignItems: 'center', marginTop: SPACING.lg, ...SHADOWS.primary },
   registerBtnLoading: { opacity: 0.85, shadowOpacity: 0, elevation: 0 },
   registerBtnText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.bold },
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, justifyContent: 'center' },
+  googleDivider: { flexDirection: 'row', alignItems: 'center', marginTop: SPACING.md, marginBottom: SPACING.md, gap: SPACING.sm },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.md,
+    borderRadius: RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface,
+    gap: SPACING.sm,
+  },
+  googleIcon: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: '#4285F4' },
+  googleBtnText: { fontSize: FONTS.sm, color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: SPACING.md, gap: SPACING.sm },
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.divider },
   dividerText: { fontSize: 11, color: COLORS.textLight, fontWeight: FONTS.semiBold },
