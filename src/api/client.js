@@ -184,7 +184,19 @@ export const del = async (url, config = {}) => {
 export const upload = async (url, formData, onProgress = null) => {
   const client = await getClient();
   const response = await client.post(url, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    // IMPORTANT: Content-Type must be explicitly cleared (undefined),
+    // not set to 'multipart/form-data' and not simply omitted.
+    // Manually setting that string omits the required `boundary`
+    // parameter, which the server needs to split the request into its
+    // separate fields - without it, Django's MultiPartParser cannot
+    // extract the uploaded file at all, even though the request often
+    // still looks like it "succeeds". Omitting the key entirely isn't
+    // enough either, since axios would otherwise fall back to this
+    // client's own default 'application/json' header. Setting it to
+    // undefined here clears that default and lets the device generate
+    // the correct multipart header (with boundary) itself from the
+    // FormData body - the only way this actually works correctly.
+    headers: { 'Content-Type': undefined },
     timeout: TIMEOUTS.upload,
     onUploadProgress: (e) => {
       if (onProgress && e.total) {
