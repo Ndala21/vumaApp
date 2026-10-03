@@ -27,7 +27,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  View, Text, Image, TouchableOpacity, StyleSheet, ScrollView,
   KeyboardAvoidingView, Platform, StatusBar, Alert,
   ActivityIndicator, TextInput, ToastAndroid, Modal,
 } from 'react-native';
