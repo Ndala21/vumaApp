@@ -20,10 +20,10 @@
  * missing, hasn't loaded yet, or fails to load, the original colored
  * emoji tile is shown instead — checkout never shows a broken image.
  *
- * Updated: M-Pesa is hidden (HIDDEN_PROVIDERS) while AzamPay rejects it
- * for our merchant account, and failed payment requests now show the
- * server's real message (bad phone number, method unavailable, ...)
- * instead of always claiming the gateway could not be reached.
+ * Updated: failed payment requests now show the server's real message
+ * (bad phone number, method unavailable, ...) instead of always
+ * claiming the gateway could not be reached. Providers can be hidden
+ * from checkout through HIDDEN_PROVIDERS (currently none).
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -35,10 +35,11 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
 
-// Providers hidden from checkout until they work end to end.
-// M-Pesa: AzamPay returns "Invalid Vendor" (code 1000) for every M-Pesa
-// request on our merchant account. Empty this list to show it again.
-const HIDDEN_PROVIDERS = ['mpesa'];
+// Provider ids to hide from checkout (e.g. ['mpesa']). Empty = all four
+// providers are shown. M-Pesa has been returning "Invalid Vendor"
+// (code 1000) from AzamPay, so add 'mpesa' here to hide it if it is
+// still failing at launch.
+const HIDDEN_PROVIDERS = [];
 
 const PROVIDERS = [
   {
