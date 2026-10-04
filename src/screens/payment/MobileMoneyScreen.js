@@ -19,6 +19,11 @@
  * partner list) instead of the placeholder emoji. If a logo is
  * missing, hasn't loaded yet, or fails to load, the original colored
  * emoji tile is shown instead — checkout never shows a broken image.
+ *
+ * Updated: M-Pesa is hidden (HIDDEN_PROVIDERS) while AzamPay rejects it
+ * for our merchant account, and failed payment requests now show the
+ * server's real message (bad phone number, method unavailable, ...)
+ * instead of always claiming the gateway could not be reached.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -29,6 +34,11 @@ import {
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
+
+// Providers hidden from checkout until they work end to end.
+// M-Pesa: AzamPay returns "Invalid Vendor" (code 1000) for every M-Pesa
+// request on our merchant account. Empty this list to show it again.
+const HIDDEN_PROVIDERS = ['mpesa'];
 
 const PROVIDERS = [
   {
@@ -197,7 +207,14 @@ export default function MobileMoneyScreen({ navigation, route }) {
       }
     } catch (e) {
       setShowConfirm(false);
-      setErrorMessage('Could not reach the payment gateway. Please check your connection and try again.');
+      // The API client turns an HTTP 400 into
+      // { type: 'VALIDATION_ERROR', message: <the server's own text> }.
+      // Show that text (bad phone number, method unavailable, ...).
+      // Only real network failures get the connection message.
+      setErrorMessage(
+        (e && e.type === 'VALIDATION_ERROR' && e.message)
+          || 'Could not reach the payment gateway. Please check your connection and try again.'
+      );
       setStep('failed');
     } finally {
       setSending(false);
@@ -412,7 +429,7 @@ export default function MobileMoneyScreen({ navigation, route }) {
         {/* Provider Selection — 2x2 grid */}
         <Text style={styles.sectionTitle}>Choose payment method</Text>
         <View style={styles.providerGrid}>
-          {PROVIDERS.map(provider => {
+          {PROVIDERS.filter(p => !HIDDEN_PROVIDERS.includes(p.id)).map(provider => {
             const isSelected = selectedProvider?.id === provider.id;
             return (
               <TouchableOpacity
@@ -507,8 +524,12 @@ export default function MobileMoneyScreen({ navigation, route }) {
         {/* Provider brand row — styled brand-color text, not
             reproduced trademarked logo artwork */}
         <View style={styles.brandRow}>
-          <Text style={[styles.brandText, { color: '#4CAF50' }]}>M-PESA</Text>
-          <View style={styles.brandDivider} />
+          {!HIDDEN_PROVIDERS.includes('mpesa') && (
+            <>
+              <Text style={[styles.brandText, { color: '#4CAF50' }]}>M-PESA</Text>
+              <View style={styles.brandDivider} />
+            </>
+          )}
           <Text style={[styles.brandText, { color: '#E31E2D' }]}>airtel money</Text>
           <View style={styles.brandDivider} />
           <Text style={[styles.brandText, { color: '#0072C6' }]}>tigo pesa</Text>
