@@ -17,6 +17,11 @@
  * AzamPay's own partner list). Any method without a logo on file — or
  * whose logo fails to load — keeps its original text label, so the row
  * never shows a broken image.
+ * Updated: Tigo Pesa is shown as "Mixx by Yas" (its new name). The code
+ * stays 'tigopesa' because that is the partner name AzamPay has enabled
+ * for our account. The mobile-money method list now lives in one place
+ * (MOBILE_MONEY_METHODS) with a HIDDEN_PROVIDERS switch, so the "We
+ * Accept" row and the Mobile Money subtitle can never disagree.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -35,6 +40,25 @@ import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
 import { CommissionBreakdown } from '../../components/CommissionCalculator';
 import InlineLocationMap from '../../components/InlineLocationMap';
+
+// Provider ids to hide from checkout (e.g. ['mpesa']). Empty = every
+// method below is shown. Keep this in step with HIDDEN_PROVIDERS in
+// MobileMoneyScreen.js. M-Pesa currently needs a separate collection
+// wallet from AzamPay before it can work, so add 'mpesa' here (and
+// there) to hide it from customers until that is set up.
+const HIDDEN_PROVIDERS = [];
+
+const MOBILE_MONEY_METHODS = [
+  { code: 'mpesa', label: 'M-Pesa', color: '#4CAF50' },
+  { code: 'tigopesa', label: 'Mixx by Yas', color: '#0066B3' },
+  { code: 'airtel', label: 'Airtel Money', color: '#E4002B' },
+  { code: 'halopesa', label: 'HaloPesa', color: '#F7941D' },
+];
+const BANK_METHODS = [
+  { code: 'nmb', label: 'NMB', color: '#1B4F72' },
+  { code: 'crdb', label: 'CRDB', color: '#003D7A' },
+];
+const VISIBLE_MOBILE_MONEY = MOBILE_MONEY_METHODS.filter(m => !HIDDEN_PROVIDERS.includes(m.code));
 
 const PickerModal = ({ visible, title, data, onSelect, onClose, loading, searchable, onSearch }) => {
   const [query, setQuery] = useState('');
@@ -631,7 +655,7 @@ export default function CheckoutScreen({ navigation, route }) {
             <Text style={styles.sectionTitle}>Payment Method</Text>
           </View>
           {[
-            { value: 'mobile_money', icon: '📱', label: 'Mobile Money', sub: 'M-Pesa, Airtel, Tigo, Halopesa' },
+            { value: 'mobile_money', icon: '📱', label: 'Mobile Money', sub: VISIBLE_MOBILE_MONEY.map(m => m.label).join(', ') },
             { value: 'bank_transfer', icon: '🏦', label: 'Bank Transfer', sub: 'CRDB, NMB' },
             { value: 'wallet', icon: '💰', label: 'VUMA Wallet', sub: 'Pay from your balance' },
           ].map(pm => (
@@ -663,14 +687,7 @@ export default function CheckoutScreen({ navigation, route }) {
         <View style={styles.section}>
           <Text style={styles.methodsHeading}>We Accept</Text>
           <View style={styles.methodsGrid}>
-            {[
-              { code: 'mpesa', label: 'M-Pesa', color: '#4CAF50' },
-              { code: 'tigopesa', label: 'Tigo Pesa', color: '#0066B3' },
-              { code: 'airtel', label: 'Airtel Money', color: '#E4002B' },
-              { code: 'halopesa', label: 'HaloPesa', color: '#F7941D' },
-              { code: 'nmb', label: 'NMB', color: '#1B4F72' },
-              { code: 'crdb', label: 'CRDB', color: '#003D7A' },
-            ].map(m => (
+            {[...VISIBLE_MOBILE_MONEY, ...BANK_METHODS].map(m => (
               <MethodBadge key={m.code} label={m.label} color={m.color} logoUrl={logos[m.code]} />
             ))}
           </View>
