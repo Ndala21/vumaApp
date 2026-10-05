@@ -1,6 +1,6 @@
 /**
  * VUMA Store — Mobile Money Payment Screen
- * AzamPay: M-Pesa, Airtel Money, Tigo Pesa, HaloPesa
+ * AzamPay: M-Pesa, Airtel Money, Mixx by Yas (AzamPay partner 'Tigopesa'), HaloPesa
  *
  * Flow: select provider/phone → confirm dialog → send STK push →
  * poll for real confirmation → Successful / Failed / Cancelled.
@@ -61,9 +61,12 @@ const PROVIDERS = [
     numbers: ['068', '069'],
   },
   {
+    // Customer-facing name only. Tigo Pesa is now Mixx by Yas, but the id
+    // stays 'tigopesa' because that is the partner name AzamPay has
+    // enabled for our account (their partner list has no 'Mixx').
     id: 'tigopesa',
-    name: 'Tigo Pesa',
-    company: 'Tigo Tanzania',
+    name: 'Mixx by Yas',
+    company: 'Yas Tanzania',
     icon: '📱',
     color: '#0072C6',
     prefix: '255 065/067',
@@ -533,7 +536,7 @@ export default function MobileMoneyScreen({ navigation, route }) {
           )}
           <Text style={[styles.brandText, { color: '#E31E2D' }]}>airtel money</Text>
           <View style={styles.brandDivider} />
-          <Text style={[styles.brandText, { color: '#0072C6' }]}>tigo pesa</Text>
+          <Text style={[styles.brandText, { color: '#0072C6' }]}>mixx by yas</Text>
           <View style={styles.brandDivider} />
           <Text style={[styles.brandText, { color: '#6B2D8B' }]}>haloPesa</Text>
         </View>
