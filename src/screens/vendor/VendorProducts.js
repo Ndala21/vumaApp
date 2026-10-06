@@ -7,6 +7,15 @@
  *
  * Everything else — multi-image upload, AI description, pricing
  * check, variants, image quality checks — is unchanged.
+ *
+ * Updated: saving a product no longer fails quietly when its pictures
+ * can't be sent. The product id is found wherever the store returns it
+ * (and falls back to the id being edited), a missing id or a failed
+ * upload now says so with the real reason, picture quality blocks from
+ * the server are recognised (the API client rejects with a flat
+ * { type, message, status, errors } object, not an axios-style
+ * response), the uploading state always resets, and variants are no
+ * longer saved from an out-of-date copy.
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
@@ -58,6 +67,17 @@ const EMPTY_FORM = {
   name: '', description: '', short_description: '', price: '', stock: '',
   category: '', categoryId: '', sku: '', weight: '', status: 'active',
   available_sizes: [], requires_size: false, key_features: [],
+};
+
+// Plain-language reason for a failed picture upload. The API client
+// rejects with { type, message, status, errors }.
+const describeUploadError = (e) => {
+  if (!e) return 'Unknown error.';
+  if (e.type === 'TIMEOUT') return 'The upload timed out. Try a smaller photo or a better connection.';
+  if (e.type === 'NETWORK_ERROR') return 'Could not reach the server. Check your internet connection.';
+  if (e.type === 'SESSION_EXPIRED') return 'Your login expired. Please log in again.';
+  if (e.status === 403) return 'You do not have permission to add pictures to this product.';
+  return e.message || 'Unknown error.';
 };
 
 // ── Character counter ─────────────────────────────────
@@ -774,18 +794,26 @@ export default function VendorProducts({ navigation, route }) {
       }
     }
 
+    // The saved product's id, wherever the store hands it back. Variants,
+    // the video and the pictures all need it. When editing, the id is
+    // already known, so fall back to that.
+    const savedId = savedProduct?.id
+      || savedProduct?.product?.id
+      || savedProduct?.data?.id
+      || (editingProduct ? editingProduct.id : null);
+
     // Save variants (replaces the full set for this product)
-    if (variants.length > 0 && savedProduct?.id) {
+    if (variants.length > 0 && savedId) {
       try {
         const { productsAPI } = await import('../../api/products');
-        await productsAPI.bulkSaveVariants(savedProduct.id, variants);
+        await productsAPI.bulkSaveVariants(savedId, variants);
       } catch (e) {
         Alert.alert('Partial Success', 'Product saved, but variants failed to save. Edit the product to retry.');
       }
     }
 
     // Upload video if a new one was picked
-    if (videoAsset && savedProduct?.id) {
+    if (videoAsset && savedId) {
       setVideoUploading(true);
       try {
         const { upload } = await import('../../api/client');
@@ -795,7 +823,7 @@ export default function VendorProducts({ navigation, route }) {
           name: videoAsset.fileName || 'product_video.mp4',
           type: videoAsset.mimeType || 'video/mp4',
         });
-        await upload(`/products/${savedProduct.id}/video/`, formData);
+        await upload(`/products/${savedId}/video/`, formData);
       } catch (e) {
         Alert.alert('Partial Success', 'Product saved, but the video failed to upload. Edit the product to retry.');
       } finally {
@@ -805,60 +833,82 @@ export default function VendorProducts({ navigation, route }) {
 
     // Upload only NEW images (not existing ones)
     const newImages = productImages.filter(img => !img.isExisting);
-    if (newImages.length > 0 && savedProduct?.id) {
+
+    // Never skip the pictures without saying so.
+    if (newImages.length > 0 && !savedId) {
+      Alert.alert(
+        'Pictures not attached',
+        'Your product was saved, but we could not attach its pictures. Open the product, tap Edit and add them again.'
+      );
+    }
+
+    if (newImages.length > 0 && savedId) {
       setUploading(true);
-      const { productsAPI } = await import('../../api/products');
       let failedCount = 0;
-
+      let firstFailureReason = '';
       const uploadQualityResults = [];
-      for (let i = 0; i < newImages.length; i++) {
-        setUploadingIndex(productImages.indexOf(newImages[i]));
-        try {
-          const isFirstOverall = productImages.indexOf(newImages[i]) === 0;
-          const response = await productsAPI.uploadProductImage(
-            savedProduct.id,
-            {
-              uri: newImages[i].uri,
-              name: newImages[i].fileName || `product_image_${i}.jpg`,
-              type: newImages[i].mimeType || 'image/jpeg',
-            },
-            isFirstOverall
-          );
 
-          // Capture quality data from response
-          if (response && response.image_quality) {
-            uploadQualityResults.push({
-              imageUri: newImages[i].uri,
-              quality: response.image_quality,
-              imageName: newImages[i].fileName || `Image ${i + 1}`,
-            });
-          }
-        } catch (e) {
-          // Handle quality blocked error (400)
-          if (e?.response?.status === 400 && e?.response?.data?.issues) {
-            const blockedQuality = {
-              score: e.response.data.quality_score || 0,
-              grade: 'F',
-              passed: false,
-              issues: e.response.data.issues || [],
-              suggestions: e.response.data.suggestions || [],
-              metrics: {},
-              warnings: e.response.data.issues || [],
-            };
-            uploadQualityResults.push({
-              imageUri: newImages[i].uri,
-              quality: blockedQuality,
-              imageName: newImages[i].fileName || `Image ${i + 1}`,
-              blocked: true,
-            });
-            failedCount++;
-          } else {
-            failedCount++;
+      try {
+        const { productsAPI } = await import('../../api/products');
+        for (let i = 0; i < newImages.length; i++) {
+          setUploadingIndex(productImages.indexOf(newImages[i]));
+          try {
+            const isFirstOverall = productImages.indexOf(newImages[i]) === 0;
+            const response = await productsAPI.uploadProductImage(
+              savedId,
+              {
+                uri: newImages[i].uri,
+                name: newImages[i].fileName || `product_image_${i}.jpg`,
+                type: newImages[i].mimeType || 'image/jpeg',
+              },
+              isFirstOverall
+            );
+
+            // Capture quality data from response
+            if (response && response.image_quality) {
+              uploadQualityResults.push({
+                imageUri: newImages[i].uri,
+                quality: response.image_quality,
+                imageName: newImages[i].fileName || `Image ${i + 1}`,
+              });
+            }
+          } catch (e) {
+            // The API client rejects with { type, message, status, errors },
+            // not an axios-style { response: { status, data } }.
+            const status = e?.status || e?.response?.status;
+            const data = e?.errors || e?.response?.data;
+            // Handle quality blocked error (400)
+            if (status === 400 && data && data.issues) {
+              const blockedQuality = {
+                score: data.quality_score || 0,
+                grade: 'F',
+                passed: false,
+                issues: data.issues || [],
+                suggestions: data.suggestions || [],
+                metrics: {},
+                warnings: data.issues || [],
+              };
+              uploadQualityResults.push({
+                imageUri: newImages[i].uri,
+                quality: blockedQuality,
+                imageName: newImages[i].fileName || `Image ${i + 1}`,
+                blocked: true,
+              });
+              failedCount++;
+            } else {
+              failedCount++;
+              if (!firstFailureReason) firstFailureReason = describeUploadError(e);
+            }
           }
         }
+      } catch (e) {
+        // Something outside the per-picture upload failed (e.g. loading the API module).
+        failedCount = newImages.length;
+        firstFailureReason = describeUploadError(e);
+      } finally {
+        setUploadingIndex(null);
+        setUploading(false);
       }
-      setUploadingIndex(null);
-      setUploading(false);
 
       // Show quality results if any issues found
       const issueResults = uploadQualityResults.filter(r => !r.quality.passed || r.quality.warnings?.length > 0 || r.blocked);
@@ -876,7 +926,12 @@ export default function VendorProducts({ navigation, route }) {
       }
 
       if (failedCount > 0 && issueResults.filter(r => r.blocked).length === 0) {
-        Alert.alert('Partial Success', `Product saved. ${failedCount} of ${newImages.length} images failed to upload.`);
+        Alert.alert(
+          'Partial Success',
+          `Product saved. ${failedCount} of ${newImages.length} picture(s) failed to upload.`
+            + (firstFailureReason ? `\n\nReason: ${firstFailureReason}` : '')
+            + '\n\nOpen the product and tap Edit to add them again.'
+        );
       }
     }
 
@@ -888,7 +943,7 @@ export default function VendorProducts({ navigation, route }) {
     setVideoAsset(null);
     setExistingVideoUrl('');
     dispatch(fetchMyProducts());
-  }, [form, productImages, editingProduct, validateForm, errors, videoAsset]);
+  }, [form, productImages, editingProduct, validateForm, errors, videoAsset, variants]);
 
   const handleDelete = useCallback((product) => {
     Alert.alert('Delete Product', `Delete "${product.name}"?`, [
