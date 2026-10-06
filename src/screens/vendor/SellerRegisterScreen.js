@@ -5,9 +5,14 @@
  * Updated: shop location now uses InlineLocationMap - a real,
  * always-visible interactive map with search, embedded directly in
  * the form - instead of a button that opened a separate full-screen map.
+ * Updated: moving the pin now fills City, Region, District, Ward and
+ * Village/Mtaa and the readable address automatically, offers a nearby
+ * place as a one-tap Landmark suggestion, keeps anything the seller
+ * typed, and saves region, district, village and the address with the
+ * application. Coordinates are saved too but never shown.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
   TextInput, Alert, Platform, Modal, FlatList, Image,
@@ -53,6 +58,32 @@ const TANZANIA_CITIES = [
   'Moshi', 'Iringa', 'Songea', 'Lindi', 'Mtwara', 'Other',
 ];
 
+// Maps a detected region/district onto the City dropdown. Only real town
+// districts map to a town ('Dodoma Urban' -> Dodoma). Rural districts
+// become 'Other', because the Region and District fields carry the detail.
+const CITY_BY_DISTRICT = {
+  ilala: 'Dar es Salaam', kinondoni: 'Dar es Salaam', temeke: 'Dar es Salaam',
+  ubungo: 'Dar es Salaam', kigamboni: 'Dar es Salaam',
+  nyamagana: 'Mwanza', ilemela: 'Mwanza',
+};
+const ZANZIBAR_REGIONS = [
+  'mjini magharibi', 'kaskazini unguja', 'kusini unguja', 'kaskazini pemba', 'kusini pemba',
+];
+const normPlace = (s) => String(s || '')
+  .toLowerCase().replace(/[-_]/g, ' ').replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+const pickCity = (regionName, districtName) => {
+  const region = normPlace(regionName);
+  const district = normPlace(districtName)
+    .replace(/\b(urban|city|municipal|municipality|township authority|town|council)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  if (region === 'dar es salaam') return 'Dar es Salaam';
+  if (ZANZIBAR_REGIONS.includes(region)) return 'Zanzibar';
+  if (CITY_BY_DISTRICT[district]) return CITY_BY_DISTRICT[district];
+  const hit = TANZANIA_CITIES.find(c => c !== 'Other' && normPlace(c) === district);
+  return hit || 'Other';
+};
+
 const PAYOUT_METHODS = [
   { value: 'mpesa', icon: '📱', label: 'M-Pesa (Vodacom)', desc: 'Most popular in Tanzania' },
   { value: 'airtel', icon: '📱', label: 'Airtel Money', desc: 'Airtel Tanzania' },
@@ -73,7 +104,7 @@ const EMPTY_FORM = {
   full_name: '', phone: '', email: '', password: '', confirm_password: '',
   // Step 2 — Business
   shop_name: '', business_category: '',
-  city: 'Dar es Salaam', ward: '', landmark: '',
+  city: 'Dar es Salaam', region: '', district: '', ward: '', village: '', landmark: '',
   latitude: null, longitude: null,
   formatted_address: '',
   description: '',
@@ -135,6 +166,12 @@ export default function SellerRegisterScreen({ navigation }) {
   const [showPayoutPicker, setShowPayoutPicker] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [checkingExisting, setCheckingExisting] = useState(true);
+  // A nearby place Google found at the pin: offered as a one-tap
+  // Landmark suggestion, never forced into the field.
+  const [landmarkSuggestion, setLandmarkSuggestion] = useState('');
+  // The last values the map filled in for us, so a moved pin refreshes
+  // those but never overwrites something the seller typed themselves.
+  const autoFilled = useRef({ region: '', district: '', ward: '', village: '' });
 
   // Real fix: never let a seller with a pending or approved application
   // re-submit a duplicate - check first and redirect straight to their
@@ -157,21 +194,57 @@ export default function SellerRegisterScreen({ navigation }) {
   const selectedType = SELLER_TYPES.find(t => t.value === sellerType);
 
   // Called whenever InlineLocationMap's pin settles (drag, search
-  // result, or GPS). This form still uses a simple City dropdown +
-  // free-text Ward (not the full Region/District/Ward system Checkout
-  // uses), so we do a best-effort match of the reverse-geocoded
-  // district/region name against the City list, and pre-fill Ward —
-  // the seller can correct either field afterward.
-  const handleMapConfirm = ({ latitude: lat, longitude: lng, formattedAddress, suggestedDistrict, suggestedRegion }) => {
-    setFormState(prev => ({ ...prev, latitude: lat, longitude: lng, formatted_address: formattedAddress }));
+  // result, or GPS). Fills City, Region, District, Ward, Village and the
+  // readable address from the reverse-geocode result, and offers a nearby
+  // place as a one-tap Landmark suggestion. A value the seller typed
+  // themselves is kept when the pin moves, unless the pin moved to a
+  // different district (then it belonged to the old spot). If the lookup
+  // found nothing (no connection, outside Tanzania) the fields are left
+  // as they are and only the coordinates are updated.
+  const handleMapConfirm = ({
+    latitude: lat, longitude: lng, displayAddress, formattedAddress, street, area,
+    suggestedVillage, landmark: placeName,
+    suggestedRegion, suggestedDistrict, suggestedWard,
+    rawRegionName, rawDistrictName,
+  }) => {
+    const prevAuto = autoFilled.current;
+    const next = {
+      region: suggestedRegion?.name || rawRegionName || '',
+      district: suggestedDistrict?.name || rawDistrictName || '',
+      ward: suggestedWard?.name || area || '',
+      village: suggestedVillage || street || '',
+    };
+    const detected = !!(next.region || next.district || next.ward || next.village);
+    setLandmarkSuggestion(placeName || '');
 
-    const candidateName = suggestedDistrict?.name || suggestedRegion?.name;
-    if (candidateName) {
-      const matchedCity = TANZANIA_CITIES.find(
-        c => c.toLowerCase() === candidateName.toLowerCase()
-      );
-      if (matchedCity) setField('city', matchedCity);
+    if (!detected) {
+      setFormState(prev => ({
+        ...prev, latitude: lat, longitude: lng,
+        formatted_address: displayAddress || formattedAddress || prev.formatted_address,
+      }));
+      return;
     }
+
+    const movedDistrict = !!(prevAuto.district && next.district && prevAuto.district !== next.district);
+    autoFilled.current = next;
+    setFormState(prev => {
+      const pick = (field) => {
+        const typedByUser = prev[field] && prev[field] !== prevAuto[field];
+        return (typedByUser && !movedDistrict) ? prev[field] : next[field];
+      };
+      const out = {
+        ...prev,
+        latitude: lat,
+        longitude: lng,
+        formatted_address: displayAddress || formattedAddress || '',
+        region: pick('region'),
+        district: pick('district'),
+        ward: pick('ward'),
+        village: pick('village'),
+      };
+      if (next.region || next.district) out.city = pickCity(next.region, next.district);
+      return out;
+    });
   };
 
   // Selfie: ask the seller to choose Camera or Gallery up front, instead of
@@ -329,6 +402,9 @@ export default function SellerRegisterScreen({ navigation }) {
       formData.append('ward', form.ward.trim());
       formData.append('landmark', form.landmark.trim());
       formData.append('description', form.description.trim());
+      if (form.region.trim()) formData.append('region', form.region.trim());
+      if (form.district.trim()) formData.append('district', form.district.trim());
+      if (form.village.trim()) formData.append('village', form.village.trim());
       if (form.latitude) formData.append('latitude', String(form.latitude));
       if (form.longitude) formData.append('longitude', String(form.longitude));
       if (form.formatted_address) formData.append('formatted_address', form.formatted_address);
@@ -516,6 +592,9 @@ export default function SellerRegisterScreen({ navigation }) {
         placeholderTextColor={COLORS.textLight} />
 
       <Text style={styles.sectionTitle}>📍 Location</Text>
+      <Text style={styles.fieldHint}>
+        Search, tap 🎯, or move the map so the pin sits on your shop. We fill in the address below for you to check.
+      </Text>
 
       <InlineLocationMap
         initialLatitude={form.latitude}
@@ -529,13 +608,33 @@ export default function SellerRegisterScreen({ navigation }) {
         <Text>▼</Text>
       </TouchableOpacity>
 
+      <Text style={styles.fieldLabel}>Region</Text>
+      <TextInput style={styles.input} value={form.region} onChangeText={v => setField('region', v)}
+        placeholder="e.g. Dar es Salaam, Arusha, Ruvuma" placeholderTextColor={COLORS.textLight} />
+
+      <Text style={styles.fieldLabel}>District</Text>
+      <TextInput style={styles.input} value={form.district} onChangeText={v => setField('district', v)}
+        placeholder="e.g. Ilala, Karatu, Tunduru" placeholderTextColor={COLORS.textLight} />
+
       <Text style={styles.fieldLabel}>Ward / Area *</Text>
       <TextInput style={styles.input} value={form.ward} onChangeText={v => setField('ward', v)}
         placeholder="e.g. Kinondoni, Kariakoo, Ilala" placeholderTextColor={COLORS.textLight} />
 
+      <Text style={styles.fieldLabel}>Village / Mtaa / Street <Text style={styles.optional}>(optional)</Text></Text>
+      <TextInput style={styles.input} value={form.village} onChangeText={v => setField('village', v)}
+        placeholder="e.g. Mtaa wa Kariakoo, Kijiji cha..." placeholderTextColor={COLORS.textLight} />
+      <Text style={styles.fieldHint}>
+        Village and mtaa names are often missing on maps in Tanzania. If it isn't filled in, type yours.
+      </Text>
+
       <Text style={styles.fieldLabel}>Nearby Landmark <Text style={styles.optional}>(optional)</Text></Text>
       <TextInput style={styles.input} value={form.landmark} onChangeText={v => setField('landmark', v)}
         placeholder="e.g. Near Kariakoo Market, Next to CRDB" placeholderTextColor={COLORS.textLight} />
+      {!!landmarkSuggestion && !form.landmark.trim() && (
+        <TouchableOpacity style={styles.suggestChip} onPress={() => setField('landmark', landmarkSuggestion)} activeOpacity={0.8}>
+          <Text style={styles.suggestChipText} numberOfLines={1}>Use nearby place: {landmarkSuggestion}</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.stepBtns}>
         <TouchableOpacity style={styles.backBtn} onPress={() => setStep(1)}>
@@ -832,6 +931,8 @@ const styles = StyleSheet.create({
   selector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, marginBottom: SPACING.xs },
   selectorValue: { fontSize: FONTS.base, color: COLORS.textPrimary },
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
+  suggestChip: { alignSelf: 'flex-start', maxWidth: '100%', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm + 2, paddingVertical: 6, marginBottom: SPACING.xs },
+  suggestChipText: { fontSize: FONTS.xs, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
   idTypeRow: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: SPACING.sm },
   idTypeChip: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface },
   idTypeChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },

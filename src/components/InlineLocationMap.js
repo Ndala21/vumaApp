@@ -9,6 +9,14 @@
  * Shares the same real backend endpoints as MapLocationPicker (Places
  * Autocomplete/Details for search, reverse-geocode on pin settle) -
  * this is the same picker, just rendered inline instead of as a modal.
+ *
+ * Updated: shows the readable address (never raw GPS coordinates) with a
+ * short status line telling the user what was detected and what they
+ * still need to fill in. The coordinates are still reported to the
+ * parent form for delivery and logistics, they are just not displayed.
+ * Also: the zoomed-out national overview is never looked up or reported
+ * as if it were a chosen pin, a slow lookup can no longer overwrite a
+ * newer one, and the same spot is not looked up twice in a row.
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
@@ -29,12 +37,27 @@ const TANZANIA_DEFAULT_REGION = {
 
 const MAP_HEIGHT = 280;
 
-// onLocationChange fires with the same real shape MapLocationPicker's
-// onConfirm used to: { latitude, longitude, formattedAddress, street,
-// suggestedRegion, suggestedDistrict, suggestedWard } - every time the
-// pin settles (drag ends, search result picked, or GPS used), so the
-// parent form always has the latest real location without a separate
-// confirm step.
+// Zoomed right out (the national overview the map starts on) is not a
+// real pin, so it is never looked up or reported to the form.
+const MAX_PIN_ZOOM_DELTA = 0.5;
+
+const coordKey = (lat, lng) => `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+
+const HINT_TEXT = {
+  ok: 'Address detected. Not exact? Move the map until the pin sits on your door.',
+  noward: "We found your area but couldn't tell the ward. Please choose it below.",
+  noregion: "We couldn't match this spot to a region. Please fill in the address below.",
+  none: "We couldn't find an address here. Move the pin or fill in the address below.",
+  failed: "Couldn't look up the address (check your connection). You can still fill in the fields below.",
+  gps: "Couldn't get your GPS location. Search for your place or move the map instead.",
+};
+
+// onLocationChange fires every time the pin settles (drag ends, search
+// result picked, or GPS used), so the parent form always has the latest
+// real location without a separate confirm step. It reports:
+// { latitude, longitude, formattedAddress, displayAddress, street, area,
+//   landmark, suggestedVillage, suggestedRegion, suggestedDistrict,
+//   suggestedWard, rawRegionName, rawDistrictName, geocodeOk }
 export default function InlineLocationMap({ initialLatitude, initialLongitude, onLocationChange }) {
   const mapRef = useRef(null);
   const [region, setRegion] = useState(
@@ -44,7 +67,8 @@ export default function InlineLocationMap({ initialLatitude, initialLongitude, o
   );
   const [locating, setLocating] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
-  const [lastAddress, setLastAddress] = useState('');
+  const [address, setAddress] = useState('');
+  const [hint, setHint] = useState('');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -52,25 +76,46 @@ export default function InlineLocationMap({ initialLatitude, initialLongitude, o
   const [resolvingResult, setResolvingResult] = useState(false);
   const searchDebounceRef = useRef(null);
 
+  const geocodeSeq = useRef(0);   // newest lookup wins
+  const lastKey = useRef('');     // last spot we looked up
+
   const reverseGeocodeAndReport = useCallback(async (lat, lng) => {
+    const seq = ++geocodeSeq.current;
+    lastKey.current = coordKey(lat, lng);
     setGeocoding(true);
-    let geocodeResult = null;
+    let g = null;
     try {
-      geocodeResult = await post('/delivery/reverse-geocode/', { latitude: lat, longitude: lng });
+      g = await post('/delivery/reverse-geocode/', { latitude: lat, longitude: lng });
     } catch {
-      geocodeResult = null;
+      g = null;
     }
+    // A newer pin position was looked up while this one was in flight.
+    if (seq !== geocodeSeq.current) return;
     setGeocoding(false);
-    setLastAddress(geocodeResult?.formatted_address || '');
+
+    setAddress(g?.display_address || g?.formatted_address || '');
+    if (!g) setHint('failed');
+    else if (g.status !== 'OK') setHint('none');
+    else if (!g.suggested_region) setHint('noregion');
+    else if (!g.suggested_ward) setHint('noward');
+    else setHint('ok');
+
     if (onLocationChange) {
       onLocationChange({
         latitude: lat,
         longitude: lng,
-        formattedAddress: geocodeResult?.formatted_address || '',
-        street: geocodeResult?.street || '',
-        suggestedRegion: geocodeResult?.suggested_region || null,
-        suggestedDistrict: geocodeResult?.suggested_district || null,
-        suggestedWard: geocodeResult?.suggested_ward || null,
+        formattedAddress: g?.formatted_address || '',
+        displayAddress: g?.display_address || g?.formatted_address || '',
+        street: g?.street || '',
+        area: g?.area || '',
+        landmark: g?.landmark || '',
+        suggestedVillage: g?.suggested_village || '',
+        suggestedRegion: g?.suggested_region || null,
+        suggestedDistrict: g?.suggested_district || null,
+        suggestedWard: g?.suggested_ward || null,
+        rawRegionName: g?.raw_region_name || '',
+        rawDistrictName: g?.raw_district_name || '',
+        geocodeOk: !!g && g.status === 'OK',
       });
     }
   }, [onLocationChange]);
@@ -135,7 +180,7 @@ export default function InlineLocationMap({ initialLatitude, initialLongitude, o
     try {
       const Location = await import('expo-location');
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') { setLocating(false); return; }
+      if (status !== 'granted') { setHint('gps'); return; }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const newRegion = {
         latitude: loc.coords.latitude,
@@ -147,7 +192,9 @@ export default function InlineLocationMap({ initialLatitude, initialLongitude, o
       mapRef.current?.animateToRegion(newRegion, 500);
       reverseGeocodeAndReport(loc.coords.latitude, loc.coords.longitude);
     } catch {
-      // Silently fail — the customer can still drag the map manually.
+      // GPS can fail or time out, especially in rural areas. Say so,
+      // the customer can still search or drag the map manually.
+      setHint('gps');
     } finally {
       setLocating(false);
     }
@@ -155,6 +202,10 @@ export default function InlineLocationMap({ initialLatitude, initialLongitude, o
 
   const handleRegionChangeComplete = (newRegion) => {
     setRegion(newRegion);
+    // The national overview is not a chosen pin.
+    if (newRegion.latitudeDelta > MAX_PIN_ZOOM_DELTA) return;
+    // Already looked up this exact spot (e.g. right after a search or GPS).
+    if (coordKey(newRegion.latitude, newRegion.longitude) === lastKey.current) return;
     reverseGeocodeAndReport(newRegion.latitude, newRegion.longitude);
   };
 
@@ -167,6 +218,8 @@ export default function InlineLocationMap({ initialLatitude, initialLongitude, o
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const hintText = HINT_TEXT[hint] || '';
 
   return (
     <View style={styles.wrap}>
@@ -220,9 +273,16 @@ export default function InlineLocationMap({ initialLatitude, initialLongitude, o
             <ActivityIndicator size="small" color={COLORS.primary} />
             <Text style={styles.addressLoadingText}>Finding address...</Text>
           </View>
+        ) : address ? (
+          <>
+            <Text style={styles.addressText} numberOfLines={3}>📍 {address}</Text>
+            {!!hintText && (
+              <Text style={[styles.hintText, hint !== 'ok' && styles.hintWarn]}>{hintText}</Text>
+            )}
+          </>
         ) : (
-          <Text style={styles.addressText} numberOfLines={2}>
-            {lastAddress || `${region.latitude.toFixed(5)}, ${region.longitude.toFixed(5)}`}
+          <Text style={styles.addressPlaceholder}>
+            {hintText || 'Search, tap 🎯, or move the map so the pin sits on your exact spot.'}
           </Text>
         )}
       </View>
@@ -273,5 +333,8 @@ const styles = StyleSheet.create({
   },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   addressLoadingText: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  addressText: { fontSize: FONTS.xs, color: COLORS.textSecondary, lineHeight: 16 },
+  addressText: { fontSize: FONTS.sm, color: COLORS.textPrimary, fontWeight: FONTS.semiBold, lineHeight: 18 },
+  addressPlaceholder: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 16 },
+  hintText: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4, lineHeight: 16 },
+  hintWarn: { color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
 });

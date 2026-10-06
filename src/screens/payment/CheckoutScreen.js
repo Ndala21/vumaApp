@@ -22,9 +22,13 @@
  * for our account. The mobile-money method list now lives in one place
  * (MOBILE_MONEY_METHODS) with a HIDDEN_PROVIDERS switch, so the "We
  * Accept" row and the Mobile Money subtitle can never disagree.
+ * Updated: the map now refreshes Region/District/Ward, the readable
+ * address and a village/street guess every time the pin moves, keeps
+ * anything the customer typed, offers a nearby place as a one-tap
+ * Landmark suggestion, and ignores out-of-date lookups.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Alert, Platform, StatusBar, ActivityIndicator,
@@ -183,6 +187,12 @@ export default function CheckoutScreen({ navigation, route }) {
   // arrives (or forever if the request fails) — the "We Accept" row
   // just shows its text labels in that case.
   const [logos, setLogos] = useState({});
+  // A nearby place Google found at the pin: offered as a one-tap
+  // Landmark suggestion, never forced into the field.
+  const [landmarkSuggestion, setLandmarkSuggestion] = useState('');
+  const mapSeq = useRef(0);            // newest map update wins
+  const lastAppliedSpot = useRef('');  // spot whose address we already applied
+  const autoVillage = useRef('');      // last village/street we filled in ourselves
 
   // Subtotal/total are computed ONLY from the items this specific purchase
   // is for (Buy Now's single item, or whichever items were selected on the
@@ -306,48 +316,76 @@ export default function CheckoutScreen({ navigation, route }) {
   };
 
   // Called whenever InlineLocationMap's pin settles (drag, search
-  // result, or GPS) — auto-fills Region -> District -> Ward from the
-  // reverse-geocode suggestion where we got a confident match, and
-  // always shows the human-readable address. The customer can still
-  // correct any field manually afterward, since Tanzania map data
+  // result, or GPS). Refreshes the address from the reverse-geocode
+  // result: Region -> District -> Ward, a village/street guess, the
+  // readable address, and a nearby-place suggestion. Whatever the
+  // customer typed in Village stays put, and a repeat report for the
+  // same spot (e.g. the map remounting) never resets their choices.
+  // The customer can still correct any field, since Tanzania map data
   // isn't always complete.
-  const handleMapConfirm = async ({ latitude: lat, longitude: lng, formattedAddress: addr, street, suggestedRegion, suggestedDistrict, suggestedWard }) => {
+  const handleMapConfirm = async ({
+    latitude: lat, longitude: lng, displayAddress, formattedAddress: addr, street,
+    suggestedVillage, landmark: placeName,
+    suggestedRegion, suggestedDistrict, suggestedWard,
+  }) => {
     setLatitude(lat);
     setLongitude(lng);
-    setFormattedAddress(addr);
-    if (street && !village) setVillage(street);
+    setFormattedAddress(displayAddress || addr || '');
+    setLandmarkSuggestion(placeName || '');
 
-    if (suggestedRegion) {
-      setRegion(suggestedRegion);
-      setDistrict(null);
-      setWard(null);
-      setLoadingDistricts(true);
-      try {
-        const data = await get('/delivery/districts/', { region: suggestedRegion.id });
-        const list = Array.isArray(data) ? data : data?.results || [];
-        setDistricts(list);
+    if (!suggestedRegion) {
+      // Nothing matched here: stop any older update still in flight.
+      mapSeq.current += 1;
+      setLoadingDistricts(false);
+      setLoadingWards(false);
+      return;
+    }
+    const spotKey = `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+    if (spotKey === lastAppliedSpot.current) return;
+    lastAppliedSpot.current = spotKey;
+    const seq = ++mapSeq.current;
 
-        if (suggestedDistrict) {
-          const matchedDistrict = list.find(d => d.id === suggestedDistrict.id);
-          if (matchedDistrict) {
-            setDistrict(matchedDistrict);
-            setLoadingWards(true);
-            try {
-              const wardData = await get('/delivery/wards/', { district: matchedDistrict.id });
-              const wardList = Array.isArray(wardData) ? wardData : wardData?.results || [];
-              setWards(wardList);
-              if (suggestedWard) {
-                const matchedWard = wardList.find(w => w.id === suggestedWard.id);
-                if (matchedWard) setWard(matchedWard);
-              }
-            } finally {
-              setLoadingWards(false);
+    // Village / Mtaa / Street: replace our own earlier guess, never the
+    // customer's own typing.
+    const guess = suggestedVillage || street || '';
+    const previousGuess = autoVillage.current;
+    autoVillage.current = guess;
+    setVillage(prev => (!prev || prev === previousGuess ? guess : prev));
+
+    setRegion(suggestedRegion);
+    setDistrict(null);
+    setWard(null);
+    setDistricts([]);
+    setWards([]);
+    setLoadingWards(false);
+    setLoadingDistricts(true);
+    try {
+      const data = await get('/delivery/districts/', { region: suggestedRegion.id });
+      if (seq !== mapSeq.current) return;
+      const list = Array.isArray(data) ? data : data?.results || [];
+      setDistricts(list);
+
+      if (suggestedDistrict) {
+        const matchedDistrict = list.find(d => d.id === suggestedDistrict.id);
+        if (matchedDistrict) {
+          setDistrict(matchedDistrict);
+          setLoadingWards(true);
+          try {
+            const wardData = await get('/delivery/wards/', { district: matchedDistrict.id });
+            if (seq !== mapSeq.current) return;
+            const wardList = Array.isArray(wardData) ? wardData : wardData?.results || [];
+            setWards(wardList);
+            if (suggestedWard) {
+              const matchedWard = wardList.find(w => w.id === suggestedWard.id);
+              if (matchedWard) setWard(matchedWard);
             }
+          } finally {
+            if (seq === mapSeq.current) setLoadingWards(false);
           }
         }
-      } finally {
-        setLoadingDistricts(false);
       }
+    } finally {
+      if (seq === mapSeq.current) setLoadingDistricts(false);
     }
   };
 
@@ -630,6 +668,11 @@ export default function CheckoutScreen({ navigation, route }) {
               placeholder="e.g. dukani, sokoni, karibu na shule, kanisani, msikitini, stendi ya basi"
               placeholderTextColor={COLORS.textLight}
             />
+            {!!landmarkSuggestion && !landmark.trim() && (
+              <TouchableOpacity style={styles.suggestChip} onPress={() => setLandmark(landmarkSuggestion)} activeOpacity={0.8}>
+                <Text style={styles.suggestChipText} numberOfLines={1}>Use nearby place: {landmarkSuggestion}</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity style={styles.moreBtn} onPress={() => setShowMore(v => !v)}>
               <Text style={styles.moreBtnText}>{showMore ? '▲ Less details' : '▼ More details (building, floor, etc.)'}</Text>
@@ -835,6 +878,8 @@ const styles = StyleSheet.create({
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
   selectorArrow: { fontSize: FONTS.base, color: COLORS.textMuted },
   input: { backgroundColor: COLORS.surfaceAlt, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.xs },
+  suggestChip: { alignSelf: 'flex-start', maxWidth: '100%', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm + 2, paddingVertical: 6, marginBottom: SPACING.xs },
+  suggestChipText: { fontSize: FONTS.xs, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
   moreBtn: { paddingVertical: SPACING.sm, alignItems: 'center' },
   moreBtnText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
   paymentCard: {
