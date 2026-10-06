@@ -15,7 +15,9 @@
  * the server are recognised (the API client rejects with a flat
  * { type, message, status, errors } object, not an axios-style
  * response), the uploading state always resets, and variants are no
- * longer saved from an out-of-date copy.
+ * longer saved from an out-of-date copy. A network failure now shows the
+ * phone's own error text, and api/client.js retries a failed multipart
+ * upload once with the phone's own fetch.
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
@@ -74,7 +76,11 @@ const EMPTY_FORM = {
 const describeUploadError = (e) => {
   if (!e) return 'Unknown error.';
   if (e.type === 'TIMEOUT') return 'The upload timed out. Try a smaller photo or a better connection.';
-  if (e.type === 'NETWORK_ERROR') return 'Could not reach the server. Check your internet connection.';
+  if (e.type === 'NETWORK_ERROR') {
+    // e.detail is what the phone's network layer reported (a missing file, a DNS problem, ...).
+    return 'Could not reach the server. Check your internet connection.'
+      + (e.detail ? ` (${String(e.detail).slice(0, 160)})` : '');
+  }
   if (e.type === 'SESSION_EXPIRED') return 'Your login expired. Please log in again.';
   if (e.status === 403) return 'You do not have permission to add pictures to this product.';
   return e.message || 'Unknown error.';
