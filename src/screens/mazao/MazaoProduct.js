@@ -1,6 +1,13 @@
 /**
  * VUMA Mazao — Add/Edit Crop Product Screen
  * For farmers/vendors to list agricultural products
+ *
+ * Updated: a product has ONE description, a short one of 20 words or
+ * fewer. The description box has a live word counter and stops accepting
+ * a 21st word. It is sent as both `description` and `short_description`
+ * (the crop endpoint reads `description`; the server keeps the product's
+ * short description in step with it). A rejected save now shows the
+ * server's reason instead of a generic message.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -13,6 +20,17 @@ import { useSelector } from 'react-redux';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import { post, patch, upload } from '../../api/client';
+
+// A product has one description: a short one, 20 words or fewer (the server
+// enforces the same limit). Typing past the 20th word is not accepted and a
+// pasted longer text is cut to 20 words.
+const MAX_DESC_WORDS = 20;
+const wordCount = (text) => (String(text || '').trim().match(/\S+/g) || []).length;
+const limitWords = (text) => {
+  const s = String(text || '');
+  const words = s.trim().match(/\S+/g) || [];
+  return words.length <= MAX_DESC_WORDS ? s : words.slice(0, MAX_DESC_WORDS).join(' ');
+};
 
 const CROP_TYPES = [
   { value: 'cereals', label: '🌾 Cereals (Nafaka)', examples: 'Maize, Rice, Wheat, Sorghum' },
@@ -69,7 +87,7 @@ const MONTHS = [
 ];
 
 const EMPTY_FORM = {
-  name: '', name_swahili: '', description: '',
+  name: '', name_swahili: '', short_description: '',
   crop_type: '', quality_grade: 'B', selling_type: 'both',
   unit: 'kg', retail_price: '', wholesale_price: '', wholesale_min_qty: '100',
   available_stock: '', min_order_qty: '1', max_order_qty: '',
@@ -111,7 +129,7 @@ export default function MazaoAddProduct({ navigation, route }) {
   const [form, setFormState] = useState(editingProduct ? {
     name: editingProduct.name || '',
     name_swahili: editingProduct.name_swahili || '',
-    description: editingProduct.description || '',
+    short_description: limitWords(editingProduct.short_description || editingProduct.description || ''),
     crop_type: editingProduct.crop_type || '',
     quality_grade: editingProduct.quality_grade || 'B',
     selling_type: editingProduct.selling_type || 'both',
@@ -176,6 +194,7 @@ export default function MazaoAddProduct({ navigation, route }) {
     if (!form.retail_price || isNaN(form.retail_price)) { Alert.alert('Required', 'Valid retail price required'); return false; }
     if (!form.available_stock || isNaN(form.available_stock)) { Alert.alert('Required', 'Stock quantity required'); return false; }
     if (!form.farm_region) { Alert.alert('Required', 'Farm region is required'); return false; }
+    if (wordCount(form.short_description) > MAX_DESC_WORDS) { Alert.alert('Too long', `The description must be ${MAX_DESC_WORDS} words or fewer.`); return false; }
     return true;
   };
 
@@ -196,11 +215,18 @@ export default function MazaoAddProduct({ navigation, route }) {
       });
 
       // String fields
-      ['name', 'name_swahili', 'description', 'crop_type', 'quality_grade',
+      ['name', 'name_swahili', 'crop_type', 'quality_grade',
         'selling_type', 'unit', 'harvest_date', 'next_harvest_date',
         'farm_region', 'farm_district', 'delivery_notes'].forEach(key => {
         formData.append(key, fields[key] || '');
       });
+
+      // One short description (20 words or fewer). Sent under both names: the
+      // crop endpoint reads `description`, and the server keeps the product's
+      // short description in step with it.
+      const shortText = limitWords(form.short_description).trim();
+      formData.append('description', shortText);
+      formData.append('short_description', shortText);
 
       // Boolean fields
       ['is_available', 'is_seasonal', 'offers_delivery', 'offers_pickup'].forEach(key => {
@@ -219,7 +245,9 @@ export default function MazaoAddProduct({ navigation, route }) {
         Alert.alert('✅ Listed!', 'Your crop is now listed on Mazao Market!', [{ text: 'OK', onPress: () => navigation.goBack() }]);
       }
     } catch (e) {
-      Alert.alert('Error', 'Could not save product. Please try again.');
+      // The API client rejects with { type, message }: show the server's reason for a 400.
+      const reason = (e && e.type === 'VALIDATION_ERROR' && e.message) ? '\n\n' + e.message : '';
+      Alert.alert('Error', 'Could not save product. Please try again.' + reason);
     } finally {
       setSaving(false);
     }
@@ -288,11 +316,16 @@ export default function MazaoAddProduct({ navigation, route }) {
           placeholderTextColor={COLORS.textLight}
         />
 
-        <Text style={styles.fieldLabel}>Description</Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.fieldLabel}>Short Description</Text>
+          <Text style={[styles.wordCounter, wordCount(form.short_description) >= MAX_DESC_WORDS && styles.wordCounterOver]}>
+            {wordCount(form.short_description)}/{MAX_DESC_WORDS} words
+          </Text>
+        </View>
         <TextInput
-          style={[styles.input, styles.textArea]} value={form.description}
-          onChangeText={v => setField('description', v)}
-          placeholder="Describe your product quality, origin, farming method..."
+          style={[styles.input, styles.textArea]} value={form.short_description}
+          onChangeText={v => setField('short_description', limitWords(v))}
+          placeholder="Describe your product in one short sentence (20 words or fewer)"
           multiline numberOfLines={3} textAlignVertical="top"
           placeholderTextColor={COLORS.textLight}
         />
@@ -574,6 +607,9 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs, marginTop: SPACING.sm },
   input: { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   textArea: { minHeight: 80, textAlignVertical: 'top', paddingTop: SPACING.sm },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  wordCounter: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.xs },
+  wordCounterOver: { color: COLORS.danger, fontWeight: FONTS.bold },
   selector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, marginBottom: SPACING.xs },
   selectorValue: { fontSize: FONTS.base, color: COLORS.textPrimary },
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
