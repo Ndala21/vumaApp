@@ -22,7 +22,7 @@ Notifications.setNotificationHandler({
 
 // ── Register device for push notifications ────────────
 async function registerForPushNotifications() {
-  if (!Device.isDevice || Device.osName !== 'Android') return null;
+  if (!Device.isDevice || require('react-native').Platform.OS !== 'android') return null;
   try {
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
@@ -59,7 +59,8 @@ function isSignedIn() {
 
 async function syncPushToken() {
   try {
-    pushDiag.os = Device.osName;
+    pushDiag.os = String(Device.osName).slice(0, 12);
+    pushDiag.plat = require('react-native').Platform.OS;
     pushDiag.isDevice = Device.isDevice;
     pushDiag.step = 'start';
     if (!isSignedIn()) { pushDiag.step = 'not signed in'; return; }
@@ -92,6 +93,7 @@ function watchSignInForPush() {
   check();
   setTimeout(() => {
     try {
+      if (lastSentPushToken) return;
       const { Alert } = require('react-native');
       Alert.alert('Push check', JSON.stringify({
         signedIn: isSignedIn(),
@@ -178,7 +180,7 @@ function App() {
     watchSignInForPush();
 
     // Android notification channels
-    if (Device.osName === 'Android') {
+    if (require('react-native').Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('vuma_default', {
         name: 'VUMA Notifications',
         importance: Notifications.AndroidImportance.MAX,
