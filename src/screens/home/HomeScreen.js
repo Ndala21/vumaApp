@@ -348,7 +348,7 @@ export default function HomeScreen({ navigation }) {
       ctaColor: COLORS.primary,
       onPress: () => handleDynamicOfferPress(offer),
     })),
-  ].filter((c) => c.show);
+  ].filter((c) => c.show).map((c, i) => ({ c, i })).sort((a, b) => (Number(b.c.key.startsWith('dyn_')) - Number(a.c.key.startsWith('dyn_'))) || (a.i - b.i)).map((x) => x.c);
 
   // ── Horizontal product row ──
   const HorizontalRow = ({ title, data, accent = COLORS.primary }) => {
@@ -525,7 +525,7 @@ export default function HomeScreen({ navigation }) {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
               {FAIDA_CARDS.map((card) => (
-                <TouchableOpacity key={card.key} style={[styles.faidaCard, { backgroundColor: card.bg }]} onPress={card.onPress} activeOpacity={0.85}>
+                <TouchableOpacity key={card.key} style={[styles.faidaCard, { backgroundColor: card.bg }, card.image ? { width: 200 } : null]} onPress={card.onPress} activeOpacity={0.85}>
                   {card.image ? (
                     <Image source={{ uri: card.image }} style={styles.faidaImageWrap} resizeMode="cover" />
                   ) : (
@@ -747,7 +747,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xs,
   },
   faidaImageWrap: {
-    width: 44, height: 44, borderRadius: RADIUS.md, marginBottom: SPACING.xs,
+    width: '100%', height: 112, borderRadius: RADIUS.md, marginBottom: SPACING.xs,
     backgroundColor: COLORS.skeleton,
   },
   faidaIcon: { fontSize: 20 },
