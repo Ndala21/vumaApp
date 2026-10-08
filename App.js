@@ -30,17 +30,20 @@ async function registerForPushNotifications() {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
+    pushDiag.perm = finalStatus;
     if (finalStatus !== 'granted') return null;
 
     const token = await Notifications.getDevicePushTokenAsync();
     return typeof token.data === 'string' ? token.data : null;
   } catch (e) {
     console.log('Push token error:', e);
+    pushDiag.error = String((e && e.message) || e).slice(0, 120);
     return null;
   }
 }
 
 // -- Send this phone's Firebase token to the server once the user is signed in --
+const pushDiag = {};
 let lastSentPushToken = null;
 let pushStoreUnsub = null;
 
@@ -56,13 +59,22 @@ function isSignedIn() {
 
 async function syncPushToken() {
   try {
-    if (!isSignedIn()) return;
+    pushDiag.os = Device.osName;
+    pushDiag.isDevice = Device.isDevice;
+    pushDiag.step = 'start';
+    if (!isSignedIn()) { pushDiag.step = 'not signed in'; return; }
+    pushDiag.step = 'getting token';
     const token = await registerForPushNotifications();
-    if (!token || token === lastSentPushToken) return;
+    pushDiag.tokenLen = token ? token.length : 0;
+    if (!token || token === lastSentPushToken) { pushDiag.step = 'no token or same token'; return; }
+    pushDiag.step = 'posting';
     await post('/users/fcm-token/', { fcm_token: token });
     lastSentPushToken = token;
+    pushDiag.step = 'posted ok';
     console.log('FCM token registered');
   } catch (e) {
+    pushDiag.step = 'post failed';
+    pushDiag.postErr = String((e && e.message) || e).slice(0, 80);
     console.log('FCM token save failed:', e);
   }
 }
@@ -78,6 +90,17 @@ function watchSignInForPush() {
   };
   pushStoreUnsub = store.subscribe(check);
   check();
+  setTimeout(() => {
+    try {
+      const { Alert } = require('react-native');
+      Alert.alert('Push check', JSON.stringify({
+        signedIn: isSignedIn(),
+        sent: !!lastSentPushToken,
+        keys: Object.keys(store.getState()).join(','),
+        ...pushDiag,
+      }));
+    } catch (err) {}
+  }, 10000);
 }
 
 // ── Error Boundary ────────────────────────────────────
