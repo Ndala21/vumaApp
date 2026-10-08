@@ -22,7 +22,7 @@ Notifications.setNotificationHandler({
 
 // ── Register device for push notifications ────────────
 async function registerForPushNotifications() {
-  if (!Device.isDevice) return null;
+  if (!Device.isDevice || Device.osName !== 'Android') return null;
   try {
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
@@ -32,14 +32,52 @@ async function registerForPushNotifications() {
     }
     if (finalStatus !== 'granted') return null;
 
-    const token = await Notifications.getExpoPushTokenAsync({
-      projectId: '621141ab-f046-4da8-9785-b0c952d0530e',
-    });
-    return token.data;
+    const token = await Notifications.getDevicePushTokenAsync();
+    return typeof token.data === 'string' ? token.data : null;
   } catch (e) {
     console.log('Push token error:', e);
     return null;
   }
+}
+
+// -- Send this phone's Firebase token to the server once the user is signed in --
+let lastSentPushToken = null;
+let pushStoreUnsub = null;
+
+function isSignedIn() {
+  try {
+    const st = store.getState();
+    const a = st.auth || Object.values(st).find(v => v && typeof v === 'object' && 'isAuthenticated' in v);
+    return !!(a && a.isAuthenticated);
+  } catch (e) {
+    return false;
+  }
+}
+
+async function syncPushToken() {
+  try {
+    if (!isSignedIn()) return;
+    const token = await registerForPushNotifications();
+    if (!token || token === lastSentPushToken) return;
+    await post('/users/fcm-token/', { fcm_token: token });
+    lastSentPushToken = token;
+    console.log('FCM token registered');
+  } catch (e) {
+    console.log('FCM token save failed:', e);
+  }
+}
+
+function watchSignInForPush() {
+  if (pushStoreUnsub) pushStoreUnsub();
+  let wasSignedIn = false;
+  const check = () => {
+    const now = isSignedIn();
+    if (now && !wasSignedIn) syncPushToken();
+    if (!now) lastSentPushToken = null;
+    wasSignedIn = now;
+  };
+  pushStoreUnsub = store.subscribe(check);
+  check();
 }
 
 // ── Error Boundary ────────────────────────────────────
@@ -114,16 +152,7 @@ function App() {
   // Push notifications setup
   useEffect(() => {
     // Register token
-    registerForPushNotifications().then(async token => {
-      if (token) {
-        try {
-          await post('/users/fcm-token/', { fcm_token: token });
-          console.log('FCM token registered');
-        } catch (e) {
-          console.log('FCM token save failed:', e);
-        }
-      }
-    });
+    watchSignInForPush();
 
     // Android notification channels
     if (Device.osName === 'Android') {
