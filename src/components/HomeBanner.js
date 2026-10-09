@@ -24,37 +24,6 @@ const { width } = Dimensions.get('window');
 const BANNER_HEIGHT = 184;
 const AUTO_SLIDE_INTERVAL = 4000;
 
-// Fallback gradient banners when no images
-const FALLBACK_BANNERS = [
-  {
-    id: 'f1',
-    title: 'Best Prices in Tanzania',
-    subtitle: 'Free delivery on all orders',
-    button_text: 'Shop Now',
-    link_type: 'none',
-    bg: [COLORS.primary, COLORS.primaryDark],
-    emoji: '🛒',
-  },
-  {
-    id: 'f2',
-    title: 'Flash Sales Every Day',
-    subtitle: 'Up to 70% off selected items',
-    button_text: 'See Deals',
-    link_type: 'flash_sale',
-    bg: [COLORS.secondary, COLORS.secondaryLight],
-    emoji: '⚡',
-  },
-  {
-    id: 'f3',
-    title: 'Sell on VUMA',
-    subtitle: 'Join 100+ vendors. Only 10% commission.',
-    button_text: 'Start Selling',
-    link_type: 'none',
-    bg: [COLORS.success, '#0B7F58'],
-    emoji: '💰',
-  },
-];
-
 const BannerSlide = memo(({ item, onPress }) => {
   const hasImage = !!item.image;
 
@@ -106,7 +75,7 @@ export default function HomeBanner({ banners = [], onBannerPress, navigation }) 
   const flatListRef = useRef(null);
   const timerRef = useRef(null);
 
-  const displayBanners = banners.length > 0 ? banners : FALLBACK_BANNERS;
+  const displayBanners = Array.isArray(banners) ? banners : [];
 
   useEffect(() => {
     if (displayBanners.length <= 1) return;
