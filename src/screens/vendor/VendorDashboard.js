@@ -23,7 +23,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, logout } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, VENDOR_STATUS } from '../../utils/constants';
 import { formatPrice, formatNumber, getErrorMessage } from '../../utils/helpers';
-import { t } from '../../i18n';
+import { t, i18n } from '../../i18n';
 import { vendorsAPI } from '../../api/vendors';
 import Loading from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
@@ -126,6 +126,40 @@ const getGreeting = () => {
   if (hour < 18) return 'Good afternoon';
   return 'Good evening';
 };
+
+// ------------------------------------------------------------
+// Promote Products card (Seller Dashboard). Opens the existing
+// PromoteProducts screen - same one the menu item uses.
+// ------------------------------------------------------------
+const promoIsSwahili = () => {
+  try {
+    const loc = typeof i18n.getLocale === 'function' ? i18n.getLocale() : i18n.locale;
+    return String(loc || '').toLowerCase().startsWith('sw');
+  } catch (e) {
+    return false;
+  }
+};
+const PL = (en, sw) => (promoIsSwahili() ? sw : en);
+
+const promoStyles = StyleSheet.create({
+  card: {
+    backgroundColor: COLORS.primaryFade,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    padding: SPACING.base + 2,
+    marginBottom: SPACING.xl,
+  },
+  title: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: 4 },
+  body: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 19, marginBottom: SPACING.base },
+  btn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.full,
+    paddingVertical: SPACING.sm + 2,
+    alignItems: 'center',
+  },
+  btnText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.bold },
+});
 
 export default function VendorDashboard({ navigation }) {
   const dispatch = useDispatch();
@@ -286,6 +320,24 @@ export default function VendorDashboard({ navigation }) {
             <Text style={styles.sellerCenterArrow}>→</Text>
           </TouchableOpacity>
         )}
+
+        {/* Promote Products - visible shortcut to the existing promotion feature */}
+        <TouchableOpacity
+          style={promoStyles.card}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel={PL('Promote Products', 'Tangaza Bidhaa')}
+          onPress={() => navigation.navigate('PromoteProducts')}
+        >
+          <Text style={promoStyles.title}>{PL('🚀 Promote Your Products', '🚀 Tangaza Bidhaa Zako')}</Text>
+          <Text style={promoStyles.body}>
+            {PL('Reach more customers, increase visibility, and grow your sales on VUMA.',
+              'Fikia wateja zaidi, ongeza mwonekano wa bidhaa zako na kuza mauzo yako kwenye VUMA.')}
+          </Text>
+          <View style={promoStyles.btn}>
+            <Text style={promoStyles.btnText}>{PL('Promote Products →', 'Tangaza Bidhaa →')}</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* Orders Overview */}
         <View style={styles.sectionHeaderRow}>
