@@ -552,7 +552,7 @@ function OrderDetailsModal({
   );
 }
 
-export default function VendorOrders({ navigation }) {
+export default function VendorOrders({ navigation, route }) {
   const dispatch = useDispatch();
   const orders = useSelector(selectVendorOrders);
   const loading = useSelector(selectOrdersLoading);
@@ -666,6 +666,17 @@ export default function VendorOrders({ navigation }) {
     setShowDetails(false);
     setDetailsLoading(false);
   };
+
+  // Opened from an email or link (vuma://seller/orders/<id>):
+  // show that order straight away.
+  const deepOrderId = route && route.params ? route.params.orderId : null;
+  useEffect(() => {
+    if (!deepOrderId) return;
+    openDetails({ id: deepOrderId });
+    if (navigation && navigation.setParams) {
+      navigation.setParams({ orderId: undefined });
+    }
+  }, [deepOrderId]);
 
   const filteredOrders = orders.filter((o) => {
     if (!searchQuery) return true;

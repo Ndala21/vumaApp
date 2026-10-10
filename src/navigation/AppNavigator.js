@@ -34,7 +34,7 @@ import { initializeAuth, forceLogout } from '../store/authSlice';
 import { loadCart, loadWishlist } from '../store/cartSlice';
 import { fetchNotificationCount } from '../store/notificationSlice';
 import { storage } from '../utils/storage';
-import { COLORS } from '../utils/constants';
+import { COLORS, SCREENS } from '../utils/constants';
 
 import AuthNavigator from './AuthNavigator';
 import TabNavigator from './TabNavigator';
@@ -86,9 +86,21 @@ const linking = {
     screens: {
       Main: {
         screens: {
-          Tabs: 'dashboard',
+          Tabs: {
+            path: 'dashboard',
+            screens: {
+              // email buttons: vumastore.store/app/<screen> -> vuma://<screen>
+              [SCREENS.HOME]: { path: 'home', exact: true },
+              [SCREENS.CART]: { path: 'cart', exact: true },
+              [SCREENS.VENDOR_DASHBOARD]: { path: 'seller/dashboard', exact: true },
+              [SCREENS.VENDOR_ORDERS]: { path: 'seller/orders/:orderId?', exact: true },
+            },
+          },
           OrderDetail: 'orders/:orderId',
           Referral: 'referral',
+          SellerWallet: 'seller/earnings',
+          ApplicationStatus: 'seller/apply',
+          Wallet: 'wallet',
           Auth: {
             screens: {
               Login: 'login',
