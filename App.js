@@ -91,18 +91,6 @@ function watchSignInForPush() {
   };
   pushStoreUnsub = store.subscribe(check);
   check();
-  setTimeout(() => {
-    try {
-      if (lastSentPushToken) return;
-      const { Alert } = require('react-native');
-      Alert.alert('Push check', JSON.stringify({
-        signedIn: isSignedIn(),
-        sent: !!lastSentPushToken,
-        keys: Object.keys(store.getState()).join(','),
-        ...pushDiag,
-      }));
-    } catch (err) {}
-  }, 10000);
 }
 
 // ── Error Boundary ────────────────────────────────────
