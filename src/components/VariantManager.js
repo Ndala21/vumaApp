@@ -79,7 +79,7 @@ export default function VariantManager({ categoryName, variants = [], onChange }
   };
 
   const buildDraft = () => {
-    const draft = { stock: parseInt(stock, 10) || 0, price_adjustment: 0 };
+    const draft = { stock: parseInt(stock, 10) || 0, price_adjustment: 0, is_active: true };
     if (variantType === 'fashion') {
       draft.size = size; draft.color = color; draft.material = material;
     } else if (variantType === 'shoes') {
@@ -244,7 +244,9 @@ export default function VariantManager({ categoryName, variants = [], onChange }
             <View key={i} style={styles.listItem}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.listItemName}>{displayName(v)}</Text>
-                <Text style={styles.listItemStock}>{v.stock} in stock</Text>
+                <Text style={styles.listItemStock}>
+                  {v.stock} in stock{v.is_active === false ? ' \u00B7 switched off (buyers cannot see it)' : ''}
+                </Text>
               </View>
               <TouchableOpacity onPress={() => handleRemove(i)} style={styles.removeBtn}>
                 <Text style={styles.removeBtnText}>Remove</Text>

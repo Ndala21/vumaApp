@@ -41,6 +41,9 @@ import { CustomerSizeSelector, requiresSize } from '../../components/SizeSelecto
 import ProductCard from '../../components/ProductCard';
 import RecommendationSection from '../../components/RecommendationSection';
 import { productsAPI } from '../../api/products';
+import VariantPicker from '../../components/VariantPicker';
+import { variantsDefineSize, activeVariants, unitsAvailable } from '../../utils/variants';
+import { shortDescriptionOf, hasLongerDescription } from '../../utils/productText';
 
 // ── NEW: Seller Badge & Trust Signals ────────────────
 import { SellerBadge, TrustSignals } from '../../components/vendor/SellerBadge';
@@ -144,7 +147,11 @@ export default function ProductDetailScreen({ navigation, route }) {
     setVariantError(false);
   }, [product?.id]);
 
-  const displayProduct = product || routeProduct;
+  // The full product from the server wins; anything it does not carry (for
+  // example sizes on an older server) is kept from the card that was tapped.
+  const displayProduct = product
+    ? (routeProduct && routeProduct.id === product.id ? { ...routeProduct, ...product } : product)
+    : routeProduct;
 
   const effectivePrice = displayProduct ? getEffectivePrice(displayProduct) : 0;
   const variantPriceAdjustment = selectedVariant ? Number(selectedVariant.price_adjustment || 0) : 0;
@@ -188,12 +195,21 @@ export default function ProductDetailScreen({ navigation, route }) {
 
   const discount = getDiscount(displayProduct.price, effectivePrice);
   const onSale = isFlashSale(displayProduct);
-  const outOfStock = displayProduct.stock <= 0;
   const images = displayProduct.images || [];
   const reviews = displayProduct.reviews || [];
-  const productNeedsSize = displayProduct.requires_size && displayProduct.available_sizes?.length > 0;
-  const productVariants = displayProduct.variants || [];
+  // Options the seller has switched off are never shown to customers.
+  const productVariants = activeVariants(displayProduct.variants);
   const needsVariant = productVariants.length > 0;
+  // With options, stock is counted per option (the product's own stock number
+  // is not what gets sold).
+  const unitsLeft = unitsAvailable(displayProduct, productVariants, selectedVariant);
+  const outOfStock = unitsAvailable(displayProduct, productVariants, null) <= 0;
+  // When the seller's options already say which size, the separate size
+  // picker is not shown (it would ask for the size twice).
+  const productNeedsSize = displayProduct.requires_size
+    && displayProduct.available_sizes?.length > 0
+    && !variantsDefineSize(productVariants);
+  const shortText = shortDescriptionOf(displayProduct);
 
   const validateSize = () => {
     if (productNeedsSize && !selectedSize) {
@@ -369,6 +385,9 @@ export default function ProductDetailScreen({ navigation, route }) {
                 </>
               )}
             </View>
+            {!!shortText && (
+              <Text style={styles.shortDescription} numberOfLines={4}>{shortText}</Text>
+            )}
             <View style={styles.freeShipPill}>
               <Text style={styles.freeShip}>🚚 Free delivery</Text>
             </View>
@@ -429,42 +448,21 @@ export default function ProductDetailScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Product Variants (size/color/material/storage/etc — from the seller's variant list) */}
+        {/* Product options (size / colour / storage ... from the seller's option list) */}
         {needsVariant && (
           <View style={styles.card}>
-            <View style={styles.sectionTitleRow}>
-              <View style={styles.sectionAccent} />
-              <Text style={styles.sectionTitle}>Choose Options</Text>
-            </View>
-            {variantError && <Text style={styles.fieldError}>⚠️ Please select an option</Text>}
-            <View style={styles.variantGrid}>
-              {productVariants.map((v) => {
-                const isSelected = selectedVariant?.id === v.id;
-                const isOut = v.stock <= 0;
-                return (
-                  <TouchableOpacity
-                    key={v.id}
-                    disabled={isOut}
-                    style={[
-                      styles.variantChip,
-                      isSelected && styles.variantChipActive,
-                      isOut && styles.variantChipDisabled,
-                    ]}
-                    onPress={() => { setSelectedVariant(v); setVariantError(false); }}
-                  >
-                    <Text style={[styles.variantChipText, isSelected && styles.variantChipTextActive]}>
-                      {v.display_name}
-                    </Text>
-                    {Number(v.price_adjustment) !== 0 && (
-                      <Text style={[styles.variantChipPrice, isSelected && styles.variantChipTextActive]}>
-                        {Number(v.price_adjustment) > 0 ? '+' : ''}{formatPrice(v.price_adjustment)}
-                      </Text>
-                    )}
-                    {isOut && <Text style={styles.variantChipOut}>Out of stock</Text>}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <VariantPicker
+              key={`options-${displayProduct.id}`}
+              variants={productVariants}
+              selectedVariant={selectedVariant}
+              onSelect={(v) => {
+                setSelectedVariant(v);
+                if (v) setVariantError(false);
+                // never keep more in the basket than the chosen option has
+                setQuantity((q) => Math.max(1, Math.min(q, v ? Math.max(1, unitsAvailable(displayProduct, productVariants, v)) : q)));
+              }}
+              error={variantError}
+            />
           </View>
         )}
 
@@ -476,6 +474,7 @@ export default function ProductDetailScreen({ navigation, route }) {
           </View>
           <View style={styles.qtyRow}>
             <TouchableOpacity
+              testID="qty-minus"
               style={[styles.qtyBtn, quantity <= 1 && styles.qtyBtnDisabled]}
               onPress={() => setQuantity((q) => Math.max(1, q - 1))}
               disabled={quantity <= 1}
@@ -484,20 +483,22 @@ export default function ProductDetailScreen({ navigation, route }) {
             </TouchableOpacity>
             <Text style={styles.qtyValue}>{quantity}</Text>
             <TouchableOpacity
-              style={[styles.qtyBtn, quantity >= displayProduct.stock && styles.qtyBtnDisabled]}
-              onPress={() => setQuantity((q) => Math.min(q + 1, displayProduct.stock))}
-              disabled={quantity >= displayProduct.stock}
+              testID="qty-plus"
+              style={[styles.qtyBtn, quantity >= unitsLeft && styles.qtyBtnDisabled]}
+              onPress={() => setQuantity((q) => Math.min(q + 1, unitsLeft))}
+              disabled={quantity >= unitsLeft}
             >
               <Text style={styles.qtyBtnText}>+</Text>
             </TouchableOpacity>
             <Text style={[styles.stockText, outOfStock && styles.stockTextDanger]}>
-              {displayProduct.stock > 0 ? `${displayProduct.stock} available` : 'Out of stock'}
+              {unitsLeft > 0 ? `${unitsLeft} available` : 'Out of stock'}
             </Text>
           </View>
         </View>
 
-        {/* Description */}
-        {displayProduct.description && (
+        {/* Longer description - only for older products that still have one;
+            the short description is already shown under the price. */}
+        {hasLongerDescription(displayProduct) && (
           <View style={styles.card}>
             <View style={styles.sectionTitleRow}>
               <View style={styles.sectionAccent} />
@@ -515,7 +516,7 @@ export default function ProductDetailScreen({ navigation, route }) {
           </View>
           {[
             ['SKU', displayProduct.sku],
-            ['Stock', `${displayProduct.stock} units`],
+            ['Stock', `${unitsLeft} units`],
             ['Weight', displayProduct.weight ? `${displayProduct.weight} kg` : null],
             ['Sizes', displayProduct.available_sizes?.length > 0 ? displayProduct.available_sizes.join(', ') : null],
           ].filter(([, v]) => v).map(([label, value]) => (
@@ -780,6 +781,7 @@ const styles = StyleSheet.create({
   stockText: { fontSize: FONTS.sm, color: COLORS.textMuted, flex: 1, textAlign: 'right' },
   stockTextDanger: { color: COLORS.danger, fontWeight: FONTS.semiBold },
   description: { fontSize: FONTS.base, color: COLORS.textSecondary, lineHeight: 24 },
+  shortDescription: { fontSize: FONTS.md, color: COLORS.textSecondary, lineHeight: 21, marginTop: SPACING.sm },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   detailLabel: { fontSize: FONTS.sm, color: COLORS.textMuted },
   detailValue: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },

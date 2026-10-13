@@ -19,6 +19,12 @@
  * promptly, while cutting how often it can collide with typing by
  * roughly 6-7x.
  *
+ * Updated: email and notification links now open the right screen. The
+ * link table below also covers products (product/<id>), the wishlist,
+ * notifications, the orders list, profile and search - before, anything
+ * that was not in the table (a product link, for example) fell back to
+ * the homepage.
+ *
  * Updated: PromotionProducts screen registered - the dedicated
  * results screen shown when a Home screen promotion targets multiple
  * products, rather than one.
@@ -81,7 +87,15 @@ const Stack = createNativeStackNavigator();
 // Deep linking — routes for email CTA buttons (order updates, referral
 // rewards, password reset) and any future universal-link support.
 const linking = {
-  prefixes: ['vuma://', 'https://vumastore.store', 'https://www.vumastore.store'],
+  // The longer web prefixes come first so 'https://vumastore.store/app/product/1'
+  // is read as 'product/1'.
+  prefixes: [
+    'vuma://',
+    'https://vumastore.store/app',
+    'https://www.vumastore.store/app',
+    'https://vumastore.store',
+    'https://www.vumastore.store',
+  ],
   config: {
     screens: {
       Main: {
@@ -91,12 +105,19 @@ const linking = {
             screens: {
               // email buttons: vumastore.store/app/<screen> -> vuma://<screen>
               [SCREENS.HOME]: { path: 'home', exact: true },
+              [SCREENS.SEARCH]: { path: 'search', exact: true },
               [SCREENS.CART]: { path: 'cart', exact: true },
+              [SCREENS.ORDERS]: { path: 'orders', exact: true },
+              [SCREENS.PROFILE]: { path: 'profile', exact: true },
               [SCREENS.VENDOR_DASHBOARD]: { path: 'seller/dashboard', exact: true },
+              [SCREENS.VENDOR_PRODUCTS]: { path: 'seller/products', exact: true },
               [SCREENS.VENDOR_ORDERS]: { path: 'seller/orders/:orderId?', exact: true },
             },
           },
+          ProductDetail: 'product/:productId',
           OrderDetail: 'orders/:orderId',
+          Wishlist: 'wishlist',
+          Notifications: 'notifications',
           Referral: 'referral',
           SellerWallet: 'seller/earnings',
           ApplicationStatus: 'seller/apply',

@@ -8,6 +8,12 @@
  * Everything else — multi-image upload, AI description, pricing
  * check, variants, image quality checks — is unchanged.
  *
+ * Updated: a product has ONE description, a short one of 20 words or
+ * fewer (the same rule as the Mazao screen and the Seller Web). The Full
+ * Description box is gone. The text is saved as both `description` and
+ * `short_description`, and a rejected save shows the server's real reason.
+ * An older, longer description is left untouched unless the seller edits it.
+ *
  * Updated: saving a product no longer fails quietly when its pictures
  * can't be sent. The product id is found wherever the store returns it
  * (and falls back to the id being edited), a missing id or a failed
@@ -43,6 +49,7 @@ import { VendorSizePicker, requiresSize } from '../../components/SizeSelector';
 import { MultiImagePicker } from '../../components/MultiImagePicker';
 import VariantManager from '../../components/VariantManager';
 import { ImageQualityWarning, ImageQualityBadge } from '../../components/ImageQualityWarning';
+import { MAX_DESC_WORDS, wordCount, limitWords, shortenToLimit, editableDescriptionOf } from '../../utils/productText';
 
 const PRODUCT_STATUS = [
   { label: 'Active', value: 'active' },
@@ -60,13 +67,11 @@ const BROWSE_TABS = [
 ];
 
 const TITLE_LIMIT = 120;
-const SHORT_DESC_LIMIT = 300;
-const DESC_LIMIT = 1000;
 const MAX_KEY_FEATURES = 5;
 const MAX_VIDEO_MB = 50;
 
 const EMPTY_FORM = {
-  name: '', description: '', short_description: '', price: '', stock: '',
+  name: '', short_description: '', price: '', stock: '',
   category: '', categoryId: '', sku: '', weight: '', status: 'active',
   available_sizes: [], requires_size: false, key_features: [],
 };
@@ -84,6 +89,32 @@ const describeUploadError = (e) => {
   if (e.type === 'SESSION_EXPIRED') return 'Your login expired. Please log in again.';
   if (e.status === 403) return 'You do not have permission to add pictures to this product.';
   return e.message || 'Unknown error.';
+};
+
+// The server's reason for a rejected save (the thunk hands it back as the
+// payload), or a general sentence when there is none.
+// A short fingerprint of the option list, used to see whether the seller
+// actually changed the options (so untouched options are never re-saved).
+// The id of a product's category. The server may send it as `category`
+// (an id, or an object) or only as `category_name`; fall back to the name.
+const categoryIdOf = (product, categories) => {
+  const c = product && product.category;
+  if (c && typeof c === 'object' && c.id) return String(c.id);
+  if (c) return String(c);
+  const name = String((product && product.category_name) || '').trim().toLowerCase();
+  const hit = name && (categories || []).find((x) => String(x.name || '').trim().toLowerCase() === name);
+  return hit ? String(hit.id) : '';
+};
+
+const variantsSignature = (list) => JSON.stringify((list || []).map((v) => [
+  v.size || '', v.color || '', v.material || '', v.storage || '', v.ram || '',
+  v.model_name || '', v.weight_volume || '', Number(v.stock) || 0, Number(v.price_adjustment) || 0,
+  v.is_active === false ? 0 : 1,
+]).sort());
+
+const failureReason = (result, fallback) => {
+  const reason = result && typeof result.payload === 'string' ? result.payload.trim() : '';
+  return reason || fallback;
 };
 
 // ── Character counter ─────────────────────────────────
@@ -287,33 +318,27 @@ const ProductModal = memo(({
         />
         {formErrors.name && <Text style={styles.fieldError}>⚠️ {formErrors.name}</Text>}
 
-        {/* Short Description */}
+        {/* Description - one short description, 20 words or fewer */}
         <View style={styles.labelRow}>
-          <Text style={styles.fieldLabel}>Short Description</Text>
-          <CharCounter current={form.short_description.length} limit={SHORT_DESC_LIMIT} />
+          <Text style={styles.fieldLabel}>Description</Text>
+          <Text style={[styles.charCounter, wordCount(form.short_description) >= MAX_DESC_WORDS && styles.charCounterOver]}>
+            {wordCount(form.short_description)}/{MAX_DESC_WORDS} words
+          </Text>
         </View>
         <TextInput
-          style={styles.fieldInput}
-          value={form.short_description} onChangeText={(v) => setField('short_description', v.slice(0, SHORT_DESC_LIMIT))}
-          placeholder="One or two sentences shown at the top of the product page"
-          placeholderTextColor={COLORS.textLight} maxLength={SHORT_DESC_LIMIT}
-          multiline
+          style={[styles.fieldInput, styles.textArea, formErrors.short_description && styles.fieldInputError]}
+          value={form.short_description}
+          onChangeText={(v) => setField('short_description', limitWords(v))}
+          placeholder="Describe your product in one short sentence (up to 20 words)"
+          multiline numberOfLines={3} textAlignVertical="top"
+          placeholderTextColor={COLORS.textLight} blurOnSubmit={false}
         />
         {formErrors.short_description && <Text style={styles.fieldError}>⚠️ {formErrors.short_description}</Text>}
-
-        {/* Full Description */}
-        <View style={styles.labelRow}>
-          <Text style={styles.fieldLabel}>Full Description</Text>
-          <CharCounter current={form.description.length} limit={DESC_LIMIT} />
-        </View>
-        <TextInput
-          style={[styles.fieldInput, styles.textArea]}
-          value={form.description} onChangeText={(v) => setField('description', v.slice(0, DESC_LIMIT))}
-          placeholder="Product description..." multiline numberOfLines={4}
-          textAlignVertical="top" placeholderTextColor={COLORS.textLight}
-          blurOnSubmit={false} maxLength={DESC_LIMIT}
-        />
-        {formErrors.description && <Text style={styles.fieldError}>⚠️ {formErrors.description}</Text>}
+        {!!form._descCut && (
+          <Text style={styles.descNote}>
+            This product has an older, longer description. It is kept as it is unless you type a new description here (up to {MAX_DESC_WORDS} words).
+          </Text>
+        )}
         <TouchableOpacity
           style={styles.aiBtn}
           onPress={onGenerateDescription}
@@ -550,6 +575,7 @@ export default function VendorProducts({ navigation, route }) {
   const [currentImageUri, setCurrentImageUri] = useState(null);
   const [uploadingIndex, setUploadingIndex] = useState(null);
   const [variants, setVariants] = useState([]);
+  const [variantsBaseline, setVariantsBaseline] = useState(variantsSignature([]));
   const [aiDescLoading, setAiDescLoading] = useState(false);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingSuggestion, setPricingSuggestion] = useState(null);
@@ -575,6 +601,7 @@ export default function VendorProducts({ navigation, route }) {
     setFormErrors({});
     setProductImages([]);
     setVariants([]);
+    setVariantsBaseline(variantsSignature([]));
     setPricingSuggestion(null);
     setVideoAsset(null);
     setExistingVideoUrl('');
@@ -585,12 +612,14 @@ export default function VendorProducts({ navigation, route }) {
     setEditingProduct(product);
     setFormState({
       name: product.name || '',
-      description: product.description || '',
-      short_description: product.short_description || '',
+      short_description: limitWords(editableDescriptionOf(product)),
+      _descCut: Math.max(wordCount(product.short_description), wordCount(product.description)) > MAX_DESC_WORDS,
+      _descOriginal: limitWords(editableDescriptionOf(product)).trim(),
       price: String(product.price || ''),
-      stock: String(product.stock || ''),
+      stock: String(product.stock == null ? '' : product.stock),
       category: product.category_name || '',
-      categoryId: product.category || '',
+      // The list from the server may carry the category id, or only its name.
+      categoryId: categoryIdOf(product, categories),
       sku: product.sku || '',
       weight: String(product.weight || ''),
       status: product.status || 'active',
@@ -600,12 +629,16 @@ export default function VendorProducts({ navigation, route }) {
     });
     setFormErrors({});
     // Load existing variants (map API shape -> the plain objects VariantManager expects)
-    setVariants((product.variants || []).map(v => ({
+    const loadedVariants = (product.variants || []).map(v => ({
+      id: v.id,
       size: v.size || '', color: v.color || '', material: v.material || '',
       storage: v.storage || '', ram: v.ram || '', model_name: v.model_name || '',
       weight_volume: v.weight_volume || '', stock: v.stock || 0,
       price_adjustment: v.price_adjustment || 0,
-    })));
+      is_active: v.is_active !== false,
+    }));
+    setVariants(loadedVariants);
+    setVariantsBaseline(variantsSignature(loadedVariants));
     // Load existing images
     const existingImages = (product.images || []).map(img => ({
       id: img.id,
@@ -617,7 +650,7 @@ export default function VendorProducts({ navigation, route }) {
     setVideoAsset(null);
     setExistingVideoUrl(product.video_url || '');
     setShowModal(true);
-  }, []);
+  }, [categories]);
 
   const setField = useCallback((key, value) => {
     setFormState((prev) => ({ ...prev, [key]: value }));
@@ -709,7 +742,7 @@ export default function VendorProducts({ navigation, route }) {
         keywords: '',
       });
       if (result?.success && result?.data?.description) {
-        setField('description', result.data.description.slice(0, DESC_LIMIT));
+        setField('short_description', shortenToLimit(result.data.description));
       } else {
         Alert.alert('AI Unavailable', 'Could not generate a description right now. Please write one manually.');
       }
@@ -751,8 +784,7 @@ export default function VendorProducts({ navigation, route }) {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Product name required.';
     else if (form.name.length > TITLE_LIMIT) errs.name = `Title must be ${TITLE_LIMIT} characters or fewer.`;
-    if (form.short_description.length > SHORT_DESC_LIMIT) errs.short_description = `Short description must be ${SHORT_DESC_LIMIT} characters or fewer.`;
-    if (form.description.length > DESC_LIMIT) errs.description = `Description must be ${DESC_LIMIT} characters or fewer.`;
+    if (wordCount(form.short_description) > MAX_DESC_WORDS) errs.short_description = `The description must be ${MAX_DESC_WORDS} words or fewer.`;
     if (!form.price || isNaN(form.price) || Number(form.price) <= 0) errs.price = 'Valid price required.';
     if (!form.stock || isNaN(form.stock) || Number(form.stock) < 0) errs.stock = 'Valid stock quantity required.';
     if (!form.categoryId && !form.category) errs.category = 'Please select a category.';
@@ -766,18 +798,26 @@ export default function VendorProducts({ navigation, route }) {
     const needsSize = requiresSize(form.category);
     const productData = {
       name: form.name.trim(),
-      description: form.description.trim(),
-      short_description: form.short_description.trim(),
       key_features: form.key_features,
       price: Number(form.price),
       stock: Number(form.stock),
-      category: form.categoryId,
       sku: form.sku.trim(),
       status: form.status,
       available_sizes: needsSize ? form.available_sizes : [],
       requires_size: needsSize,
     };
+    // Never send an empty category: the server would read it as 'remove the category'.
+    if (form.categoryId) productData.category = form.categoryId;
     if (form.weight) productData.weight = Number(form.weight);
+
+    // One description, saved under both names (the server keeps them in step).
+    // When editing, an untouched description is not sent at all, so an older,
+    // longer text already saved on the server is never cut or rejected.
+    const descText = limitWords(form.short_description).trim();
+    if (!editingProduct || descText !== (form._descOriginal || '')) {
+      productData.description = descText;
+      productData.short_description = descText;
+    }
 
     let result;
     let savedProduct;
@@ -786,16 +826,14 @@ export default function VendorProducts({ navigation, route }) {
       result = await dispatch(updateProduct({ productId: editingProduct.id, data: productData }));
       if (updateProduct.fulfilled.match(result)) savedProduct = result.payload;
       else {
-        const data = errors.updateProduct;
-        Alert.alert('Error', typeof data === 'string' ? data : 'Failed to update. Check your description for phone numbers or contact links.');
+        Alert.alert('Could not update product', failureReason(result, 'Failed to update. Check your description for phone numbers or contact links.'));
         return;
       }
     } else {
       result = await dispatch(createProduct(productData));
       if (createProduct.fulfilled.match(result)) savedProduct = result.payload;
       else {
-        const data = errors.createProduct;
-        Alert.alert('Error', typeof data === 'string' ? data : 'Failed to create. Check your description for phone numbers or contact links.');
+        Alert.alert('Could not add product', failureReason(result, 'Failed to create. Check your description for phone numbers or contact links.'));
         return;
       }
     }
@@ -808,8 +846,9 @@ export default function VendorProducts({ navigation, route }) {
       || savedProduct?.data?.id
       || (editingProduct ? editingProduct.id : null);
 
-    // Save variants (replaces the full set for this product)
-    if (variants.length > 0 && savedId) {
+    // Save the options (replaces the set for this product). Only when the
+    // seller changed them: untouched options are left exactly as they are.
+    if (savedId && variantsSignature(variants) !== variantsBaseline) {
       try {
         const { productsAPI } = await import('../../api/products');
         await productsAPI.bulkSaveVariants(savedId, variants);
@@ -949,7 +988,7 @@ export default function VendorProducts({ navigation, route }) {
     setVideoAsset(null);
     setExistingVideoUrl('');
     dispatch(fetchMyProducts());
-  }, [form, productImages, editingProduct, validateForm, errors, videoAsset, variants]);
+  }, [form, productImages, editingProduct, validateForm, errors, videoAsset, variants, variantsBaseline]);
 
   const handleDelete = useCallback((product) => {
     Alert.alert('Delete Product', `Delete "${product.name}"?`, [
@@ -1165,6 +1204,7 @@ const styles = StyleSheet.create({
   fieldInput: { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.base },
   fieldInputError: { borderColor: COLORS.danger, backgroundColor: COLORS.dangerLight },
   textArea: { minHeight: 100, textAlignVertical: 'top', paddingTop: SPACING.sm },
+  descNote: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 16, marginBottom: SPACING.sm },
   fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: -SPACING.sm, marginBottom: SPACING.sm },
   rowFields: { flexDirection: 'row', gap: SPACING.sm },
   halfField: { flex: 1 },

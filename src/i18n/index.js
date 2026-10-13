@@ -37,6 +37,10 @@ const translations = {
       sold: 'sold', reviews: '⭐ Reviews', wishlist: 'Wishlist', description: 'Description',
       details: 'Details', writeReview: 'Write Review', noReviews: 'No reviews yet',
       relatedProducts: 'Related Products', share: 'Share',
+      chooseOptions: 'Choose Options', pleaseSelectOption: 'Please select an option',
+      selectOptions: 'Select {options}', onlyLeft: 'Only {count} left', inStockCount: '{count} in stock',
+      optSize: 'Size', optColor: 'Color', optMaterial: 'Material', optStorage: 'Storage',
+      optRam: 'RAM', optModel: 'Model', optWeightVolume: 'Weight / Volume',
     },
     cart: {
       myCart: 'My Cart', emptyCart: 'Your cart is empty',
@@ -352,6 +356,10 @@ const translations = {
       sold: 'Imeuzwa', reviews: '⭐ Maoni', wishlist: 'Orodha ya Matakwa',
       description: 'Maelezo', details: 'Undani', writeReview: 'Andika Maoni',
       noReviews: 'Hakuna maoni bado', relatedProducts: 'Bidhaa Zinazohusiana', share: 'Shiriki',
+      chooseOptions: 'Chagua Chaguo', pleaseSelectOption: 'Tafadhali chagua chaguo',
+      selectOptions: 'Chagua {options}', onlyLeft: 'Zimebaki {count} tu', inStockCount: 'Zipo {count}',
+      optSize: 'Ukubwa', optColor: 'Rangi', optMaterial: 'Nyenzo', optStorage: 'Hifadhi',
+      optRam: 'RAM', optModel: 'Modeli', optWeightVolume: 'Uzito / Ujazo',
     },
     cart: {
       myCart: 'Kikapu Changu', emptyCart: 'Kikapu chako kiko tupu',
