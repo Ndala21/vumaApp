@@ -54,6 +54,7 @@ import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
 import HomeBanner from '../../components/HomeBanner';
+import { OfferCard, OfferBanner } from '../../components/OfferCards';
 import FeedBanner from '../../components/FeedBanner';
 import RecommendationSection from '../../components/RecommendationSection';
 import SellersYouMightLike from '../../components/SellersYouMightLike';
@@ -316,10 +317,12 @@ export default function HomeScreen({ navigation }) {
     {
       key: 'free_delivery',
       show: promotions?.free_delivery?.active,
-      icon: '🚚', bg: '#E4F7EC',
+      icon: '🚚', bg: COLORS.primaryFade,
       title: 'Usafirishaji Bure', subtitle: 'Kwa oda zote',
-      cta: 'Tazama', ctaColor: '#1B9C5A',
-      onPress: () => {},
+      cta: 'Tazama', ctaColor: COLORS.primary,
+      onPress: () => {
+        mainScrollRef.current?.scrollTo({ y: Math.max(0, allProductsYRef.current - 12), animated: true });
+      },
     },
     {
       key: 'referral',
@@ -525,46 +528,33 @@ export default function HomeScreen({ navigation }) {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
               {FAIDA_CARDS.map((card) => (
-                <TouchableOpacity key={card.key} style={[styles.faidaCard, { backgroundColor: card.bg }, card.image ? { width: 200 } : null]} onPress={card.onPress} activeOpacity={0.85}>
-                  {card.image ? (
-                    <Image source={{ uri: card.image }} style={styles.faidaImageWrap} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.faidaIconWrap}>
-                      <Text style={styles.faidaIcon}>{card.icon}</Text>
-                    </View>
-                  )}
-                  <Text style={styles.faidaCardTitle}>{card.title}</Text>
-                  <Text style={styles.faidaCardSub} numberOfLines={2}>{card.subtitle}</Text>
-                  <Text style={[styles.faidaCta, { color: card.ctaColor }]}>{card.cta}</Text>
-                </TouchableOpacity>
+                <OfferCard key={card.key} card={card} tint={card.key.startsWith('dyn_') ? card.bg : null} />
               ))}
             </ScrollView>
           </View>
         )}
 
-        {/* ── Welcome Gift highlight — compact single row ── */}
+        {/* ── Welcome Gift highlight — orange strip ── */}
         {promotions?.welcome_gift?.active && (
-          <TouchableOpacity style={styles.giftWideCard} onPress={handleWelcomeGiftPress} activeOpacity={0.85}>
-            <Text style={styles.giftWideIcon}>🎁</Text>
-            <View style={styles.giftWideText}>
-              <Text style={styles.giftWideTitle}>Zawadi Maalum ya Karibu!</Text>
-              <Text style={styles.giftWideSub} numberOfLines={1}>
-                Pata TZS {Number(promotions.welcome_gift.amount).toLocaleString()} kwenye oda ya kwanza
-              </Text>
-            </View>
-            <Text style={styles.giftWideArrow}>›</Text>
-          </TouchableOpacity>
+          <OfferBanner
+            testID="offer-gift-banner"
+            tone="orange"
+            icon="🎁"
+            title="Zawadi Maalum ya Karibu!"
+            subtitle={`Pata TZS ${Number(promotions.welcome_gift.amount).toLocaleString()} kwenye oda ya kwanza`}
+            onPress={handleWelcomeGiftPress}
+          />
         )}
 
-        {/* ── Become a Seller — compact tile, not a full banner ── */}
-        <TouchableOpacity style={styles.sellerBanner} onPress={() => navigation.navigate('VendorRegister')} activeOpacity={0.85}>
-          <Text style={styles.sellerBannerIcon}>🏪</Text>
-          <View style={styles.sellerBannerText}>
-            <Text style={styles.sellerBannerTitle}>Uza Bidhaa Zako VUMA</Text>
-            <Text style={styles.sellerBannerSub} numberOfLines={1}>Usajili rahisi · Hakuna gharama ya kuanza</Text>
-          </View>
-          <Text style={styles.sellerBannerArrow}>›</Text>
-        </TouchableOpacity>
+        {/* ── Become a Seller — navy strip ── */}
+        <OfferBanner
+          testID="offer-seller-banner"
+          tone="navy"
+          icon="🏪"
+          title="Uza Bidhaa Zako VUMA"
+          subtitle="Usajili rahisi · Hakuna gharama ya kuanza"
+          onPress={() => navigation.navigate('VendorRegister')}
+        />
 
         {/* Flash Sale — tinted section, distinct from the rest of the feed */}
         {flashSale?.length > 0 && (
@@ -738,49 +728,7 @@ const styles = StyleSheet.create({
   featuredCard: { width: 128 },
 
   // ── VUMA Faida & Ofa ──
-  faidaTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
-  faidaCard: {
-    width: 128, borderRadius: RADIUS.lg, padding: SPACING.sm,
-    marginRight: SPACING.sm,
-  },
-  faidaIconWrap: {
-    width: 44, height: 44, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.7)',
-    alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xs,
-  },
-  faidaImageWrap: {
-    width: '100%', height: 112, borderRadius: RADIUS.md, marginBottom: SPACING.xs,
-    backgroundColor: COLORS.skeleton,
-  },
-  faidaIcon: { fontSize: 20 },
-  faidaCardTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
-  faidaCardSub: { fontSize: 10.5, color: COLORS.textSecondary, lineHeight: 14, marginBottom: SPACING.sm, minHeight: 28 },
-  faidaCta: { fontSize: FONTS.xs, fontWeight: FONTS.bold },
-
-  // ── Welcome Gift wide card ──
-  giftWideCard: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: '#FFF1DB', borderRadius: RADIUS.lg,
-    marginHorizontal: SPACING.base, marginBottom: SPACING.sm,
-    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2,
-  },
-  giftWideIcon: { fontSize: 32 },
-  giftWideText: { flex: 1 },
-  giftWideTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: 2 },
-  giftWideSub: { fontSize: 10.5, color: COLORS.textSecondary },
-  giftWideArrow: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold },
-
-  // ── Become a Seller banner — compact tile ──
-  sellerBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: '#FDECD9', borderRadius: RADIUS.lg,
-    marginHorizontal: SPACING.base, marginBottom: SPACING.sm,
-    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2,
-  },
-  sellerBannerIcon: { fontSize: 26 },
-  sellerBannerText: { flex: 1 },
-  sellerBannerTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  sellerBannerSub: { fontSize: 10.5, color: COLORS.textSecondary, marginTop: 1 },
-  sellerBannerArrow: { fontSize: FONTS.xl, color: '#12162B', fontWeight: FONTS.bold },
+  faidaTitle: { fontSize: 20, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
 
   // ── Deal card ──
   dealCard: {

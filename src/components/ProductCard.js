@@ -6,7 +6,7 @@
  *   - the product name on one line (two lines in the list variant),
  *   - a red "%" dot with "17% off" while a sale price is running,
  *   - the price (old price crossed out next to it),
- *   - a light-blue "Free Delivery" tag,
+ *   - an orange "Free Delivery" tag,
  *   - five stars with the number of ratings, e.g. "(9,999+)".
  * A small round cart button sits at the bottom right of the photo.
  * The featured variant (text over the photo) is unchanged.
@@ -204,8 +204,8 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 5, marginTop: 4 },
   price: { fontSize: 15, fontWeight: FONTS.extraBold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
   originalPrice: { fontSize: 11, color: COLORS.textMuted, textDecorationLine: 'line-through' },
-  freeTag: { alignSelf: 'flex-start', backgroundColor: '#E6F1FF', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginTop: 5 },
-  freeTagText: { fontSize: 11, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  freeTag: { alignSelf: 'flex-start', backgroundColor: COLORS.primaryFade, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginTop: 5 },
+  freeTagText: { fontSize: 11, fontWeight: FONTS.bold, color: COLORS.primaryDark },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 5 },
   stars: { fontSize: 11, color: COLORS.rating, letterSpacing: 0.5 },
   ratingCount: { fontSize: 11, color: COLORS.textSecondary },
