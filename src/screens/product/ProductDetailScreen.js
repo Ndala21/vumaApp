@@ -110,6 +110,7 @@ export default function ProductDetailScreen({ navigation, route }) {
   const [variantError, setVariantError] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [showQtyModal, setShowQtyModal] = useState(false);
+  const [barShown, setBarShown] = useState(false);
 
   const cartBounce = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -294,7 +295,7 @@ export default function ProductDetailScreen({ navigation, route }) {
     navigation.push(SCREENS.PRODUCT_DETAIL, { productId: relatedProduct.id, product: relatedProduct });
   };
 
-  const headerOpacity = scrollY.interpolate({ inputRange: [0, 200], outputRange: [0, 1], extrapolate: 'clamp' });
+  const headerOpacity = scrollY.interpolate({ inputRange: [width * 0.5, width * 0.75], outputRange: [0, 1], extrapolate: 'clamp' });
   // Room for the phone's clock/battery bar above the round buttons.
   const topInset = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 6;
   const vendorLabel = displayProduct.vendor_info?.shop_name || displayProduct.vendor_name || '';
@@ -310,23 +311,32 @@ export default function ProductDetailScreen({ navigation, route }) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      <Animated.View pointerEvents="none" style={[styles.animHeader, { opacity: headerOpacity, paddingTop: topInset }]}>
-        <Text style={styles.animHeaderTitle} numberOfLines={1}>{displayProduct.name}</Text>
+      {/* Top bar that fades in once the photo has scrolled away: back arrow, search box, cart */}
+      <Animated.View pointerEvents={barShown ? 'auto' : 'none'} style={[styles.animHeader, { opacity: headerOpacity, paddingTop: topInset }]}>
+        <TouchableOpacity testID="search-pill" style={styles.searchPill} onPress={() => navigation.navigate(SCREENS.SEARCH)} activeOpacity={0.8}>
+          <Text style={styles.searchPillText} numberOfLines={1}>{t('home.searchPlaceholder')}</Text>
+        </TouchableOpacity>
       </Animated.View>
 
       {/* Round buttons that float over the photo: back on the left, cart on the right */}
       <View style={[styles.topActions, { top: topInset }]}>
-        <TouchableOpacity testID="back-btn" style={styles.topActionBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity testID="back-btn" style={[styles.topActionBtn, barShown && styles.topActionBtnFlat]} onPress={() => navigation.goBack()}>
           <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
-        <TouchableOpacity testID="cart-btn" style={styles.topActionBtn} onPress={() => navigation.navigate(SCREENS.CART)}>
+        <TouchableOpacity testID="cart-btn" style={[styles.topActionBtn, barShown && styles.topActionBtnFlat]} onPress={() => navigation.navigate(SCREENS.CART)}>
           <Text style={styles.topActionIcon}>🛒</Text>
         </TouchableOpacity>
       </View>
 
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+          useNativeDriver: true,
+          listener: (e) => {
+            const shown = e.nativeEvent.contentOffset.y > width * 0.65;
+            setBarShown((prev) => (prev === shown ? prev : shown));
+          },
+        })}
         scrollEventThrottle={16}
         contentContainerStyle={styles.scrollContent}
       >
@@ -377,28 +387,29 @@ export default function ProductDetailScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.productName}>{displayProduct.name}</Text>
-
-          {displayProduct.rating_avg > 0 && (
+          {(displayProduct.rating_avg > 0 || (displayProduct.sales_count || 0) > 0) && (
             <View style={styles.ratingRow}>
-              <Text style={styles.ratingStars}>
-                {'★'.repeat(Math.min(5, Math.round(displayProduct.rating_avg))) + '☆'.repeat(5 - Math.min(5, Math.round(displayProduct.rating_avg)))}
+              <Text style={styles.salesCount}>
+                {(displayProduct.sales_count || 0) > 0 ? displayProduct.sales_count + ' ' + t('products.sold') : ''}
               </Text>
-              <Text style={styles.ratingValue}>{Number(displayProduct.rating_avg).toFixed(1)}</Text>
-              <Text style={styles.ratingCountSmall}>({displayProduct.rating_count})</Text>
-              {(displayProduct.sales_count || 0) > 0 && (
-                <Text style={styles.salesCount}>{'  ·  ' + displayProduct.sales_count + ' ' + t('products.sold')}</Text>
+              {displayProduct.rating_avg > 0 && (
+                <View style={styles.ratingRight}>
+                  <Text style={styles.ratingStars}>
+                    {'★'.repeat(Math.min(5, Math.round(displayProduct.rating_avg))) + '☆'.repeat(5 - Math.min(5, Math.round(displayProduct.rating_avg)))}
+                  </Text>
+                  <Text style={styles.ratingCountSmall}>{'(' + displayProduct.rating_count + ')'}</Text>
+                </View>
               )}
             </View>
           )}
 
-          {discount > 0 && (
-            <View style={styles.discountRow}>
-              <Text style={styles.discountPct}>{discount + '%'}</Text>
-              <Text style={styles.originalPrice}>{formatPrice(displayProduct.price)}</Text>
-            </View>
-          )}
-          <Text style={[styles.effectivePrice, onSale && styles.effectivePriceSale]}>{formatPrice(finalPrice)}</Text>
+          <Text style={styles.productName}>{displayProduct.name}</Text>
+
+          <View style={styles.priceRow}>
+            {discount > 0 && <Text style={styles.discountPct}>{discount + '%'}</Text>}
+            <Text style={styles.effectivePrice}>{formatPrice(finalPrice)}</Text>
+          </View>
+          {discount > 0 && <Text style={styles.originalPrice}>{formatPrice(displayProduct.price)}</Text>}
           {!!shortText && (
             <Text style={styles.shortDescription} numberOfLines={4}>{shortText}</Text>
           )}
@@ -711,10 +722,14 @@ const styles = StyleSheet.create({
   animHeader: {
     position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50,
     backgroundColor: COLORS.surface,
-    paddingBottom: SPACING.sm + 2, paddingHorizontal: 64,
-    borderBottomWidth: 1, borderBottomColor: COLORS.divider, alignItems: 'center',
+    paddingBottom: SPACING.sm + 2, paddingLeft: 56, paddingRight: 56,
+    borderBottomWidth: 1, borderBottomColor: COLORS.divider,
   },
-  animHeaderTitle: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  searchPill: {
+    height: 38, borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.textPrimary,
+    backgroundColor: COLORS.surface, justifyContent: 'center', paddingHorizontal: SPACING.md,
+  },
+  searchPillText: { fontSize: FONTS.md, color: COLORS.textMuted },
   topActions: {
     position: 'absolute', left: 0, right: 0,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -724,6 +739,7 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.95)',
     alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm,
   },
+  topActionBtnFlat: { backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
   topActionIcon: { fontSize: 17 },
   backIcon: { fontSize: 30, lineHeight: 33, color: COLORS.textPrimary, marginTop: -3, marginRight: 2 },
 
@@ -757,17 +773,16 @@ const styles = StyleSheet.create({
   shareIcon: { fontSize: 22, color: COLORS.textSecondary },
 
   productName: { fontSize: FONTS.lg, fontWeight: FONTS.regular, color: COLORS.textPrimary, lineHeight: 24 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: SPACING.sm },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  ratingRight: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   ratingStars: { fontSize: FONTS.md, color: COLORS.rating, letterSpacing: 1 },
-  ratingValue: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
   ratingCountSmall: { fontSize: FONTS.sm, color: COLORS.info },
   salesCount: { fontSize: FONTS.sm, color: COLORS.textMuted },
 
-  discountRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.md },
-  discountPct: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.discount },
-  originalPrice: { fontSize: FONTS.md, color: COLORS.textMuted, textDecorationLine: 'line-through' },
-  effectivePrice: { fontSize: 28, fontWeight: FONTS.extraBold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight, marginTop: SPACING.xs },
-  effectivePriceSale: { color: COLORS.flashSale },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACING.sm, marginTop: SPACING.md },
+  discountPct: { fontSize: FONTS.lg, color: COLORS.textPrimary },
+  originalPrice: { fontSize: FONTS.md, color: COLORS.textMuted, textDecorationLine: 'line-through', marginTop: 2 },
+  effectivePrice: { fontSize: 28, fontWeight: FONTS.extraBold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
   shortDescription: { fontSize: FONTS.md, color: COLORS.textSecondary, lineHeight: 21, marginTop: SPACING.sm },
   deliveryLine: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginTop: SPACING.md, lineHeight: 19 },
   deliveryBold: { fontWeight: FONTS.bold, color: COLORS.textPrimary },

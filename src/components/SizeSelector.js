@@ -6,6 +6,7 @@
 
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { t } from '../i18n';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 
 export const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
@@ -75,37 +76,34 @@ export const CustomerSizeSelector = memo(({
 }) => {
   if (!requiresSize(categoryName) || availableSizes.length === 0) return null;
 
+  // Same look as the option rows on the product page ("Size: M" and a line of boxes).
   return (
     <View style={styles.container}>
-      <View style={styles.labelRow}>
-        <View style={styles.sectionTitleRow}>
-          <View style={styles.sectionAccent} />
-          <Text style={styles.label}>Select Size</Text>
-        </View>
-        {error && <Text style={styles.errorText}>Please select a size</Text>}
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.sizeRow}>
-          {availableSizes.map((size) => {
-            const selected = selectedSize === size;
-            return (
-              <TouchableOpacity
-                key={size}
-                style={[styles.customerSizeBtn, selected && styles.customerSizeBtnActive]}
-                onPress={() => onSelect(size)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.customerSizeBtnText, selected && styles.customerSizeBtnTextActive]}>
-                  {size}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      {error && <Text style={styles.errorText}>Please select a size</Text>}
+      <Text style={styles.customerLabel}>
+        {t('products.optSize') + ': '}
+        {selectedSize ? <Text style={styles.customerLabelValue}>{selectedSize}</Text> : null}
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.customerRow}>
+        {availableSizes.map((size) => {
+          const selected = selectedSize === size;
+          return (
+            <TouchableOpacity
+              key={size}
+              testID={`size-${size}`}
+              style={[styles.customerSizeBtn, selected && styles.customerSizeBtnActive]}
+              onPress={() => onSelect(size)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+            >
+              <Text style={[styles.customerSizeBtnText, selected && styles.customerSizeBtnTextActive]}>
+                {size}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
-      {selectedSize && (
-        <Text style={styles.selectedSizeText}>Selected: <Text style={styles.selectedSizeBold}>{selectedSize}</Text></Text>
-      )}
     </View>
   );
 });
@@ -130,14 +128,16 @@ const styles = StyleSheet.create({
   selectedPill: { alignSelf: 'flex-start', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 4, marginTop: SPACING.sm },
   selectedText: { fontSize: FONTS.xs, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
   sizeRow: { flexDirection: 'row', gap: SPACING.sm, paddingVertical: 4 },
+  customerLabel: { fontSize: FONTS.md, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  customerLabelValue: { color: COLORS.textPrimary, fontWeight: FONTS.bold },
+  customerRow: { flexDirection: 'row', alignItems: 'stretch', gap: SPACING.sm, paddingRight: SPACING.base },
   customerSizeBtn: {
-    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderRadius: RADIUS.lg,
-    borderWidth: 2, borderColor: COLORS.border, backgroundColor: COLORS.surface,
-    minWidth: 52, alignItems: 'center',
+    borderWidth: 1, borderColor: COLORS.borderStrong, borderRadius: 6,
+    paddingHorizontal: 14, paddingVertical: 9, backgroundColor: COLORS.surface,
+    minWidth: 52, alignItems: 'center', justifyContent: 'center',
   },
-  customerSizeBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary, ...SHADOWS.primary },
-  customerSizeBtnText: { fontSize: FONTS.base, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
-  customerSizeBtnTextActive: { color: COLORS.textWhite, fontWeight: FONTS.bold },
-  selectedSizeText: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: SPACING.xs },
-  selectedSizeBold: { color: COLORS.primary, fontWeight: FONTS.bold },
+  // thicker border for the chosen box; padding shrinks so the box keeps its size
+  customerSizeBtnActive: { borderWidth: 2, borderColor: COLORS.primary, paddingHorizontal: 13, paddingVertical: 8 },
+  customerSizeBtnText: { fontSize: FONTS.md, color: COLORS.textPrimary },
+  customerSizeBtnTextActive: { fontWeight: FONTS.bold },
 });
