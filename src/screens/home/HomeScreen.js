@@ -724,16 +724,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.base, marginBottom: SPACING.sm,
   },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionAccent: { width: 4, height: 16, borderRadius: 2 },
-  sectionTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
+  // Coupang-style headings: no coloured bar, just a big bold title
+  sectionAccent: { display: 'none' },
+  sectionTitle: { fontSize: 20, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
   flashTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   flashTitle: { fontSize: FONTS.lg, fontWeight: FONTS.extraBold, color: COLORS.primaryDark, letterSpacing: FONTS.trackTight },
   seeAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  seeAll: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
-  seeAllArrow: { fontSize: FONTS.lg, color: COLORS.textSecondary, fontWeight: FONTS.bold, marginTop: -1 },
+  seeAll: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  seeAllArrow: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.bold, marginTop: -1 },
   countdownBadge: { backgroundColor: COLORS.secondary, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
   countdownText: { color: COLORS.textWhite, fontSize: 11.5, fontWeight: FONTS.bold, letterSpacing: 0.3 },
-  horizontalList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
+  horizontalList: { paddingHorizontal: SPACING.base, gap: SPACING.md },
   featuredCard: { width: 128 },
 
   // ── VUMA Faida & Ofa ──
@@ -820,8 +821,8 @@ const styles = StyleSheet.create({
 
   // ── Masonry grid ──
   scrollContent: { paddingBottom: 90 },
-  masonryRow: { flexDirection: 'row', paddingHorizontal: SPACING.base, gap: SPACING.xs, paddingTop: SPACING.xs },
-  masonryColumn: { flex: 1, gap: SPACING.xs },
+  masonryRow: { flexDirection: 'row', paddingHorizontal: SPACING.base, gap: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.sm, backgroundColor: COLORS.surface },
+  masonryColumn: { flex: 1, gap: SPACING.base },
   masonryCard: { width: '100%' },
   feedBanner: { marginHorizontal: SPACING.base, marginVertical: SPACING.sm },
 

@@ -1,17 +1,36 @@
 /**
  * VUMA Store — Product Card Component
- * Grid variant redesigned to a compact Coupang-style card: small circular
- * cart-icon button overlaid on the image (no full-width Add button),
- * single-line product name, tighter spacing — for the 3-column grid.
- * List and Featured variants are unchanged.
+ *
+ * Laid out like the Coupang product lists: a flat tile with no shadow and no
+ * frame, a square photo with softly rounded corners, then
+ *   - the product name on one line (two lines in the list variant),
+ *   - a red "%" dot with "17% off" while a sale price is running,
+ *   - the price (old price crossed out next to it),
+ *   - a light-blue "Free Delivery" tag,
+ *   - five stars with the number of ratings, e.g. "(9,999+)".
+ * A small round cart button sits at the bottom right of the photo.
+ * The featured variant (text over the photo) is unchanged.
  */
 
 import React, { memo, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { t } from '../i18n';
 import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../utils/constants';
 import { formatPrice, getDiscount, isFlashSale, getEffectivePrice } from '../utils/helpers';
 import { addToCartAndSave, selectIsInCart } from '../store/cartSlice';
+
+// 1284 -> "1,284", 12500 -> "9,999+"
+export const formatRatingCount = (n) => {
+  const count = Number(n) || 0;
+  if (count > 9999) return '9,999+';
+  return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
+export const starsFor = (avg) => {
+  const filled = Math.max(0, Math.min(5, Math.round(Number(avg) || 0)));
+  return '★'.repeat(filled) + '☆'.repeat(5 - filled);
+};
 
 // ── Safe Image with fallback ──────────────────────────
 const ProductImage = memo(({ uri, style, placeholderSize = 40 }) => {
@@ -46,13 +65,55 @@ function ProductCard({ product, onPress, style, variant = 'grid', onAddedToCart 
   const onSale = isFlashSale(product);
   const outOfStock = product.stock <= 0;
   const imageUrl = product.primary_image || product.images?.[0]?.image_url || null;
+  const hasRating = Number(product.rating_avg) > 0;
 
   const handleAddToCart = (e) => {
-    e.stopPropagation();
+    e && e.stopPropagation && e.stopPropagation();
     if (outOfStock) return;
     dispatch(addToCartAndSave(product, 1));
     onAddedToCart && onAddedToCart(product);
   };
+
+  // The text under the photo — the same in the grid and the list.
+  const meta = (nameLines) => (
+    <>
+      {product.is_sponsored && <Text style={styles.sponsoredLabel}>Sponsored</Text>}
+      <Text style={styles.name} numberOfLines={nameLines}>{product.name}</Text>
+      {discount > 0 && (
+        <View style={styles.offRow}>
+          <View style={styles.offDot}><Text style={styles.offDotText}>%</Text></View>
+          <Text style={styles.offText} numberOfLines={1}>{t('products.percentOff', { count: discount })}</Text>
+        </View>
+      )}
+      <View style={styles.priceRow}>
+        <Text style={styles.price}>{formatPrice(effectivePrice)}</Text>
+        {discount > 0 && <Text style={styles.originalPrice}>{formatPrice(product.price)}</Text>}
+      </View>
+      <View style={styles.freeTag}>
+        <Text style={styles.freeTagText} numberOfLines={1}>{t('products.freeDeliveryChip')}</Text>
+      </View>
+      {hasRating && (
+        <View style={styles.ratingRow}>
+          <Text style={styles.stars}>{starsFor(product.rating_avg)}</Text>
+          {Number(product.rating_count) > 0 && (
+            <Text style={styles.ratingCount}>{'(' + formatRatingCount(product.rating_count) + ')'}</Text>
+          )}
+        </View>
+      )}
+    </>
+  );
+
+  const cartButton = (extraStyle) => (
+    <TouchableOpacity
+      testID="card-cart"
+      style={[styles.cartFab, extraStyle, outOfStock && styles.cartFabDisabled]}
+      onPress={handleAddToCart} disabled={outOfStock}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      accessibilityRole="button"
+    >
+      <Text style={styles.cartFabIcon}>{outOfStock ? '✗' : '🛒'}</Text>
+    </TouchableOpacity>
+  );
 
   // ── List Variant ──────────────────────────────────
   if (variant === 'list') {
@@ -60,36 +121,17 @@ function ProductCard({ product, onPress, style, variant = 'grid', onAddedToCart 
       <TouchableOpacity style={[styles.listCard, style]} onPress={onPress} activeOpacity={0.85}>
         <View style={styles.listImageWrap}>
           <ProductImage uri={imageUrl} style={styles.listImage} placeholderSize={32} />
-          {onSale && (
-            <View style={styles.flashBadge}>
-              <Text style={styles.flashBadgeText}>⚡ SALE</Text>
+          {outOfStock && (
+            <View style={styles.outOfStockOverlay}>
+              <Text style={styles.outOfStockText}>{t('products.outOfStock')}</Text>
             </View>
           )}
         </View>
         <View style={styles.listInfo}>
-          {product.is_sponsored && <Text style={styles.sponsoredLabel}>Sponsored</Text>}
-          <Text style={styles.listName} numberOfLines={2}>{product.name}</Text>
-          {product.vendor_name && (
-            <Text style={styles.vendorName}>🏪 {product.vendor_name}</Text>
-          )}
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>{formatPrice(effectivePrice)}</Text>
-            {discount > 0 && <Text style={styles.originalPrice}>{formatPrice(product.price)}</Text>}
-          </View>
-          {product.rating_avg > 0 && (
-            <View style={styles.ratingRow}>
-              <Text style={styles.ratingStar}>⭐</Text>
-              <Text style={styles.ratingText}>{Number(product.rating_avg).toFixed(1)}</Text>
-              <Text style={styles.ratingCount}>({product.rating_count})</Text>
-            </View>
-          )}
+          {meta(2)}
+          {product.vendor_name ? <Text style={styles.vendorName} numberOfLines={1}>{product.vendor_name}</Text> : null}
         </View>
-        <TouchableOpacity
-          style={[styles.listCartBtn, outOfStock && styles.listCartBtnDisabled]}
-          onPress={handleAddToCart} disabled={outOfStock}
-        >
-          <Text style={styles.listCartBtnText}>{outOfStock ? '✗' : '+'}</Text>
-        </TouchableOpacity>
+        {cartButton(styles.listCartFab)}
       </TouchableOpacity>
     );
   }
@@ -112,52 +154,20 @@ function ProductCard({ product, onPress, style, variant = 'grid', onAddedToCart 
     );
   }
 
-  // ── Grid Variant (default) — compact Coupang style ─
+  // ── Grid Variant (default) ─────────────────────────
   return (
     <TouchableOpacity style={[styles.gridCard, style]} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.imageWrap}>
         <ProductImage uri={imageUrl} style={styles.image} placeholderSize={30} />
-
-        {onSale && (
-          <View style={styles.flashBadge}>
-            <Text style={styles.flashBadgeText}>⚡</Text>
-          </View>
-        )}
-        {discount > 0 && !onSale && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountBadgeText}>-{discount}%</Text>
-          </View>
-        )}
         {outOfStock && (
           <View style={styles.outOfStockOverlay}>
-            <Text style={styles.outOfStockText}>Out of Stock</Text>
+            <Text style={styles.outOfStockText}>{t('products.outOfStock')}</Text>
           </View>
         )}
-        {/* Small overlay cart button — always shows the same plain icon;
-            adding to cart triggers a temporary toast instead of a
-            permanent checkmark, so the image stays clean. */}
-        <TouchableOpacity
-          style={[styles.cartFab, outOfStock && styles.cartFabDisabled]}
-          onPress={handleAddToCart} disabled={outOfStock}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <Text style={styles.cartFabIcon}>{outOfStock ? '✗' : '🛒'}</Text>
-        </TouchableOpacity>
+        {cartButton()}
       </View>
       <View style={styles.info}>
-        {product.is_sponsored && <Text style={styles.sponsoredLabel}>Sponsored</Text>}
-        <Text style={styles.name} numberOfLines={1}>{product.name}</Text>
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatPrice(effectivePrice)}</Text>
-          {discount > 0 && <Text style={styles.originalPrice}>{formatPrice(product.price)}</Text>}
-        </View>
-        {product.rating_avg > 0 && (
-          <View style={styles.ratingRow}>
-            <Text style={styles.ratingStar}>⭐</Text>
-            <Text style={styles.ratingText}>{Number(product.rating_avg).toFixed(1)}</Text>
-            <Text style={styles.ratingCount}>({product.rating_count})</Text>
-          </View>
-        )}
+        {meta(1)}
       </View>
     </TouchableOpacity>
   );
@@ -166,40 +176,50 @@ function ProductCard({ product, onPress, style, variant = 'grid', onAddedToCart 
 export default memo(ProductCard);
 
 const styles = StyleSheet.create({
-  // Grid — compact
-  gridCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.md, overflow: 'hidden', ...SHADOWS.xs },
-  imageWrap: { width: '100%', aspectRatio: 1, backgroundColor: COLORS.skeleton, position: 'relative' },
+  // Grid — flat tile
+  gridCard: { backgroundColor: COLORS.surface },
+  imageWrap: { width: '100%', aspectRatio: 1, backgroundColor: COLORS.surfaceSunken, borderRadius: 8, overflow: 'hidden', position: 'relative' },
   image: { width: '100%', height: '100%' },
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
-  flashBadge: { position: 'absolute', top: 4, left: 4, backgroundColor: COLORS.flashSale, borderRadius: RADIUS.sm, paddingHorizontal: 4, paddingVertical: 1 },
-  flashBadgeText: { color: COLORS.textWhite, fontSize: 9, fontWeight: FONTS.bold },
-  discountBadge: { position: 'absolute', top: 4, left: 4, backgroundColor: COLORS.primary, borderRadius: RADIUS.sm, paddingHorizontal: 4, paddingVertical: 1 },
-  discountBadgeText: { color: COLORS.textWhite, fontSize: 9, fontWeight: FONTS.bold },
   outOfStockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   outOfStockText: { color: COLORS.textWhite, fontSize: 9.5, fontWeight: FONTS.bold, backgroundColor: COLORS.danger, paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm, textAlign: 'center' },
-  cartFab: { position: 'absolute', bottom: 4, right: 4, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, width: 26, height: 26, alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm },
-  cartFabDisabled: { backgroundColor: COLORS.skeleton },
-  cartFabIcon: { fontSize: 12, color: COLORS.textWhite },
-  info: { padding: 6 },
-  sponsoredLabel: { fontSize: 8.5, color: COLORS.textMuted, fontWeight: FONTS.medium, marginBottom: 2, letterSpacing: 0.2 },
-  vendorName: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: 2 },
-  name: { fontSize: 11.5, color: COLORS.textPrimary, lineHeight: 14, fontWeight: FONTS.medium, marginBottom: 3 },
-  priceRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 3, marginBottom: 2 },
-  price: { fontSize: 13, fontWeight: FONTS.extraBold, color: COLORS.primary },
-  originalPrice: { fontSize: 9.5, color: COLORS.textMuted, textDecorationLine: 'line-through' },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  ratingStar: { fontSize: 9 },
-  ratingText: { fontSize: 9.5, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
-  ratingCount: { fontSize: 9, color: COLORS.textMuted },
-  // List — unchanged
-  listCard: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, overflow: 'hidden', marginBottom: SPACING.sm, ...SHADOWS.sm },
-  listImageWrap: { width: 110, height: 110, position: 'relative' },
+  // Plain white round button with a thin edge, like the cart button in Coupang lists.
+  cartFab: {
+    position: 'absolute', bottom: 6, right: 6, backgroundColor: COLORS.surface, borderRadius: RADIUS.full,
+    width: 28, height: 28, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.xs,
+  },
+  cartFabDisabled: { backgroundColor: COLORS.surfaceSunken },
+  cartFabIcon: { fontSize: 13 },
+  info: { paddingTop: 8, paddingBottom: 2 },
+
+  // Shared text blocks
+  sponsoredLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: FONTS.medium, marginBottom: 2 },
+  vendorName: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4 },
+  name: { fontSize: 12.5, color: COLORS.textPrimary, lineHeight: 17, fontWeight: FONTS.regular },
+  offRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  offDot: { width: 15, height: 15, borderRadius: RADIUS.full, backgroundColor: COLORS.discount, alignItems: 'center', justifyContent: 'center' },
+  offDotText: { color: COLORS.textWhite, fontSize: 9.5, fontWeight: FONTS.extraBold, lineHeight: 12 },
+  offText: { flexShrink: 1, fontSize: 12, fontWeight: FONTS.bold, color: COLORS.discount },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 5, marginTop: 4 },
+  price: { fontSize: 15, fontWeight: FONTS.extraBold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
+  originalPrice: { fontSize: 11, color: COLORS.textMuted, textDecorationLine: 'line-through' },
+  freeTag: { alignSelf: 'flex-start', backgroundColor: '#E6F1FF', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginTop: 5 },
+  freeTagText: { fontSize: 11, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 5 },
+  stars: { fontSize: 11, color: COLORS.rating, letterSpacing: 0.5 },
+  ratingCount: { fontSize: 11, color: COLORS.textSecondary },
+
+  // List — flat row with a thin line under it
+  listCard: {
+    flexDirection: 'row', backgroundColor: COLORS.surface, padding: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.divider,
+  },
+  listImageWrap: { width: 112, height: 112, borderRadius: 8, overflow: 'hidden', backgroundColor: COLORS.surfaceSunken, position: 'relative' },
   listImage: { width: '100%', height: '100%' },
-  listInfo: { flex: 1, padding: SPACING.sm, justifyContent: 'center' },
-  listName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, marginBottom: 4, lineHeight: 18 },
-  listCartBtn: { width: 32, height: 32, alignSelf: 'center', marginRight: SPACING.sm, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
-  listCartBtnDisabled: { backgroundColor: COLORS.skeleton },
-  listCartBtnText: { color: COLORS.textWhite, fontSize: FONTS.lg, fontWeight: FONTS.bold, lineHeight: 20 },
+  listInfo: { flex: 1, paddingLeft: SPACING.md, paddingRight: 36, justifyContent: 'flex-start' },
+  listCartFab: { bottom: SPACING.md, right: SPACING.md },
+
   // Featured — unchanged
   featuredCard: { width: 180, height: 220, borderRadius: RADIUS.xl, overflow: 'hidden', marginRight: SPACING.sm, ...SHADOWS.md },
   featuredImage: { width: '100%', height: '100%', position: 'absolute' },
