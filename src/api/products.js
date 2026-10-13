@@ -72,6 +72,8 @@ export const productsAPI = {
 
   // ── Banners ──────────────────────────────────────────
   getBanners: () => get('/products/banners/'),
+  // Home screen: every position (top slider, offer cards, strips, feed) in one call
+  getHomeBanners: () => get('/products/banners/', { v: 2 }),
 
   // ── Promotions ───────────────────────────────────────
   getTrending: () => get('/promotions/trending/'),

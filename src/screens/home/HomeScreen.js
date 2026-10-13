@@ -50,11 +50,14 @@ import { selectUnreadCount } from '../../store/notificationSlice';
 import { selectUser, selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SCREENS, CATEGORIES, SHADOWS } from '../../utils/constants';
 import { formatPrice, formatCountdown, secondsUntil } from '../../utils/helpers';
+import {
+  groupBanners, feedBanners, slotBanner, slotBannerIds, buildFaidaRow, bannerAction, formatAmount,
+} from '../../utils/homeBanners';
 import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
 import HomeBanner from '../../components/HomeBanner';
-import { OfferCard, OfferBanner } from '../../components/OfferCards';
+import { OfferCard, OfferBanner, BannerCard, BannerStrip } from '../../components/OfferCards';
 import FeedBanner from '../../components/FeedBanner';
 import RecommendationSection from '../../components/RecommendationSection';
 import SellersYouMightLike from '../../components/SellersYouMightLike';
@@ -95,6 +98,22 @@ export default function HomeScreen({ navigation }) {
   const mainScrollRef = useRef(null);
   const allProductsYRef = useRef(0);
 
+  // Banners from Admin -> Home Banners. Every banner has a position; the ones
+  // for an offer card or a strip replace that built-in card/strip (see
+  // utils/homeBanners.js). Nothing replaced = the built-in one stays.
+  const bannerGroups = useMemo(() => groupBanners(banners), [banners]);
+  const heroBanners = bannerGroups.hero;
+  const feedList = useMemo(() => feedBanners(bannerGroups), [bannerGroups]);
+  const viewedSlotBanners = useRef({});
+
+  useEffect(() => {
+    slotBannerIds(bannerGroups).forEach((id) => {
+      if (viewedSlotBanners.current[id]) return;
+      viewedSlotBanners.current[id] = true;
+      post(`/products/banners/${id}/track/`, { action: 'view' }).catch(() => {});
+    });
+  }, [bannerGroups]);
+
   useEffect(() => { loadInitialData(); }, []);
 
   useEffect(() => {
@@ -120,7 +139,7 @@ export default function HomeScreen({ navigation }) {
   const loadExtraFeatures = useCallback(async () => {
     try {
       const [bannersData, trendingData, dealsData, promotionsData, offersData] = await Promise.all([
-        productsAPI.getBanners().catch(() => []),
+        productsAPI.getHomeBanners().catch(() => []),
         productsAPI.getTrending().catch(() => []),
         productsAPI.getDailyDeals().catch(() => []),
         get('/products/home-promotions/').catch(() => null),
@@ -197,17 +216,49 @@ export default function HomeScreen({ navigation }) {
     toastTimer.current = setTimeout(() => setToastMessage(''), 1800);
   }, []);
 
-  const handleBannerPress = useCallback((banner) => {
-    if (!banner.link_type || banner.link_type === 'none') return;
-    if (banner.link_type === 'product' && banner.link_value) {
-      navigation.navigate(SCREENS.PRODUCT_DETAIL, { productId: banner.link_value });
-    } else if (banner.link_type === 'category' && banner.link_value) {
-      handleCategorySelect(banner.link_value);
-    } else if (banner.link_type === 'flash_sale') {
-      dispatch(resetProducts());
-      dispatch(fetchProducts({ page: 1, flash_sale: true, refresh: true }));
+  // What a banner does when tapped (top slider and every other position).
+  const handleBannerPress = (banner) => {
+    const action = bannerAction(banner);
+    if (!action) return;
+    switch (action.kind) {
+      case 'product':
+        navigation.navigate(SCREENS.PRODUCT_DETAIL, { productId: action.id });
+        break;
+      case 'category':
+        handleCategorySelect(action.slug);
+        break;
+      case 'flash_sale':
+        dispatch(resetProducts());
+        dispatch(fetchProducts({ page: 1, flash_sale: true, refresh: true }));
+        break;
+      case 'url':
+        Linking.openURL(action.url).catch(() => {});
+        break;
+      case 'coupons':
+        handleCouponPress();
+        break;
+      case 'welcome_gift':
+        handleWelcomeGiftPress();
+        break;
+      case 'referral':
+        navigation.navigate('Referral');
+        break;
+      case 'seller_register':
+        navigation.navigate('VendorRegister');
+        break;
+      case 'all_products':
+        mainScrollRef.current?.scrollTo({ y: Math.max(0, allProductsYRef.current - 12), animated: true });
+        break;
+      default:
+        break;
     }
-  }, []);
+  };
+
+  // A banner that sits in the place of a built-in card/strip: count the tap, then do its action.
+  const handleSlotBannerPress = (banner) => {
+    post(`/products/banners/${banner.id}/track/`, { action: 'click' }).catch(() => {});
+    handleBannerPress(banner);
+  };
 
   const handleSearchSubmit = (query) => navigation.navigate(SCREENS.SEARCH, { query });
 
@@ -318,7 +369,7 @@ export default function HomeScreen({ navigation }) {
       key: 'free_delivery',
       show: promotions?.free_delivery?.active,
       icon: '🚚', bg: COLORS.primaryFade,
-      title: 'Usafirishaji Bure', subtitle: 'Kwa oda zote',
+      title: 'Usafirishaji Bure', subtitle: 'Kwa oda zote Tanzania nzima',
       cta: 'Tazama', ctaColor: COLORS.primary,
       onPress: () => {
         mainScrollRef.current?.scrollTo({ y: Math.max(0, allProductsYRef.current - 12), animated: true });
@@ -328,10 +379,10 @@ export default function HomeScreen({ navigation }) {
       key: 'referral',
       show: promotions?.referral?.active,
       icon: '👥', bg: '#E6EEFD',
-      title: 'Alika Rafiki & Earn',
-      subtitle: promotions?.referral?.referrer_amount
-        ? `Pata TZS ${Number(promotions.referral.referrer_amount).toLocaleString()} kwa kila rafiki`
-        : 'Pata zawadi kwa kila rafiki',
+      title: promotions?.referral?.referrer_amount
+        ? `Alika Rafiki & Pata TZS ${formatAmount(promotions.referral.referrer_amount)}`
+        : 'Alika Rafiki & Pata Zawadi',
+      subtitle: 'Pata zawadi kwa kila rafiki unayemualika.',
       cta: 'Shiriki Sasa', ctaColor: '#3B6FE0',
       onPress: () => navigation.navigate('Referral'),
     },
@@ -352,6 +403,15 @@ export default function HomeScreen({ navigation }) {
       onPress: () => handleDynamicOfferPress(offer),
     })),
   ].filter((c) => c.show).map((c, i) => ({ c, i })).sort((a, b) => (Number(b.c.key.startsWith('dyn_')) - Number(a.c.key.startsWith('dyn_'))) || (a.i - b.i)).map((x) => x.c);
+
+  // The row as it is shown: built-in cards, except where the Admin has put a
+  // banner in that card's place (then the banner is shown instead - never both).
+  const faidaDefaults = {};
+  FAIDA_CARDS.forEach((c) => { if (!c.key.startsWith('dyn_')) faidaDefaults[c.key] = c; });
+  const FAIDA_ROW = buildFaidaRow(bannerGroups, FAIDA_CARDS.filter((c) => c.key.startsWith('dyn_')), faidaDefaults);
+  const giftStripBanner = slotBanner(bannerGroups, 'gift_strip');
+  const sellerStripBanner = slotBanner(bannerGroups, 'seller_strip');
+  const trendingStrips = bannerGroups.slots.above_trending || [];
 
   // ── Horizontal product row ──
   const HorizontalRow = ({ title, data, accent = COLORS.primary }) => {
@@ -455,9 +515,9 @@ export default function HomeScreen({ navigation }) {
         {productChunks.map((chunk, chunkIndex) => (
           <React.Fragment key={chunkIndex}>
             <MasonryChunk chunk={chunk} />
-            {banners.length > 0 && (
+            {feedList.length > 0 && (
               <FeedBanner
-                banner={banners[chunkIndex % banners.length]}
+                banner={feedList[chunkIndex % feedList.length]}
                 navigation={navigation}
                 style={styles.feedBanner}
               />
@@ -514,47 +574,61 @@ export default function HomeScreen({ navigation }) {
         {/* ── Banners ── */}
         <View style={styles.bannerWrap}>
           <HomeBanner
-            banners={banners}
+            banners={heroBanners}
             onBannerPress={handleBannerPress}
             navigation={navigation}
           />
         </View>
 
         {/* ── VUMA Faida & Ofa — real, active promotions only ── */}
-        {FAIDA_CARDS.length > 0 && (
-          <View style={styles.section}>
+        {FAIDA_ROW.length > 0 && (
+          <View style={[styles.section, styles.faidaSection]}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.faidaTitle}>VUMA Faida & Ofa</Text>
+              <Text style={styles.faidaTitle}>
+                <Text style={styles.faidaBrand}>VUMA</Text>{' Faida & Ofa'}
+              </Text>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-              {FAIDA_CARDS.map((card) => (
-                <OfferCard key={card.key} card={card} tint={card.key.startsWith('dyn_') ? card.bg : null} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.faidaList}>
+              {FAIDA_ROW.map((item) => (
+                item.type === 'banner' ? (
+                  <BannerCard key={item.key} banner={item.banner} onPress={handleSlotBannerPress} />
+                ) : (
+                  <OfferCard key={item.key} card={item.card} tint={item.key.startsWith('dyn_') ? item.card.bg : null} />
+                )
               ))}
             </ScrollView>
           </View>
         )}
 
-        {/* ── Welcome Gift highlight — orange strip ── */}
-        {promotions?.welcome_gift?.active && (
-          <OfferBanner
-            testID="offer-gift-banner"
-            tone="orange"
-            icon="🎁"
-            title="Zawadi Maalum ya Karibu!"
-            subtitle={`Pata TZS ${Number(promotions.welcome_gift.amount).toLocaleString()} kwenye oda ya kwanza`}
-            onPress={handleWelcomeGiftPress}
-          />
-        )}
+        {/* ── Welcome Gift strip and Become-a-Seller strip (an Admin banner in the
+             same position replaces the built-in strip) ── */}
+        <View style={styles.stripGroup}>
+          {giftStripBanner ? (
+            <BannerStrip banner={giftStripBanner} onPress={handleSlotBannerPress} />
+          ) : promotions?.welcome_gift?.active ? (
+            <OfferBanner
+              testID="offer-gift-banner"
+              variant="gift"
+              amount={promotions.welcome_gift.amount}
+              title={`Zawadi Maalum ya\u00A0Karibu!`}
+              subtitle={`Pata TZS ${formatAmount(promotions.welcome_gift.amount)} kwenye oda ya kwanza`}
+              onPress={handleWelcomeGiftPress}
+            />
+          ) : null}
 
-        {/* ── Become a Seller — navy strip ── */}
-        <OfferBanner
-          testID="offer-seller-banner"
-          tone="navy"
-          icon="🏪"
-          title="Uza Bidhaa Zako VUMA"
-          subtitle="Usajili rahisi · Hakuna gharama ya kuanza"
-          onPress={() => navigation.navigate('VendorRegister')}
-        />
+          {sellerStripBanner ? (
+            <BannerStrip banner={sellerStripBanner} onPress={handleSlotBannerPress} />
+          ) : (
+            <OfferBanner
+              testID="offer-seller-banner"
+              variant="seller"
+              title="Uza Bidhaa Zako VUMA 🚀"
+              subtitle="Fikia wateja wengi zaidi. Jisajili bure — hakuna gharama ya kuanza."
+              cta="Anza Kuuza"
+              onPress={() => navigation.navigate('VendorRegister')}
+            />
+          )}
+        </View>
 
         {/* Flash Sale — tinted section, distinct from the rest of the feed */}
         {flashSale?.length > 0 && (
@@ -596,6 +670,15 @@ export default function HomeScreen({ navigation }) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
               {dailyDeals.map((d, i) => <DealCard key={d.id || i} deal={d} />)}
             </ScrollView>
+          </View>
+        )}
+
+        {/* Strip(s) the Admin puts just above Trending Now (nothing here until one is added) */}
+        {trendingStrips.length > 0 && (
+          <View style={styles.stripGroup}>
+            {trendingStrips.map((b) => (
+              <BannerStrip key={b.id} banner={b} onPress={handleSlotBannerPress} />
+            ))}
           </View>
         )}
 
@@ -728,7 +811,11 @@ const styles = StyleSheet.create({
   featuredCard: { width: 128 },
 
   // ── VUMA Faida & Ofa ──
-  faidaTitle: { fontSize: 20, fontWeight: FONTS.bold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
+  faidaTitle: { fontSize: 22, fontWeight: FONTS.black, color: COLORS.secondary, letterSpacing: FONTS.trackTight },
+  faidaSection: { marginBottom: 0, paddingBottom: SPACING.sm },
+  faidaBrand: { color: COLORS.primary },
+  faidaList: { paddingHorizontal: SPACING.base, paddingVertical: 4, gap: SPACING.md },
+  stripGroup: { backgroundColor: COLORS.surface, paddingTop: SPACING.sm + 2, marginBottom: SPACING.sm },
 
   // ── Deal card ──
   dealCard: {
