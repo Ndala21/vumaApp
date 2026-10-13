@@ -109,6 +109,7 @@ export default function ProductDetailScreen({ navigation, route }) {
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [variantError, setVariantError] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const [showQtyModal, setShowQtyModal] = useState(false);
 
   const cartBounce = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -294,30 +295,33 @@ export default function ProductDetailScreen({ navigation, route }) {
   };
 
   const headerOpacity = scrollY.interpolate({ inputRange: [0, 200], outputRange: [0, 1], extrapolate: 'clamp' });
+  // Room for the phone's clock/battery bar above the round buttons.
+  const topInset = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 6;
+  const vendorLabel = displayProduct.vendor_info?.shop_name || displayProduct.vendor_name || '';
+  // Quantity list for the drop-down: 1 up to what is in stock (at most 30).
+  const qtyChoices = Array.from({ length: Math.max(1, Math.min(unitsLeft, 30)) }, (_, i) => i + 1);
+  const lowStock = !needsVariant && unitsLeft > 0 && unitsLeft <= 5;
+  const showOptionsBlock = productNeedsSize || needsVariant || outOfStock || lowStock;
+  const cartTitle = outOfStock ? t('products.outOfStock') : addedToCart ? '✓ Added!' : t('products.addToCart');
+  const buyTitle = outOfStock ? 'Unavailable' : t('products.buyNow');
+  const actionsOff = outOfStock || loading.detail;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      <Animated.View style={[styles.animHeader, { opacity: headerOpacity }]}>
+      <Animated.View pointerEvents="none" style={[styles.animHeader, { opacity: headerOpacity, paddingTop: topInset }]}>
         <Text style={styles.animHeaderTitle} numberOfLines={1}>{displayProduct.name}</Text>
       </Animated.View>
 
-      <View style={styles.topActions}>
-        <TouchableOpacity style={styles.topActionBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.topActionIcon}>‹</Text>
+      {/* Round buttons that float over the photo: back on the left, cart on the right */}
+      <View style={[styles.topActions, { top: topInset }]}>
+        <TouchableOpacity testID="back-btn" style={styles.topActionBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
-        <View style={styles.topActionRight}>
-          <TouchableOpacity style={styles.topActionBtn} onPress={handleWishlist}>
-            <Text style={styles.topActionIcon}>{isWishlisted ? '❤️' : '🤍'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.topActionBtn} onPress={handleShare}>
-            <Text style={styles.topActionIcon}>↗</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.topActionBtn} onPress={() => navigation.navigate(SCREENS.CART)}>
-            <Text style={styles.topActionIcon}>🛒</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity testID="cart-btn" style={styles.topActionBtn} onPress={() => navigation.navigate(SCREENS.CART)}>
+          <Text style={styles.topActionIcon}>🛒</Text>
+        </TouchableOpacity>
       </View>
 
       <Animated.ScrollView
@@ -326,7 +330,7 @@ export default function ProductDetailScreen({ navigation, route }) {
         scrollEventThrottle={16}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Image Gallery */}
+        {/* Photo: full width and square, dots at the bottom, heart at the bottom right */}
         <View style={styles.galleryWrap}>
           <FlatList
             data={images.length > 0 ? images : [{ image_url: null }]}
@@ -348,62 +352,110 @@ export default function ProductDetailScreen({ navigation, route }) {
               ))}
             </View>
           )}
-          {onSale && (
-            <View style={styles.flashRibbonWrap}>
-              <View style={styles.flashRibbonBody}>
-                <Text style={styles.flashText}>⚡ FLASH SALE</Text>
-                {flashCountdown > 0 && <Text style={styles.flashCountdown}>{formatCountdown(flashCountdown)}</Text>}
-              </View>
-            </View>
-          )}
-          {discount > 0 && !onSale && (
-            <View style={styles.discountRibbonWrap}>
-              <View style={styles.discountRibbonBody}>
-                <Text style={styles.discountOverlayText}>-{discount}%</Text>
-              </View>
-            </View>
-          )}
+          <TouchableOpacity testID="wishlist-btn" style={styles.heartBtn} onPress={handleWishlist} activeOpacity={0.85}>
+            <Text style={[styles.heartIcon, isWishlisted && styles.heartIconOn]}>{isWishlisted ? '♥' : '♡'}</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Product Info */}
-        <View style={styles.infoCard}>
-          {displayProduct.category_name && (
-            <View style={styles.categoryPill}>
-              <Text style={styles.categoryText}>{displayProduct.category_name}</Text>
-            </View>
-          )}
-          <Text style={styles.productName}>{displayProduct.name}</Text>
-          <View style={styles.priceSection}>
-            <View style={styles.priceRow}>
-              <Text style={styles.effectivePrice}>{formatPrice(finalPrice)}</Text>
-              {discount > 0 && (
-                <>
-                  <Text style={styles.originalPrice}>{formatPrice(displayProduct.price)}</Text>
-                  <View style={styles.discountPill}>
-                    <Text style={styles.discountPillText}>-{discount}%</Text>
-                  </View>
-                </>
-              )}
-            </View>
-            {!!shortText && (
-              <Text style={styles.shortDescription} numberOfLines={4}>{shortText}</Text>
-            )}
-            <View style={styles.freeShipPill}>
-              <Text style={styles.freeShip}>🚚 Free delivery</Text>
-            </View>
+        {onSale && (
+          <View style={styles.flashBar}>
+            <Text style={styles.flashText}>⚡ FLASH SALE</Text>
+            {flashCountdown > 0 && <Text style={styles.flashCountdown}>{formatCountdown(flashCountdown)}</Text>}
           </View>
+        )}
+
+        {/* Product info: shop link and share on one line, then title, rating, price */}
+        <View style={styles.infoCard}>
+          <View style={styles.shopShareRow}>
+            {vendorLabel ? (
+              <TouchableOpacity testID="shop-link" style={styles.shopLink} onPress={handleSellerStore} activeOpacity={0.7}>
+                <Text style={styles.shopLinkText} numberOfLines={1}>{vendorLabel + ' ›'}</Text>
+              </TouchableOpacity>
+            ) : <View style={styles.shopLink} />}
+            <TouchableOpacity testID="share-btn" style={styles.shareBtn} onPress={handleShare} activeOpacity={0.7}>
+              <Text style={styles.shareIcon}>↗</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.productName}>{displayProduct.name}</Text>
+
           {displayProduct.rating_avg > 0 && (
             <View style={styles.ratingRow}>
-              <Text style={styles.ratingStarSmall}>★</Text>
+              <Text style={styles.ratingStars}>
+                {'★'.repeat(Math.min(5, Math.round(displayProduct.rating_avg))) + '☆'.repeat(5 - Math.min(5, Math.round(displayProduct.rating_avg)))}
+              </Text>
               <Text style={styles.ratingValue}>{Number(displayProduct.rating_avg).toFixed(1)}</Text>
-              <Text style={styles.ratingCountSmall}>({displayProduct.rating_count} reviews)</Text>
-              <View style={styles.ratingDivider} />
-              <Text style={styles.salesCount}>{displayProduct.sales_count || 0} sold</Text>
+              <Text style={styles.ratingCountSmall}>({displayProduct.rating_count})</Text>
+              {(displayProduct.sales_count || 0) > 0 && (
+                <Text style={styles.salesCount}>{'  ·  ' + displayProduct.sales_count + ' ' + t('products.sold')}</Text>
+              )}
             </View>
           )}
+
+          {discount > 0 && (
+            <View style={styles.discountRow}>
+              <Text style={styles.discountPct}>{discount + '%'}</Text>
+              <Text style={styles.originalPrice}>{formatPrice(displayProduct.price)}</Text>
+            </View>
+          )}
+          <Text style={[styles.effectivePrice, onSale && styles.effectivePriceSale]}>{formatPrice(finalPrice)}</Text>
+          {!!shortText && (
+            <Text style={styles.shortDescription} numberOfLines={4}>{shortText}</Text>
+          )}
+          <Text style={styles.deliveryLine}>
+            <Text style={styles.deliveryBold}>{t('products.freeDelivery')}</Text>
+            {vendorLabel ? <Text>{'  ·  ' + t('products.soldBy') + ' ' + vendorLabel}</Text> : null}
+          </Text>
         </View>
 
-        {/* Seller badge + trust signals */}
+        {/* Guest Banner */}
+        {!isAuthenticated && (
+          <TouchableOpacity style={styles.guestBanner} onPress={() => setShowAuthModal(true)} activeOpacity={0.85}>
+            <View style={styles.guestBannerText}>
+              <Text style={styles.guestBannerTitle}>Log in to shop on VUMA</Text>
+              <Text style={styles.guestBannerSub}>Get exclusive deals and track your orders</Text>
+            </View>
+            <Text style={styles.guestBannerArrow}>›</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Options: "Size: L" rows of boxes (the seller's option list), or the older size row */}
+        {showOptionsBlock && (
+          <View style={styles.card}>
+            {productNeedsSize && (
+              <View style={styles.sizeWrap}>
+                <CustomerSizeSelector
+                  categoryName={displayProduct.category_name}
+                  availableSizes={displayProduct.available_sizes}
+                  selectedSize={selectedSize}
+                  onSelect={(size) => { setSelectedSize(size); setSizeError(false); }}
+                  error={sizeError}
+                />
+              </View>
+            )}
+            {needsVariant && (
+              <VariantPicker
+                key={`options-${displayProduct.id}`}
+                variants={productVariants}
+                selectedVariant={selectedVariant}
+                onSelect={(v) => {
+                  setSelectedVariant(v);
+                  if (v) setVariantError(false);
+                  // never keep more in the basket than the chosen option has
+                  setQuantity((q) => Math.max(1, Math.min(q, v ? Math.max(1, unitsAvailable(displayProduct, productVariants, v)) : q)));
+                }}
+                error={variantError}
+              />
+            )}
+            {outOfStock ? (
+              <Text style={styles.stockDanger}>{t('products.outOfStock')}</Text>
+            ) : lowStock ? (
+              <Text style={styles.stockDanger}>{t('products.onlyLeft', { count: unitsLeft })}</Text>
+            ) : null}
+          </View>
+        )}
+
+        {/* Seller: shop, trust badge and a chat button */}
         <View style={styles.card}>
           {displayProduct.vendor_info ? (
             <>
@@ -419,81 +471,14 @@ export default function ProductDetailScreen({ navigation, route }) {
               <Text style={styles.vendorArrow}>›</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
-
-        {/* Guest Banner */}
-        {!isAuthenticated && (
-          <TouchableOpacity style={styles.guestBanner} onPress={() => setShowAuthModal(true)} activeOpacity={0.85}>
-            <View style={styles.guestBannerIconChip}>
-              <Text style={styles.guestBannerIcon}>👤</Text>
-            </View>
-            <View style={styles.guestBannerText}>
-              <Text style={styles.guestBannerTitle}>Log in to shop on VUMA</Text>
-              <Text style={styles.guestBannerSub}>Get exclusive deals and track your orders</Text>
-            </View>
-            <Text style={styles.guestBannerArrow}>›</Text>
+          <TouchableOpacity
+            testID="chat-seller"
+            style={styles.chatRow}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate(SCREENS.CHAT, { productId: displayProduct.id, vendorId: displayProduct.vendor_id })}
+          >
+            <Text style={styles.chatRowText}>💬  Chat with seller</Text>
           </TouchableOpacity>
-        )}
-
-        {/* Size Selector */}
-        {productNeedsSize && (
-          <View style={styles.card}>
-            <CustomerSizeSelector
-              categoryName={displayProduct.category_name}
-              availableSizes={displayProduct.available_sizes}
-              selectedSize={selectedSize}
-              onSelect={(size) => { setSelectedSize(size); setSizeError(false); }}
-              error={sizeError}
-            />
-          </View>
-        )}
-
-        {/* Product options (size / colour / storage ... from the seller's option list) */}
-        {needsVariant && (
-          <View style={styles.card}>
-            <VariantPicker
-              key={`options-${displayProduct.id}`}
-              variants={productVariants}
-              selectedVariant={selectedVariant}
-              onSelect={(v) => {
-                setSelectedVariant(v);
-                if (v) setVariantError(false);
-                // never keep more in the basket than the chosen option has
-                setQuantity((q) => Math.max(1, Math.min(q, v ? Math.max(1, unitsAvailable(displayProduct, productVariants, v)) : q)));
-              }}
-              error={variantError}
-            />
-          </View>
-        )}
-
-        {/* Quantity */}
-        <View style={styles.card}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionAccent} />
-            <Text style={styles.qtyLabel}>Quantity</Text>
-          </View>
-          <View style={styles.qtyRow}>
-            <TouchableOpacity
-              testID="qty-minus"
-              style={[styles.qtyBtn, quantity <= 1 && styles.qtyBtnDisabled]}
-              onPress={() => setQuantity((q) => Math.max(1, q - 1))}
-              disabled={quantity <= 1}
-            >
-              <Text style={styles.qtyBtnText}>−</Text>
-            </TouchableOpacity>
-            <Text style={styles.qtyValue}>{quantity}</Text>
-            <TouchableOpacity
-              testID="qty-plus"
-              style={[styles.qtyBtn, quantity >= unitsLeft && styles.qtyBtnDisabled]}
-              onPress={() => setQuantity((q) => Math.min(q + 1, unitsLeft))}
-              disabled={quantity >= unitsLeft}
-            >
-              <Text style={styles.qtyBtnText}>+</Text>
-            </TouchableOpacity>
-            <Text style={[styles.stockText, outOfStock && styles.stockTextDanger]}>
-              {unitsLeft > 0 ? `${unitsLeft} available` : 'Out of stock'}
-            </Text>
-          </View>
         </View>
 
         {/* Longer description - only for older products that still have one;
@@ -501,7 +486,6 @@ export default function ProductDetailScreen({ navigation, route }) {
         {hasLongerDescription(displayProduct) && (
           <View style={styles.card}>
             <View style={styles.sectionTitleRow}>
-              <View style={styles.sectionAccent} />
               <Text style={styles.sectionTitle}>Description</Text>
             </View>
             <Text style={styles.description}>{displayProduct.description}</Text>
@@ -511,7 +495,6 @@ export default function ProductDetailScreen({ navigation, route }) {
         {/* Details */}
         <View style={styles.card}>
           <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionAccent} />
             <Text style={styles.sectionTitle}>Details</Text>
           </View>
           {[
@@ -531,7 +514,6 @@ export default function ProductDetailScreen({ navigation, route }) {
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <View style={styles.sectionAccent} />
               <Text style={styles.sectionTitle}>Reviews ({reviews.length})</Text>
             </View>
             <TouchableOpacity onPress={() => setShowReviewModal(true)}>
@@ -599,7 +581,6 @@ export default function ProductDetailScreen({ navigation, route }) {
         {relatedProducts.length > 0 && (
           <View style={styles.relatedSection}>
             <View style={styles.relatedTitleRow}>
-              <View style={styles.sectionAccent} />
               <Text style={styles.sectionTitle}>You May Also Like</Text>
             </View>
             <FlatList
@@ -623,30 +604,70 @@ export default function ProductDetailScreen({ navigation, route }) {
         <View style={{ height: 120 }} />
       </Animated.ScrollView>
 
-      {/* Bottom Action Bar */}
+      {/* Bottom Action Bar: quantity drop-down, Add to Cart, Buy now */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.chatBtn}
-          onPress={() => navigation.navigate(SCREENS.CHAT, { productId: displayProduct.id, vendorId: displayProduct.vendor_id })}
+          testID="qty-open"
+          style={[styles.qtyBox, outOfStock && styles.qtyBoxOff]}
+          onPress={() => setShowQtyModal(true)}
+          disabled={outOfStock}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('products.quantity')}
         >
-          <Text style={styles.chatBtnText}>💬</Text>
+          <Text style={styles.qtyBoxValue}>{quantity}</Text>
+          <View style={styles.qtyChevron} />
         </TouchableOpacity>
         <Animated.View style={[styles.cartBtnWrap, { transform: [{ scale: cartBounce }] }]}>
-          <Button
-            title={outOfStock ? t('products.outOfStock') : addedToCart ? '✓ Added!' : t('products.addToCart')}
-            variant={outOfStock ? 'outlineSecondary' : addedToCart ? 'success' : 'outline'}
+          <TouchableOpacity
+            testID={`btn-${cartTitle}`}
+            style={[styles.addCartBtn, addedToCart && styles.addCartBtnDone, actionsOff && styles.actionOff]}
             onPress={handleAddToCart}
-            disabled={outOfStock || loading.detail}
-            style={styles.addCartBtn}
-          />
+            disabled={actionsOff}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.addCartText, addedToCart && styles.addCartTextDone, actionsOff && styles.actionOffText]} numberOfLines={1}>{cartTitle}</Text>
+          </TouchableOpacity>
         </Animated.View>
-        <Button
-          title={outOfStock ? 'Unavailable' : t('products.buyNow')}
+        <TouchableOpacity
+          testID={`btn-${buyTitle}`}
+          style={[styles.buyNowBtn, outOfStock && styles.actionOff]}
           onPress={handleBuyNow}
           disabled={outOfStock}
-          style={styles.buyNowBtn}
-        />
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.buyNowText, outOfStock && styles.actionOffText]} numberOfLines={1}>{buyTitle}</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Quantity list (opens from the box in the bottom bar) */}
+      <Modal visible={showQtyModal} transparent animationType="slide" onRequestClose={() => setShowQtyModal(false)}>
+        <View style={styles.qtyOverlay}>
+          <TouchableOpacity style={styles.qtyBackdrop} activeOpacity={1} onPress={() => setShowQtyModal(false)} />
+          <View style={styles.qtySheet}>
+            <View style={styles.qtySheetHeader}>
+              <Text style={styles.qtySheetTitle}>{t('products.quantity')}</Text>
+              <TouchableOpacity testID="qty-close" onPress={() => setShowQtyModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={styles.qtySheetClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.qtyList}>
+              {qtyChoices.map((n) => (
+                <TouchableOpacity
+                  key={n}
+                  testID={`qty-${n}`}
+                  style={styles.qtyOption}
+                  activeOpacity={0.7}
+                  onPress={() => { setQuantity(n); setShowQtyModal(false); }}
+                >
+                  <Text style={[styles.qtyOptionText, n === quantity && styles.qtyOptionTextOn]}>{n}</Text>
+                  {n === quantity && <Text style={styles.qtyOptionTick}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <AuthModal
         visible={showAuthModal}
@@ -683,105 +704,105 @@ export default function ProductDetailScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
+  // Light grey page: the white sections sit on it and the grey shows through
+  // as the thin bands between them.
   container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { paddingBottom: SPACING.xl },
   animHeader: {
     position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50,
-    backgroundColor: COLORS.surface, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base,
-    paddingBottom: SPACING.sm, paddingHorizontal: SPACING.xl,
+    backgroundColor: COLORS.surface,
+    paddingBottom: SPACING.sm + 2, paddingHorizontal: 64,
     borderBottomWidth: 1, borderBottomColor: COLORS.divider, alignItems: 'center',
   },
-  animHeaderTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  animHeaderTitle: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
   topActions: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 50 : SPACING.base, left: 0, right: 0,
+    position: 'absolute', left: 0, right: 0,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: SPACING.sm, zIndex: 100,
+    paddingHorizontal: SPACING.md, zIndex: 100,
   },
-  topActionRight: { flexDirection: 'row', gap: SPACING.xs },
   topActionBtn: {
-    width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.94)',
+    width: 38, height: 38, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.95)',
     alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm,
   },
-  topActionIcon: { fontSize: 18 },
-  galleryWrap: { width, height: width * 0.9, backgroundColor: COLORS.surfaceAlt, position: 'relative' },
-  galleryImage: { width, height: width * 0.9 },
-  galleryPlaceholder: { width, height: width * 0.9, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
+  topActionIcon: { fontSize: 17 },
+  backIcon: { fontSize: 30, lineHeight: 33, color: COLORS.textPrimary, marginTop: -3, marginRight: 2 },
+
+  galleryWrap: { width, height: width, backgroundColor: COLORS.surfaceAlt, position: 'relative' },
+  galleryImage: { width, height: width },
+  galleryPlaceholder: { width, height: width, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceAlt },
   placeholderEmoji: { fontSize: 76, opacity: 0.35 },
-  imageDots: { position: 'absolute', bottom: SPACING.base, alignSelf: 'center', flexDirection: 'row', gap: 4 },
-  imageDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: 'rgba(255,255,255,0.55)' },
-  imageDotActive: { backgroundColor: COLORS.primary, width: 18 },
-
-  flashRibbonWrap: { position: 'absolute', top: SPACING.xl, left: -1 },
-  flashRibbonBody: {
-    backgroundColor: COLORS.flashSale, paddingHorizontal: SPACING.md, paddingVertical: 6,
-    borderTopRightRadius: RADIUS.sm, borderBottomRightRadius: RADIUS.sm,
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+  imageDots: { position: 'absolute', bottom: 14, alignSelf: 'center', flexDirection: 'row', gap: 5 },
+  imageDot: { width: 6, height: 6, borderRadius: RADIUS.full, backgroundColor: 'rgba(0,0,0,0.22)' },
+  imageDotActive: { backgroundColor: 'rgba(0,0,0,0.72)' },
+  heartBtn: {
+    position: 'absolute', right: SPACING.md, bottom: SPACING.md,
+    width: 40, height: 40, borderRadius: RADIUS.full, backgroundColor: COLORS.surface,
+    alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm,
   },
-  flashText: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.extraBold },
-  flashCountdown: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold, opacity: 0.9 },
-  discountRibbonWrap: { position: 'absolute', top: SPACING.xl, left: -1 },
-  discountRibbonBody: {
-    backgroundColor: COLORS.discount, paddingHorizontal: SPACING.md, paddingVertical: 6,
-    borderTopRightRadius: RADIUS.sm, borderBottomRightRadius: RADIUS.sm,
-  },
-  discountOverlayText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.extraBold },
+  heartIcon: { fontSize: 25, lineHeight: 29, color: COLORS.textSecondary },
+  heartIconOn: { color: COLORS.danger },
 
-  infoCard: { backgroundColor: COLORS.surface, padding: SPACING.base, marginBottom: SPACING.sm },
+  flashBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.flashSale, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm,
+  },
+  flashText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.extraBold },
+  flashCountdown: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
+
+  infoCard: { backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingBottom: SPACING.base, marginBottom: SPACING.sm },
+  shopShareRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  shopLink: { flex: 1, paddingRight: SPACING.sm },
+  shopLinkText: { fontSize: FONTS.sm, color: COLORS.primaryDark, fontWeight: FONTS.medium },
+  shareBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  shareIcon: { fontSize: 22, color: COLORS.textSecondary },
+
+  productName: { fontSize: FONTS.lg, fontWeight: FONTS.regular, color: COLORS.textPrimary, lineHeight: 24 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: SPACING.sm },
+  ratingStars: { fontSize: FONTS.md, color: COLORS.rating, letterSpacing: 1 },
+  ratingValue: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
+  ratingCountSmall: { fontSize: FONTS.sm, color: COLORS.info },
+  salesCount: { fontSize: FONTS.sm, color: COLORS.textMuted },
+
+  discountRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.md },
+  discountPct: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.discount },
+  originalPrice: { fontSize: FONTS.md, color: COLORS.textMuted, textDecorationLine: 'line-through' },
+  effectivePrice: { fontSize: 28, fontWeight: FONTS.extraBold, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight, marginTop: SPACING.xs },
+  effectivePriceSale: { color: COLORS.flashSale },
+  shortDescription: { fontSize: FONTS.md, color: COLORS.textSecondary, lineHeight: 21, marginTop: SPACING.sm },
+  deliveryLine: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginTop: SPACING.md, lineHeight: 19 },
+  deliveryBold: { fontWeight: FONTS.bold, color: COLORS.textPrimary },
+
   vendorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.xs },
   vendorIconChip: { width: 32, height: 32, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },
   vendorIcon: { fontSize: 16 },
   vendorName: { flex: 1, fontSize: FONTS.sm, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
   vendorArrow: { fontSize: FONTS.xl, color: COLORS.textMuted },
-
-  productName: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: COLORS.textPrimary, lineHeight: 30, marginBottom: SPACING.sm },
-  categoryPill: { alignSelf: 'flex-start', backgroundColor: COLORS.surfaceSunken, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, marginBottom: SPACING.sm },
-  categoryText: { fontSize: 10.5, color: COLORS.textSecondary, fontWeight: FONTS.semiBold, textTransform: 'uppercase', letterSpacing: 0.4 },
-  priceSection: { marginBottom: SPACING.sm },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACING.sm, flexWrap: 'wrap' },
-  effectivePrice: { fontSize: FONTS['3xl'], fontWeight: FONTS.black, color: COLORS.textPrimary, letterSpacing: FONTS.trackTight },
-  originalPrice: { fontSize: FONTS.base, color: COLORS.textLight, textDecorationLine: 'line-through' },
-  discountPill: { backgroundColor: COLORS.discount, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 2 },
-  discountPillText: { color: COLORS.textWhite, fontSize: FONTS.xs, fontWeight: FONTS.bold },
-  freeShipPill: { alignSelf: 'flex-start', backgroundColor: COLORS.successLight, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, marginTop: SPACING.xs },
-  freeShip: { fontSize: FONTS.xs, color: COLORS.successText, fontWeight: FONTS.semiBold },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm },
-  ratingStarSmall: { fontSize: FONTS.sm, color: COLORS.rating },
-  ratingValue: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textSecondary },
-  ratingCountSmall: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  ratingDivider: { width: 1, height: 12, backgroundColor: COLORS.border },
-  salesCount: { fontSize: FONTS.sm, color: COLORS.textMuted },
+  chatRow: {
+    marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.borderStrong, borderRadius: 6,
+    paddingVertical: SPACING.md, alignItems: 'center', backgroundColor: COLORS.surface,
+  },
+  chatRowText: { fontSize: FONTS.md, color: COLORS.textPrimary, fontWeight: FONTS.medium },
 
   guestBanner: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primaryFade,
-    marginHorizontal: SPACING.sm, marginBottom: SPACING.sm, borderRadius: RADIUS.xl,
-    padding: SPACING.base, borderWidth: 1, borderColor: 'rgba(255,106,0,0.2)',
+    marginBottom: SPACING.sm, paddingHorizontal: SPACING.base, paddingVertical: SPACING.md,
   },
-  guestBannerIconChip: { width: 40, height: 40, borderRadius: RADIUS.full, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center', marginRight: SPACING.sm },
-  guestBannerIcon: { fontSize: 19 },
   guestBannerText: { flex: 1 },
   guestBannerTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primaryDark },
   guestBannerSub: { fontSize: FONTS.xs, color: COLORS.textSecondary, marginTop: 2 },
   guestBannerArrow: { fontSize: FONTS.xl, color: COLORS.primary },
 
   card: { backgroundColor: COLORS.surface, padding: SPACING.base, marginBottom: SPACING.sm },
+  sizeWrap: { marginBottom: SPACING.xs },
+  stockDanger: { fontSize: FONTS.sm, color: COLORS.danger, fontWeight: FONTS.semiBold, marginTop: SPACING.xs },
   relatedSection: { backgroundColor: COLORS.surface, paddingTop: SPACING.base, paddingBottom: SPACING.sm, marginBottom: SPACING.sm },
-  relatedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm, paddingHorizontal: SPACING.base },
+  relatedTitleRow: { marginBottom: SPACING.sm, paddingHorizontal: SPACING.base },
   relatedList: { paddingHorizontal: SPACING.base, gap: SPACING.sm },
   relatedCard: { width: 128 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.base },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
-  sectionAccent: { width: 4, height: 15, borderRadius: 2, backgroundColor: COLORS.primary },
+  sectionTitleRow: { marginBottom: SPACING.sm },
   sectionTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  qtyLabel: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.base },
-  qtyBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.primary },
-  qtyBtnDisabled: { backgroundColor: COLORS.surfaceSunken, borderColor: COLORS.border },
-  qtyBtnText: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.primary, lineHeight: 22 },
-  qtyValue: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary, minWidth: 32, textAlign: 'center' },
-  stockText: { fontSize: FONTS.sm, color: COLORS.textMuted, flex: 1, textAlign: 'right' },
-  stockTextDanger: { color: COLORS.danger, fontWeight: FONTS.semiBold },
   description: { fontSize: FONTS.base, color: COLORS.textSecondary, lineHeight: 24 },
-  shortDescription: { fontSize: FONTS.md, color: COLORS.textSecondary, lineHeight: 21, marginTop: SPACING.sm },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
   detailLabel: { fontSize: FONTS.sm, color: COLORS.textMuted },
   detailValue: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
@@ -808,15 +829,58 @@ const styles = StyleSheet.create({
 
   bottomBar: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm,
-    paddingBottom: Platform.OS === 'ios' ? SPACING.xl : SPACING.base,
-    backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider, ...SHADOWS.lg,
+    paddingHorizontal: SPACING.md, paddingTop: SPACING.sm,
+    paddingBottom: Platform.OS === 'ios' ? SPACING.xl : SPACING.sm + 2,
+    backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.divider,
   },
-  chatBtn: { width: 48, height: 48, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.primary },
-  chatBtnText: { fontSize: 21 },
+  qtyBox: {
+    width: 68, height: 48, borderRadius: 6, borderWidth: 1, borderColor: COLORS.borderStrong,
+    backgroundColor: COLORS.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+  },
+  qtyBoxOff: { backgroundColor: COLORS.surfaceSunken },
+  qtyBoxValue: { fontSize: FONTS.base, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  qtyChevron: {
+    width: 8, height: 8, borderRightWidth: 1.5, borderBottomWidth: 1.5, borderColor: COLORS.textSecondary,
+    transform: [{ rotate: '45deg' }], marginTop: -3,
+  },
   cartBtnWrap: { flex: 1 },
-  addCartBtn: { flex: 1 },
-  buyNowBtn: { flex: 1 },
+  addCartBtn: {
+    height: 48, borderRadius: 6, borderWidth: 1.5, borderColor: COLORS.primary,
+    backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.sm,
+  },
+  addCartBtnDone: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
+  addCartText: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
+  addCartTextDone: { color: COLORS.successText },
+  buyNowBtn: {
+    flex: 1, height: 48, borderRadius: 6, backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.sm,
+  },
+  buyNowText: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textWhite },
+  actionOff: { backgroundColor: COLORS.surfaceSunken, borderColor: COLORS.border },
+  actionOffText: { color: COLORS.textMuted },
+
+  qtyOverlay: { flex: 1, justifyContent: 'flex-end' },
+  qtyBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: COLORS.overlay },
+  qtySheet: {
+    backgroundColor: COLORS.surface, borderTopLeftRadius: 14, borderTopRightRadius: 14,
+    maxHeight: '60%', paddingBottom: Platform.OS === 'ios' ? 30 : SPACING.base,
+  },
+  qtySheetHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: SPACING.base, paddingVertical: SPACING.base,
+    borderBottomWidth: 1, borderBottomColor: COLORS.divider,
+  },
+  qtySheetTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  qtySheetClose: { fontSize: FONTS.lg, color: COLORS.textMuted },
+  qtyList: { flexGrow: 0 },
+  qtyOption: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: SPACING.base, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
+  },
+  qtyOptionText: { fontSize: FONTS.base, color: COLORS.textPrimary },
+  qtyOptionTextOn: { fontWeight: FONTS.bold, color: COLORS.primary },
+  qtyOptionTick: { fontSize: FONTS.base, color: COLORS.primary, fontWeight: FONTS.bold },
 
   authOverlay: { flex: 1, backgroundColor: 'rgba(18,22,43,0.65)', justifyContent: 'center', alignItems: 'center', padding: SPACING.base },
   authModal: { backgroundColor: COLORS.surface, borderRadius: RADIUS['2xl'], padding: SPACING.xl, width: '100%', maxWidth: 380, alignItems: 'center', ...SHADOWS.lg },
@@ -844,18 +908,4 @@ const styles = StyleSheet.create({
   starRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
   starIcon: { fontSize: 32, opacity: 0.28, color: COLORS.rating },
   starIconActive: { opacity: 1 },
-
-  fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginBottom: SPACING.sm, fontWeight: FONTS.medium },
-  variantGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  variantChip: {
-    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg,
-    paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, backgroundColor: COLORS.surfaceAlt,
-    minWidth: 80, alignItems: 'center',
-  },
-  variantChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  variantChipDisabled: { opacity: 0.4 },
-  variantChipText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
-  variantChipTextActive: { color: COLORS.textWhite },
-  variantChipPrice: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  variantChipOut: { fontSize: 10, color: COLORS.danger, marginTop: 2, fontWeight: FONTS.semiBold },
 });

@@ -33,7 +33,7 @@ const translations = {
     },
     products: {
       addToCart: 'Add to Cart', buyNow: 'Buy Now', outOfStock: 'Out of Stock',
-      inStock: 'In Stock', freeDelivery: '🚚 Free Delivery', quantity: 'Quantity',
+      inStock: 'In Stock', freeDelivery: '🚚 Free Delivery', quantity: 'Quantity', soldBy: 'Sold by',
       sold: 'sold', reviews: '⭐ Reviews', wishlist: 'Wishlist', description: 'Description',
       details: 'Details', writeReview: 'Write Review', noReviews: 'No reviews yet',
       relatedProducts: 'Related Products', share: 'Share',
@@ -146,7 +146,7 @@ const translations = {
     },
     products: {
       addToCart: '장바구니 담기', buyNow: '바로 구매', outOfStock: '품절', inStock: '재고 있음',
-      freeDelivery: '🚚 무료배송', quantity: '수량', sold: '판매됨', reviews: '⭐ 리뷰',
+      freeDelivery: '🚚 무료배송', quantity: '수량', soldBy: '판매자', sold: '판매됨', reviews: '⭐ 리뷰',
       wishlist: '위시리스트', description: '상품 설명', details: '상세 정보',
       writeReview: '리뷰 작성', noReviews: '리뷰가 없습니다', relatedProducts: '관련 상품', share: '공유',
     },
@@ -251,7 +251,7 @@ const translations = {
     },
     products: {
       addToCart: '加入购物车', buyNow: '立即购买', outOfStock: '缺货', inStock: '有货',
-      freeDelivery: '🚚 免费配送', quantity: '数量', sold: '已售', reviews: '⭐ 评价',
+      freeDelivery: '🚚 免费配送', quantity: '数量', soldBy: '卖家', sold: '已售', reviews: '⭐ 评价',
       wishlist: '收藏', description: '商品描述', details: '详情',
       writeReview: '写评价', noReviews: '暂无评价', relatedProducts: '相关商品', share: '分享',
     },
@@ -352,7 +352,7 @@ const translations = {
     },
     products: {
       addToCart: 'Ongeza kwenye Kikapu', buyNow: 'Nunua Sasa', outOfStock: 'Haina Stok',
-      inStock: 'Ipo', freeDelivery: '🚚 Usafirishaji Bure', quantity: 'Wingi',
+      inStock: 'Ipo', freeDelivery: '🚚 Usafirishaji Bure', quantity: 'Wingi', soldBy: 'Muuzaji',
       sold: 'Imeuzwa', reviews: '⭐ Maoni', wishlist: 'Orodha ya Matakwa',
       description: 'Maelezo', details: 'Undani', writeReview: 'Andika Maoni',
       noReviews: 'Hakuna maoni bado', relatedProducts: 'Bidhaa Zinazohusiana', share: 'Shiriki',
@@ -460,7 +460,7 @@ const translations = {
     },
     products: {
       addToCart: 'Ajouter au panier', buyNow: 'Acheter maintenant', outOfStock: 'Rupture de stock',
-      inStock: 'En stock', freeDelivery: '🚚 Livraison gratuite', quantity: 'Quantité',
+      inStock: 'En stock', freeDelivery: '🚚 Livraison gratuite', quantity: 'Quantité', soldBy: 'Vendu par',
       sold: 'vendu', reviews: '⭐ Avis', wishlist: 'Liste de souhaits',
       description: 'Description', details: 'Détails', writeReview: 'Écrire un avis',
       noReviews: "Pas encore d'avis", relatedProducts: 'Produits similaires', share: 'Partager',
@@ -565,7 +565,7 @@ const translations = {
     },
     products: {
       addToCart: 'أضف إلى السلة', buyNow: 'اشتر الآن', outOfStock: 'نفذت الكمية',
-      inStock: 'متوفر', freeDelivery: '🚚 شحن مجاني', quantity: 'الكمية',
+      inStock: 'متوفر', freeDelivery: '🚚 شحن مجاني', quantity: 'الكمية', soldBy: 'البائع',
       sold: 'مُباع', reviews: '⭐ التقييمات', wishlist: 'قائمة الأمنيات',
       description: 'الوصف', details: 'التفاصيل', writeReview: 'كتابة تقييم',
       noReviews: 'لا توجد تقييمات بعد', relatedProducts: 'منتجات مشابهة', share: 'مشاركة',
