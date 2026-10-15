@@ -25,6 +25,11 @@
  * that was not in the table (a product link, for example) fell back to
  * the homepage.
  *
+ * Updated: promotion emails (coupons, flash sales, new products, cart
+ * reminders) link to the right screen - 'welcome-gift' is now in the link
+ * table - and the cart is reported to the server (syncCartToServer) so the
+ * server can send a reminder when it is left behind.
+ *
  * Updated: PromotionProducts screen registered - the dedicated
  * results screen shown when a Home screen promotion targets multiple
  * products, rather than one.
@@ -37,7 +42,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { initializeAuth, forceLogout } from '../store/authSlice';
-import { loadCart, loadWishlist } from '../store/cartSlice';
+import { loadCart, loadWishlist, syncCartToServer } from '../store/cartSlice';
 import { fetchNotificationCount } from '../store/notificationSlice';
 import { storage } from '../utils/storage';
 import { COLORS, SCREENS } from '../utils/constants';
@@ -122,6 +127,7 @@ const linking = {
           SellerWallet: 'seller/earnings',
           ApplicationStatus: 'seller/apply',
           Wallet: 'wallet',
+          WelcomeGift: 'welcome-gift',
           Auth: {
             screens: {
               Login: 'login',
@@ -230,9 +236,18 @@ export default function AppNavigator() {
   const isApprovedVendor = useSelector((state) =>
     state.auth?.user?.role === 'vendor' && state.auth?.user?.vendor_status === 'approved'
   );
+  const cartItems = useSelector((state) => state.cart?.items);
   const sessionCheckRef = useRef(null);
 
   useEffect(() => { dispatch(initializeAuth()); }, []);
+
+  // Let the server know what is in the cart (after the cart has stopped
+  // changing for a moment) so it can send a reminder if it is left behind.
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const timer = setTimeout(() => dispatch(syncCartToServer()), 2500);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, cartItems]);
 
   useEffect(() => {
     if (isAuthenticated) {

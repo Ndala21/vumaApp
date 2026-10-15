@@ -1,5 +1,10 @@
 /**
  * VUMA Store — Settings Screen
+ *
+ * Updated: the Promotions switch is real. It reads and saves the choice on
+ * the server (/notifications/marketing-preferences/), so switching it off
+ * stops promotional emails, push messages and reminders for good. Order,
+ * payment and account messages are always sent.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -33,6 +38,7 @@ import {
   LANGUAGES,
 } from '../../utils/constants';
 import { storage } from '../../utils/storage';
+import { get, patch } from '../../api/client';
 import {
   i18n,
   useTranslation,
@@ -71,8 +77,33 @@ export default function SettingsScreen({ navigation }) {
 
   useEffect(() => {
     loadLanguage();
+    loadPromotionsChoice();
     return () => dispatch(clearError());
   }, []);
+
+  // What the person chose for promotions is kept on the server.
+  const loadPromotionsChoice = async () => {
+    if (!user) return;
+    try {
+      const prefs = await get('/notifications/marketing-preferences/');
+      if (prefs && typeof prefs.promotions === 'boolean') {
+        setNotifications((p) => ({ ...p, promotions: prefs.promotions }));
+      }
+    } catch (e) {
+      // keep the default; the switch still works
+    }
+  };
+
+  const handleNotificationSwitch = async (key, value) => {
+    setNotifications((p) => ({ ...p, [key]: value }));
+    if (key !== 'promotions' || !user) return;
+    try {
+      await patch('/notifications/marketing-preferences/', { promotions: value });
+    } catch (e) {
+      setNotifications((p) => ({ ...p, promotions: !value }));
+      Alert.alert(t('common.error'));
+    }
+  };
 
   const loadLanguage = async () => {
     const lang = await storage.getLanguage();
@@ -286,7 +317,7 @@ const SectionToggle = ({ title, section }) => (
               <Text style={styles.switchLabel}>{label}</Text>
               <Switch
                 value={notifications[key]}
-                onValueChange={(v) => setNotifications((p) => ({ ...p, [key]: v }))}
+                onValueChange={(v) => handleNotificationSwitch(key, v)}
                 trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
                 thumbColor={notifications[key] ? COLORS.primary : COLORS.surface}
                 ios_backgroundColor={COLORS.border}

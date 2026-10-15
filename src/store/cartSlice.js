@@ -417,6 +417,30 @@ export const clearCartAndSave = () => async (dispatch) => {
 };
 
 /**
+ * Tell the server what is in the cart (signed-in customers only), so it can
+ * send "you left something in your cart" and "almost sold out" messages.
+ * Quiet by design: it never blocks the cart and never shows an error. An
+ * empty list tells the server the cart is empty, so no reminder is sent.
+ */
+export const syncCartToServer = () => async (_dispatch, getState) => {
+  try {
+    const state = getState();
+    if (!state.auth?.isAuthenticated) return false;
+    const items = (state.cart?.items || [])
+      .filter((item) => item && item.product && item.product.id)
+      .map((item) => ({
+        product_id: String(item.product.id),
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        price: Math.round(getEffectivePrice(item.product)) || 0,
+      }));
+    await post('/notifications/cart-sync/', { items });
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+/**
  * Toggle wishlist — real backend call. `product` must be the full
  * product object (needed for the optimistic local update and for
  * rendering if the item is being added). Optimistically updates local
