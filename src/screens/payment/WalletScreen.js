@@ -50,6 +50,8 @@ const TX_ICONS = {
   refund: '↩️',
   payout: '💸',
   commission: '📊',
+  promo_credit: '🎁',
+  referral_reward: '🎁',
 };
 
 const TX_COLORS = {
@@ -60,6 +62,8 @@ const TX_COLORS = {
   refund: COLORS.info,
   payout: COLORS.success,
   commission: COLORS.textMuted,
+  promo_credit: COLORS.success,
+  referral_reward: COLORS.success,
 };
 
 export default function WalletScreen({ navigation }) {
@@ -139,7 +143,7 @@ export default function WalletScreen({ navigation }) {
       setTransferAmount('');
       setTransferEmail('');
       setTransferNote('');
-      Alert.alert('Success', `₩${Number(transferAmount).toLocaleString()} sent!`);
+      Alert.alert('Success', `${formatPrice(Number(transferAmount))} sent!`);
       await loadData();
     } catch (e) {
       setActionError(getErrorMessage(e));
@@ -258,7 +262,7 @@ export default function WalletScreen({ navigation }) {
           />
           <View style={styles.balanceHint}>
             <Text style={styles.balanceHintText}>
-              Available: <Text style={styles.balanceHintBold}>{formatPrice(wallet?.balance || 0)}</Text>
+              Available: <Text style={styles.balanceHintBold}>{formatPrice(wallet?.withdrawable_balance ?? wallet?.balance ?? 0)}</Text>
             </Text>
           </View>
           {actionError ? <Text style={styles.modalError}>⚠️ {actionError}</Text> : null}
@@ -288,7 +292,14 @@ export default function WalletScreen({ navigation }) {
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Total Balance</Text>
           <Text style={styles.balanceAmount}>{formatPrice(wallet?.balance || 0)}</Text>
-          <Text style={styles.balanceCurrency}>{wallet?.currency || 'KRW'} • {user?.username}</Text>
+          <Text style={styles.balanceCurrency}>TZS • {user?.username}</Text>
+          {Number(wallet?.promo_balance) > 0 && (
+            <View style={styles.promoPill}>
+              <Text style={styles.promoPillText}>
+                🎁 Gift money: {formatPrice(wallet.promo_balance)}. Use it to pay for orders on VUMA. It cannot be withdrawn or sent.
+              </Text>
+            </View>
+          )}
           {wallet?.is_frozen && (
             <View style={styles.frozenBadge}>
               <Text style={styles.frozenText}>🔒 Wallet Frozen</Text>
@@ -299,7 +310,7 @@ export default function WalletScreen({ navigation }) {
         <View style={styles.actionsRow}>
           {[
             { icon: '💰', label: 'Deposit', onPress: () => setShowDeposit(true), disabled: wallet?.is_frozen },
-            { icon: '📤', label: 'Transfer', onPress: () => setShowTransfer(true), disabled: wallet?.is_frozen || !wallet?.balance },
+            { icon: '📤', label: 'Transfer', onPress: () => setShowTransfer(true), disabled: wallet?.is_frozen || !Number(wallet?.withdrawable_balance ?? wallet?.balance) },
             { icon: '📊', label: 'History', onPress: () => {}, disabled: false },
           ].map((action) => (
             <TouchableOpacity
@@ -347,6 +358,11 @@ const styles = StyleSheet.create({
   balanceLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.7)', fontWeight: FONTS.medium, marginBottom: SPACING.xs },
   balanceAmount: { fontSize: 42, fontWeight: FONTS.black, color: COLORS.textWhite, letterSpacing: -1, marginBottom: SPACING.xs },
   balanceCurrency: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.6)' },
+  promoPill: {
+    marginTop: SPACING.md, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, maxWidth: 320,
+  },
+  promoPillText: { color: 'rgba(255,255,255,0.92)', fontSize: FONTS.sm, lineHeight: 18, textAlign: 'center' },
   frozenBadge: { marginTop: SPACING.sm, backgroundColor: COLORS.danger, borderRadius: RADIUS.full, paddingHorizontal: SPACING.base, paddingVertical: SPACING.xs },
   frozenText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
   actionsRow: { flexDirection: 'row', backgroundColor: COLORS.surface, paddingVertical: SPACING.xl, paddingHorizontal: SPACING.base, gap: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },

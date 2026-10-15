@@ -26,6 +26,12 @@
  * address and a village/street guess every time the pin moves, keeps
  * anything the customer typed, offers a nearby place as a one-tap
  * Landmark suggestion, and ignores out-of-date lookups.
+ * Updated: coupons, the Welcome Gift and VUMA Wallet payment. The server
+ * prices the order (/orders/quote/) so the discount shown here is exactly
+ * what is charged; a coupon box fills itself with the code chosen on Home;
+ * an order that is already paid (wallet, or fully covered by a discount)
+ * goes straight to the order page; the amount sent to mobile money / bank
+ * is the server's total, not a number worked out on the phone.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -44,6 +50,9 @@ import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
 import { CommissionBreakdown } from '../../components/CommissionCalculator';
 import InlineLocationMap from '../../components/InlineLocationMap';
+import { getDeviceId } from '../../utils/deviceId';
+import { getPendingCoupon, clearPendingCoupon } from '../../utils/pendingCoupon';
+import { tzs } from '../../utils/rewards';
 
 // Provider ids to hide from checkout (e.g. ['mpesa']). Empty = every
 // method below is shown. Keep this in step with HIDDEN_PROVIDERS in
@@ -203,6 +212,65 @@ export default function CheckoutScreen({ navigation, route }) {
     return sum + unitPrice * item.quantity;
   }, 0);
   const cartTotal = typeof routeTotal === 'number' ? routeTotal : cartSubtotal;
+
+  // ── Coupon + Welcome Gift + wallet: the SERVER prices the order ──
+  // `quote` is what /orders/quote/ says this cart costs for this customer.
+  // Without it (offline, not signed in) the plain cart total is shown.
+  const [couponInput, setCouponInput] = useState('');
+  const [couponCode, setCouponCode] = useState('');   // the code being used
+  const [quote, setQuote] = useState(null);
+  const [quoting, setQuoting] = useState(false);
+  const quoteSeq = useRef(0);
+  const orderLines = () => purchaseItems.map(item => ({
+    product_id: item.product?.id || item.id,
+    variant_id: item.selectedVariant?.id || undefined,
+    quantity: item.quantity,
+  }));
+  const itemsKey = JSON.stringify(orderLines());
+
+  // The coupon chosen on Home ("Tumia") fills the box.
+  useEffect(() => {
+    getPendingCoupon().then((code) => {
+      if (code) { setCouponInput(code); setCouponCode(code); }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || purchaseItems.length === 0) { setQuote(null); return; }
+    const seq = ++quoteSeq.current;
+    setQuoting(true);
+    (async () => {
+      try {
+        const data = await post('/orders/quote/', {
+          items: orderLines(),
+          coupon_code: couponCode,
+          device_id: await getDeviceId(),
+          payment_method: paymentMethod,
+        });
+        if (seq === quoteSeq.current) setQuote(data);
+      } catch {
+        // No quote: the plain total is shown, and the server still prices the order.
+        if (seq === quoteSeq.current) setQuote(null);
+      } finally {
+        if (seq === quoteSeq.current) setQuoting(false);
+      }
+    })();
+  }, [isAuthenticated, itemsKey, couponCode, paymentMethod]);
+
+  const payTotal = quote ? Number(quote.total) : cartTotal;
+  const isFree = !!(quote && quote.free_order);
+  const wallet = quote?.wallet || null;
+  const walletShort = paymentMethod === 'wallet' && !!wallet && !wallet.enough && payTotal > 0;
+
+  const applyCoupon = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (code) setCouponCode(code);
+  };
+  const removeCoupon = () => {
+    setCouponInput('');
+    setCouponCode('');
+    clearPendingCoupon();
+  };
 
   useEffect(() => {
     if (isAuthenticated) loadSavedAddresses();
@@ -418,6 +486,17 @@ export default function CheckoutScreen({ navigation, route }) {
       Alert.alert('Nothing to order', 'No items were selected for this purchase. Please go back and select at least one item.');
       return;
     }
+    if (walletShort) {
+      Alert.alert(
+        'Not enough in your wallet',
+        `Your VUMA wallet has ${tzs(wallet.balance)} and this order is ${tzs(payTotal)}. Choose mobile money, or add money to your wallet first.`,
+        [
+          { text: 'OK', style: 'cancel' },
+          { text: 'Open wallet', onPress: () => navigation.navigate('Wallet') },
+        ]
+      );
+      return;
+    }
     setPlacing(true);
     try {
       const shippingAddress = deliveryType === 'pickup'
@@ -440,15 +519,16 @@ export default function CheckoutScreen({ navigation, route }) {
             formatted_address: formattedAddress,
           };
 
+      // A coupon the quote did not accept is not sent, so a stale code in the
+      // box can never stop an order. Without a quote the typed code is sent and
+      // the server decides.
+      const useCoupon = quote ? (quote.coupon ? couponCode : '') : couponCode;
       const result = await post('/orders/', {
-        items: purchaseItems.map(item => ({
-          product_id: item.product?.id || item.id,
-          variant_id: item.selectedVariant?.id || undefined,
-          quantity: item.quantity,
-        })),
+        items: orderLines(),
         shipping_address: shippingAddress,
         payment_method: paymentMethod,
-        total_amount: cartTotal,
+        coupon_code: useCoupon,
+        device_id: await getDeviceId(),
       });
 
       if (result.id || result.order_number) {
@@ -462,16 +542,27 @@ export default function CheckoutScreen({ navigation, route }) {
             if (item.product?.id) dispatch(removeFromCartAndSave(item.product.id));
           });
         }
-        if (paymentMethod === 'mobile_money') {
-          navigation.replace('MobileMoney', { orderId: result.id, orderNumber: result.order_number, amount: cartTotal });
+        if (result.discount_details?.coupon) clearPendingCoupon();
+        // The amount to pay is the server's total (after any coupon / gift).
+        const amountToPay = Number(result.total_amount ?? payTotal);
+        if (result.payment_status === 'paid') {
+          // Paid from the wallet, or fully covered by a discount: nothing left to pay.
+          navigation.replace('OrderDetail', { orderId: result.id });
+          Alert.alert(
+            'Order placed ✓',
+            amountToPay <= 0 ? 'Your discount covered the whole order — nothing to pay.' : 'Paid from your VUMA wallet.'
+          );
+        } else if (paymentMethod === 'mobile_money') {
+          navigation.replace('MobileMoney', { orderId: result.id, orderNumber: result.order_number, amount: amountToPay });
         } else if (paymentMethod === 'bank_transfer') {
-          navigation.replace('BankTransfer', { orderId: result.id, orderNumber: result.order_number, amount: cartTotal });
+          navigation.replace('BankTransfer', { orderId: result.id, orderNumber: result.order_number, amount: amountToPay });
         } else {
           navigation.replace('OrderDetail', { orderId: result.id });
         }
       }
     } catch (err) {
-      const data = err?.response?.data;
+      // api/client.js rejects with { message, errors: <server data> }
+      const data = err?.errors || err?.response?.data;
       let message = 'Could not place order. Please try again.';
       if (data && typeof data === 'object') {
         const fieldErrors = Object.entries(data)
@@ -700,7 +791,12 @@ export default function CheckoutScreen({ navigation, route }) {
           {[
             { value: 'mobile_money', icon: '📱', label: 'Mobile Money', sub: VISIBLE_MOBILE_MONEY.map(m => m.label).join(', ') },
             { value: 'bank_transfer', icon: '🏦', label: 'Bank Transfer', sub: 'CRDB, NMB' },
-            { value: 'wallet', icon: '💰', label: 'VUMA Wallet', sub: 'Pay from your balance' },
+            {
+              value: 'wallet', icon: '💰', label: 'VUMA Wallet',
+              sub: wallet
+                ? `Balance ${tzs(wallet.balance)}${wallet.promo_balance > 0 ? ` (includes ${tzs(wallet.promo_balance)} gift money)` : ''}`
+                : 'Pay from your balance',
+            },
           ].map(pm => (
             <TouchableOpacity
               key={pm.value}
@@ -720,6 +816,61 @@ export default function CheckoutScreen({ navigation, route }) {
               </View>
             </TouchableOpacity>
           ))}
+        </View>
+
+        {walletShort && (
+          <View style={styles.walletWarn}>
+            <Text style={styles.walletWarnText}>
+              Your wallet has {tzs(wallet.balance)} — not enough for this order ({tzs(payTotal)}).
+              Choose mobile money, or add money to your wallet.
+            </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Wallet')}>
+              <Text style={styles.walletWarnLink}>Open wallet</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Coupon */}
+        <View style={styles.section}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Coupon</Text>
+          </View>
+          {quote?.coupon ? (
+            <View style={styles.couponApplied}>
+              <Text style={styles.couponAppliedText} numberOfLines={2}>
+                🎫 {quote.coupon.code} — you save {tzs(quote.coupon.amount)}
+              </Text>
+              <TouchableOpacity onPress={removeCoupon} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={styles.couponRemove}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.couponRow}>
+              <TextInput
+                style={styles.couponInput}
+                value={couponInput}
+                onChangeText={setCouponInput}
+                placeholder="Enter coupon code"
+                placeholderTextColor={COLORS.textLight}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={applyCoupon}
+              />
+              <TouchableOpacity
+                style={[styles.couponBtn, (!couponInput.trim() || quoting) && styles.couponBtnOff]}
+                onPress={applyCoupon}
+                disabled={!couponInput.trim() || quoting}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.couponBtnText}>{quoting ? '…' : 'Apply'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {!!quote?.coupon_error && !quote?.coupon && (
+            <Text style={styles.couponError}>{quote.coupon_error}</Text>
+          )}
         </View>
 
         {/* Payment Methods We Accept — real partner logos where we have
@@ -756,14 +907,29 @@ export default function CheckoutScreen({ navigation, route }) {
               </View>
             );
           })}
+          {quote?.coupon && Number(quote.coupon.amount) > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryItem} numberOfLines={1}>Coupon {quote.coupon.code}</Text>
+              <Text style={[styles.summaryPrice, { color: COLORS.success }]}>− {tzs(quote.coupon.amount)}</Text>
+            </View>
+          )}
+          {quote?.gift && Number(quote.gift.amount) > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryItem} numberOfLines={1}>🎁 {quote.gift.type === 'product' ? 'Welcome gift (free item)' : 'Welcome gift'}</Text>
+              <Text style={[styles.summaryPrice, { color: COLORS.success }]}>− {tzs(quote.gift.amount)}</Text>
+            </View>
+          )}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryItem}>Delivery</Text>
             <Text style={[styles.summaryPrice, { color: COLORS.success }]}>FREE</Text>
           </View>
           <View style={styles.summaryTotal}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
-            <Text style={styles.summaryTotalValue}>TZS {Number(cartTotal || 0).toLocaleString()}</Text>
+            <Text style={styles.summaryTotalValue}>{isFree ? 'FREE' : tzs(payTotal)}</Text>
           </View>
+          {!!quote?.gift_note && !quote?.gift && (
+            <Text style={styles.giftNote}>🎁 {quote.gift_note}</Text>
+          )}
         </View>
 
         {/* Commission Breakdown */}
@@ -778,10 +944,10 @@ export default function CheckoutScreen({ navigation, route }) {
         <View style={styles.placeOrderSection}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total to pay</Text>
-            <Text style={styles.totalValue}>TZS {Number(cartTotal || 0).toLocaleString()}</Text>
+            <Text style={styles.totalValue}>{isFree ? 'FREE' : tzs(payTotal)}</Text>
           </View>
           <Button
-            title={placing ? 'Placing Order...' : `Place Order — TZS ${Number(cartTotal || 0).toLocaleString()}`}
+            title={placing ? 'Placing Order...' : isFree ? 'Place Order — FREE' : `Place Order — ${tzs(payTotal)}`}
             onPress={handlePlaceOrder}
             loading={placing}
             fullWidth
@@ -908,6 +1074,32 @@ const styles = StyleSheet.create({
   methodsTrustRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   methodsTrustIcon: { fontSize: 11 },
   methodsTrustText: { fontSize: FONTS.xs, color: COLORS.textMuted },
+  walletWarn: {
+    backgroundColor: COLORS.warningLight, borderRadius: RADIUS.md, padding: SPACING.md,
+    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.warning,
+  },
+  walletWarnText: { fontSize: FONTS.sm, color: COLORS.warningText, lineHeight: 19 },
+  walletWarnLink: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primary, marginTop: 6 },
+  couponRow: { flexDirection: 'row', alignItems: 'center' },
+  couponInput: {
+    flex: 1, borderWidth: 1, borderColor: COLORS.borderStrong, borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md, paddingVertical: 11, fontSize: FONTS.base, color: COLORS.textPrimary,
+    backgroundColor: COLORS.surfaceAlt, letterSpacing: 0.5,
+  },
+  couponBtn: {
+    marginLeft: SPACING.sm, backgroundColor: COLORS.primary, borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.lg, paddingVertical: 12,
+  },
+  couponBtnOff: { opacity: 0.5 },
+  couponBtnText: { color: '#fff', fontWeight: FONTS.bold, fontSize: FONTS.md },
+  couponApplied: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.successLight, borderRadius: RADIUS.md, padding: SPACING.md,
+  },
+  couponAppliedText: { flex: 1, color: COLORS.successText, fontWeight: FONTS.semiBold, fontSize: FONTS.md, marginRight: SPACING.sm },
+  couponRemove: { color: COLORS.danger, fontWeight: FONTS.bold, fontSize: FONTS.sm },
+  couponError: { color: COLORS.danger, fontSize: FONTS.sm, marginTop: 8 },
+  giftNote: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginTop: SPACING.sm, lineHeight: 19 },
   placeOrderSection: { backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.md },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.base },
   totalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },

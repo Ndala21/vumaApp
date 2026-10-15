@@ -40,6 +40,7 @@ import {
   RefreshControl, Dimensions, StatusBar, Platform, Image, Alert, Linking,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   fetchProducts, fetchFeaturedProducts, fetchFlashSaleProducts, fetchCategories,
   selectProducts, selectFeaturedProducts, selectFlashSaleProducts, selectCategories,
@@ -65,6 +66,9 @@ import { SkeletonProductGrid } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
 import { productsAPI } from '../../api/products';
 import { get, post } from '../../api/client';
+import CouponSheet from '../../components/CouponSheet';
+import { getPendingCoupon, setPendingCoupon } from '../../utils/pendingCoupon';
+import { giftCardCopy } from '../../utils/rewards';
 
 const { width } = Dimensions.get('window');
 const NUM_COLUMNS = width >= 700 ? 4 : 3; // still used by wide-screen horizontal rows above the grid
@@ -92,6 +96,8 @@ export default function HomeScreen({ navigation }) {
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [promotions, setPromotions] = useState(null);
+  const [couponSheetOpen, setCouponSheetOpen] = useState(false);
+  const [chosenCoupon, setChosenCoupon] = useState('');
   const [dynamicOffers, setDynamicOffers] = useState([]);
   const [toastMessage, setToastMessage] = useState('');
   const toastTimer = React.useRef(null);
@@ -115,6 +121,17 @@ export default function HomeScreen({ navigation }) {
   }, [bannerGroups]);
 
   useEffect(() => { loadInitialData(); }, []);
+
+  // Coming back to Home (after claiming a gift, or paying for an order) shows
+  // the cards as they are now: a claimed gift says "Itumie Sasa", a coupon the
+  // customer already used is no longer offered.
+  const firstFocus = useRef(true);
+  useFocusEffect(useCallback(() => {
+    if (firstFocus.current) { firstFocus.current = false; return; }
+    get('/products/home-promotions/')
+      .then((data) => { if (data) setPromotions(data); })
+      .catch(() => {});
+  }, [isAuthenticated]));
 
   useEffect(() => {
     if (!flashSale?.length) return;
@@ -266,25 +283,38 @@ export default function HomeScreen({ navigation }) {
   // informational alert with real numbers) for the two flows that
   // don't have a confirmed dedicated screen yet, rather than guessing
   // a navigation target that could crash. ──
-  const handleCouponPress = () => {
+  // The Kuponi card opens the list of real coupons; "Tumia" saves the code
+  // and the checkout screen fills its coupon box with it.
+  const handleCouponPress = async () => {
     const c = promotions?.coupons;
     if (!c?.active) return;
-    Alert.alert(
-      'Kuponi',
-      c.top_code
-        ? `Tumia msimbo "${c.top_code}" — ${c.top_description || 'punguzo maalum'} kwenye ukurasa wa malipo.`
-        : 'Kuna kuponi zinazopatikana — angalia ukurasa wa malipo.'
-    );
+    setChosenCoupon(await getPendingCoupon());
+    setCouponSheetOpen(true);
   };
 
+  const handleUseCoupon = async (code) => {
+    await setPendingCoupon(code);
+    setChosenCoupon(code);
+    setCouponSheetOpen(false);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMessage(`Kuponi ${code} imehifadhiwa ✓`);
+    toastTimer.current = setTimeout(() => setToastMessage(''), 2600);
+  };
+
+  // The Zawadi ya Karibu card opens the gift screen, where the customer
+  // claims the gift and sees where it is. A visitor signs up or logs in first.
   const handleWelcomeGiftPress = () => {
     const g = promotions?.welcome_gift;
     if (!g?.active) return;
-    Alert.alert(
-      'Zawadi ya Karibu',
-      `Pata punguzo la hadi TZS ${Number(g.amount).toLocaleString()} kwenye oda yako ya kwanza.` +
-      (g.requires_referral ? ' Unahitaji msimbo wa rafiki (referral) kustahili.' : '')
-    );
+    if (!isAuthenticated) {
+      Alert.alert('Zawadi ya Karibu', 'Jisajili au ingia ili upokee zawadi yako.', [
+        { text: 'Baadaye', style: 'cancel' },
+        { text: 'Ingia', onPress: () => navigation.navigate('Auth', { screen: 'Login' }) },
+        { text: 'Jisajili', onPress: () => navigation.navigate('Auth', { screen: 'Register' }) },
+      ]);
+      return;
+    }
+    navigation.navigate('WelcomeGift');
   };
 
   // ── Dynamic offer card press — routes based on admin-set
@@ -337,21 +367,24 @@ export default function HomeScreen({ navigation }) {
 
   // ── VUMA Faida & Ofa — promotion cards, Swahili-labeled, each only
   // shown when its real backing campaign is active. ──
+  const giftCopy = giftCardCopy(promotions?.welcome_gift);
+  const couponCount = promotions?.coupons?.count || 0;
   const FAIDA_CARDS = [
     {
       key: 'coupons',
       show: promotions?.coupons?.active,
       icon: '🎫', bg: '#FDE8EC',
-      title: 'Kuponi', subtitle: 'Pata punguzo maalum',
-      cta: 'Pata Sasa', ctaColor: '#E5426B',
+      title: 'Kuponi',
+      subtitle: couponCount === 1 ? 'Kuponi 1 inakusubiri' : `Kuponi ${couponCount} zinakusubiri`,
+      cta: 'Chagua Sasa', ctaColor: '#E5426B',
       onPress: handleCouponPress,
     },
     {
       key: 'welcome_gift',
       show: promotions?.welcome_gift?.active,
       icon: '🎁', bg: '#FFF1DB',
-      title: 'Zawadi ya Karibu', subtitle: 'Wateja wapya pata zawadi',
-      cta: 'Pokea Sasa', ctaColor: COLORS.primary,
+      title: 'Zawadi ya Karibu', subtitle: giftCopy.subtitle,
+      cta: giftCopy.cta, ctaColor: COLORS.primary,
       onPress: handleWelcomeGiftPress,
     },
     {
@@ -611,7 +644,7 @@ export default function HomeScreen({ navigation }) {
               variant="gift"
               amount={promotions.welcome_gift.amount}
               title={`Zawadi Maalum ya\u00A0Karibu!`}
-              subtitle={`Pata TZS ${formatAmount(promotions.welcome_gift.amount)} kwenye oda ya kwanza`}
+              subtitle={giftCopy.subtitle}
               onPress={handleWelcomeGiftPress}
             />
           ) : null}
@@ -739,6 +772,14 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.loadingMore}><Text style={styles.loadingMoreText}>Loading more…</Text></View>
         )}
       </ScrollView>
+
+      <CouponSheet
+        visible={couponSheetOpen}
+        items={promotions?.coupons?.items}
+        chosenCode={chosenCoupon}
+        onUse={handleUseCoupon}
+        onClose={() => setCouponSheetOpen(false)}
+      />
 
       {toastMessage !== '' && (
         <View style={styles.toast} pointerEvents="none">

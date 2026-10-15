@@ -308,6 +308,18 @@ export default function OrderDetailScreen({ navigation, route }) {
                 <Text style={styles.receiptLabel}>Subtotal:</Text>
                 <Text style={styles.receiptValue}>{formatPrice(displayOrder.subtotal)}</Text>
               </View>
+              {Number(displayOrder.discount_details?.coupon?.amount) > 0 && (
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Coupon {displayOrder.discount_details.coupon.code}:</Text>
+                  <Text style={styles.receiptValue}>-{formatPrice(displayOrder.discount_details.coupon.amount)}</Text>
+                </View>
+              )}
+              {Number(displayOrder.discount_details?.welcome_gift?.amount) > 0 && (
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Welcome gift:</Text>
+                  <Text style={styles.receiptValue}>-{formatPrice(displayOrder.discount_details.welcome_gift.amount)}</Text>
+                </View>
+              )}
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Shipping:</Text>
                 <Text style={styles.receiptValue}>
@@ -511,6 +523,12 @@ export default function OrderDetailScreen({ navigation, route }) {
           <Text style={styles.cardTitle}>💰 Price Summary</Text>
           {[
             ['Subtotal', formatPrice(displayOrder.subtotal)],
+            ...(Number(displayOrder.discount_details?.coupon?.amount) > 0
+              ? [[`Coupon ${displayOrder.discount_details.coupon.code}`, `-${formatPrice(displayOrder.discount_details.coupon.amount)}`]]
+              : []),
+            ...(Number(displayOrder.discount_details?.welcome_gift?.amount) > 0
+              ? [['🎁 Welcome gift', `-${formatPrice(displayOrder.discount_details.welcome_gift.amount)}`]]
+              : []),
             ['Shipping', displayOrder.shipping_cost > 0 ? formatPrice(displayOrder.shipping_cost) : '🎉 FREE'],
           ].map(([label, value]) => (
             <View key={label} style={styles.priceRow}>

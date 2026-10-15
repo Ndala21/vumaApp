@@ -163,7 +163,7 @@ export default function ReferralScreen({ navigation }) {
                   : 'Invite Friends & Earn Rewards!'}
               </Text>
               <Text style={styles.heroSub}>
-                Invite friends to VUMA. When they place their first order, you both get rewarded!
+                Invite friends to VUMA. Your friend gets a bigger Welcome Gift, and you get your reward in your VUMA wallet after their first paid order.
               </Text>
             </View>
 
@@ -174,7 +174,7 @@ export default function ReferralScreen({ navigation }) {
                 { step: '1', icon: '📤', text: 'Share your unique referral link with friends' },
                 { step: '2', icon: '👤', text: 'Your friend creates a VUMA account' },
                 { step: '3', icon: '🛒', text: 'They place and pay for their first order' },
-                { step: '4', icon: '💰', text: 'You both receive your reward automatically!' },
+                { step: '4', icon: '💰', text: 'Your reward goes into your VUMA wallet automatically. Use it to pay for orders.' },
               ].map(item => (
                 <View key={item.step} style={styles.stepRow}>
                   <View style={styles.stepNumber}>

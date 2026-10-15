@@ -1,481 +1,360 @@
 /**
- * VUMA Welcome Gift Screen
- * Shows gift collection and allows customer to claim their free gift
+ * VUMA Store — Zawadi ya Karibu (Welcome Gift)
+ *
+ * Opens from the "Zawadi ya Karibu" card on Home. The customer sees what
+ * the gift is worth, claims it, and then sees where it is:
+ *   - a discount  : applied by itself at checkout on their first order
+ *   - wallet money: already in their VUMA wallet (for shopping only)
+ *   - a free product: chosen here, free at checkout when it is in the cart
+ * Everything shown comes from /welcome-gift/status/; the server decides who
+ * can claim and what they get.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, ActivityIndicator, Alert, Animated, Dimensions,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Image,
+  ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { get, post } from '../../api/client';
+import { getDeviceId } from '../../utils/deviceId';
+import { tzs, formatDate, reasonText, errorText } from '../../utils/rewards';
 
-const { width } = Dimensions.get('window');
-const API = 'https://vumastore.store/api/v1';
+const GOLD = '#F59E0B';
+const GOLD_FADE = '#FFF6DD';
 
-const C = {
-  orange:  '#FF6B00',
-  orangeL: '#FFF3E8',
-  green:   '#22C55E',
-  greenL:  '#F0FDF4',
-  gold:    '#F59E0B',
-  goldL:   '#FFFBEB',
-  text:    '#1F2937',
-  textSec: '#6B7280',
-  textMut: '#9CA3AF',
-  bg:      '#F8F9FA',
-  white:   '#FFFFFF',
-  border:  '#E5E7EB',
-  navy:    '#1B1F3B',
-  red:     '#EF4444',
-};
+function Hero({ title, amount, note, tone = 'gold' }) {
+  const green = tone === 'green';
+  return (
+    <View style={[styles.hero, green && styles.heroGreen]}>
+      <Text style={styles.heroEmoji}>{green ? '✅' : '🎁'}</Text>
+      <Text style={[styles.heroTitle, green && { color: COLORS.successText }]}>{title}</Text>
+      {!!amount && <Text style={[styles.heroAmount, green && { color: COLORS.successText }]}>{amount}</Text>}
+      {!!note && <Text style={[styles.heroNote, green && { color: COLORS.successText }]}>{note}</Text>}
+    </View>
+  );
+}
 
-export default function WelcomeGiftScreen({ navigation, route }) {
-  const { token } = route.params || {};
+function Line({ icon, children }) {
+  return (
+    <View style={styles.line}>
+      <Text style={styles.lineIcon}>{icon}</Text>
+      <Text style={styles.lineText}>{children}</Text>
+    </View>
+  );
+}
 
-  const [status, setStatus]     = useState(null);
-  const [loading, setLoading]   = useState(true);
+export default function WelcomeGiftScreen({ navigation }) {
+  const [status, setStatus] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [claimed, setClaimed]   = useState(false);
-  const [claimedGift, setClaimedGift] = useState(null);
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('');
 
-  const shimmer = new Animated.Value(0);
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmer, { toValue: 1, duration: 1000, useNativeDriver: true }),
-        Animated.timing(shimmer, { toValue: 0, duration: 1000, useNativeDriver: true }),
-      ])
-    ).start();
-    loadStatus();
-  }, []);
-
-  const loadStatus = async () => {
+  const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/welcome-gift/status/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      setLoadError(false);
+      const data = await get('/welcome-gift/status/');
       setStatus(data);
-
-      // Already claimed
-      if (data.already_claimed && data.status === 'claimed') {
-        setClaimed(true);
-        setClaimedGift(data.gift);
-      }
     } catch (e) {
-      Alert.alert('Error', 'Could not load your welcome gift. Please try again.');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const goShopping = () => navigation.navigate('Tabs');
 
   const handleClaim = async () => {
-    if (!selected) {
-      Alert.alert('Select a Gift', 'Please select your welcome gift first!');
+    if (claiming) return;
+    if (status?.gift_type === 'product' && !selected) {
+      Alert.alert('Chagua zawadi', 'Chagua bidhaa unayotaka kwanza.');
+      return;
+    }
+    if (status?.needs_phone && phone.replace(/\D/g, '').length < 9) {
+      Alert.alert('Namba ya simu', reasonText('bad_phone'));
       return;
     }
     setClaiming(true);
     try {
-      const deviceId = await AsyncStorage.getItem('@vuma_device_id') || '';
-      const res = await fetch(`${API}/welcome-gift/claim/`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          gift_product_id: selected.id,
-          device_id: deviceId,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setClaimed(true);
-        setClaimedGift(selected);
-        Alert.alert('🎁 Gift Claimed!', data.message);
-      } else {
-        Alert.alert('Error', data.error || 'Could not claim gift');
-      }
-    } catch {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      const body = { device_id: await getDeviceId() };
+      if (status?.gift_type === 'product') body.gift_product_id = selected.id;
+      if (status?.needs_phone) body.phone = phone.trim();
+      const data = await post('/welcome-gift/claim/', body);
+      setMessage(data?.message || '');
+      await load();
+    } catch (err) {
+      Alert.alert('Haikufanikiwa', errorText(err));
+      if (err?.errors?.code === 'already_claimed') load();
     } finally {
       setClaiming(false);
     }
   };
 
+  // ── What the screen shows ──────────────────────────────────────────
+  let body = null;
+
   if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={C.orange} />
-          <Text style={styles.loadingText}>Loading your gift…</Text>
-        </View>
-      </SafeAreaView>
+    body = (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.muted}>Tunatafuta zawadi yako…</Text>
+      </View>
     );
-  }
-
-  // Already claimed
-  if (claimed && claimedGift) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>←</Text>
+  } else if (loadError || !status) {
+    body = (
+      <View style={styles.center}>
+        <Text style={styles.bigEmoji}>📡</Text>
+        <Text style={styles.heading}>Hatukuweza kupakia zawadi</Text>
+        <Text style={styles.muted}>Angalia mtandao wako kisha ujaribu tena.</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => { setLoading(true); load(); }}>
+          <Text style={styles.primaryBtnText}>Jaribu Tena</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  } else if (status.claimed) {
+    const amount = tzs(status.amount);
+    const min = status.min_order_value > 0 ? `Oda kuanzia ${tzs(status.min_order_value)}. ` : '';
+    const until = status.expires_at ? `Inaisha ${formatDate(status.expires_at)}.` : '';
+    switch (status.state) {
+      case 'ready':
+        body = (
+          <>
+            <Hero
+              title={message || 'Zawadi yako iko tayari!'}
+              amount={status.gift_type === 'product' ? status.gift?.name : `Punguzo la ${amount}`}
+              note={status.gift_type === 'product' ? 'Itakuwa BURE ukiiweka kwenye oda yako' : 'Linaongezwa lenyewe kwenye malipo ya oda yako ya kwanza'}
+            />
+            <View style={styles.card}>
+              <Line icon="🛒">Chagua bidhaa unazotaka kisha nenda kulipa. Hakuna msimbo wa kuweka.</Line>
+              {!!(min || until) && <Line icon="⏳">{`${min}${until}`.trim()}</Line>}
+            </View>
+            <TouchableOpacity style={styles.primaryBtn} onPress={goShopping}>
+              <Text style={styles.primaryBtnText}>Anza Kununua</Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Welcome Gift</Text>
-            <View style={{ width: 36 }} />
-          </View>
-
-          <View style={styles.claimedBanner}>
-            <Text style={styles.claimedEmoji}>🎁</Text>
-            <Text style={styles.claimedTitle}>Gift Claimed!</Text>
-            <Text style={styles.claimedSub}>
-              Your gift will be applied automatically at checkout
-            </Text>
-          </View>
-
-          <View style={styles.claimedCard}>
-            {claimedGift.image ? (
-              <Image source={{ uri: claimedGift.image }} style={styles.claimedImage} resizeMode="cover" />
-            ) : (
-              <View style={[styles.claimedImage, styles.claimedImagePlaceholder]}>
-                <Text style={{ fontSize: 48 }}>🎁</Text>
-              </View>
-            )}
-            <Text style={styles.claimedName}>{claimedGift.name || claimedGift.product_name}</Text>
-            <View style={styles.claimedPriceRow}>
-              <Text style={styles.claimedOriginalPrice}>
-                TZS {Number(claimedGift.price || claimedGift.discount_applied || 0).toLocaleString()}
-              </Text>
-              <View style={styles.freeBadge}>
-                <Text style={styles.freeBadgeText}>FREE</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.howToUseCard}>
-            <Text style={styles.howToUseTitle}>How to use your gift</Text>
-            {[
-              { icon: '🛒', text: 'Add your gift item to cart' },
-              { icon: '✅', text: 'Gift discount applies automatically at checkout' },
-              { icon: '💳', text: 'Pay only for other items in your order' },
-              { icon: '🚚', text: 'Free delivery on your entire order!' },
-            ].map((s, i) => (
-              <View key={i} style={styles.howToUseStep}>
-                <Text style={styles.howToUseIcon}>{s.icon}</Text>
-                <Text style={styles.howToUseText}>{s.text}</Text>
-              </View>
-            ))}
-          </View>
-
-          <TouchableOpacity
-            style={styles.shopNowBtn}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <Text style={styles.shopNowBtnText}>Shop Now →</Text>
-          </TouchableOpacity>
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </SafeAreaView>
+          </>
+        );
+        break;
+      case 'pending_payment':
+        body = (
+          <>
+            <Hero title="Una oda inayosubiri malipo" note="Kamilisha malipo ili zawadi yako ikamilike. Ukiifuta oda, zawadi inarudi kwako." />
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('Tabs', { screen: 'Orders' })}>
+              <Text style={styles.primaryBtnText}>Angalia Oda Zangu</Text>
+            </TouchableOpacity>
+          </>
+        );
+        break;
+      case 'used':
+        body = (
+          <>
+            <Hero tone="green" title="Umeshatumia zawadi yako" note="Asante kwa kununua VUMA! Mwalike rafiki upate zaidi." />
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('Referral')}>
+              <Text style={styles.primaryBtnText}>Alika Rafiki</Text>
+            </TouchableOpacity>
+          </>
+        );
+        break;
+      case 'in_wallet':
+        body = (
+          <>
+            <Hero
+              tone="green"
+              title={message || 'Zawadi yako iko kwenye pochi'}
+              amount={amount}
+              note="Ipo kwenye pochi yako ya VUMA. Unaweza kuitumia kulipia oda, lakini huwezi kuitoa kama pesa taslimu."
+            />
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('Wallet')}>
+              <Text style={styles.primaryBtnText}>Fungua Pochi</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={goShopping}>
+              <Text style={styles.secondaryBtnText}>Anza Kununua</Text>
+            </TouchableOpacity>
+          </>
+        );
+        break;
+      default:
+        body = (
+          <Hero title="Zawadi yako imeisha muda" note="Zawadi ilikuwa halali kwa siku 30. Angalia ofa nyingine kwenye ukurasa wa mwanzo." />
+        );
+    }
+  } else if (!status.eligible) {
+    body = (
+      <View style={styles.center}>
+        <Text style={styles.bigEmoji}>🎁</Text>
+        <Text style={styles.heading}>Zawadi ya Karibu</Text>
+        <Text style={styles.muted}>{reasonText(status.reason_code, status.reason)}</Text>
+        <TouchableOpacity style={styles.secondaryBtn} onPress={goShopping}>
+          <Text style={styles.secondaryBtnText}>Rudi Kununua</Text>
+        </TouchableOpacity>
+      </View>
     );
-  }
-
-  // Not eligible
-  if (!status?.eligible) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Welcome Gift</Text>
-          <View style={{ width: 36 }} />
-        </View>
-        <View style={styles.notEligibleWrap}>
-          <Text style={styles.notEligibleEmoji}>🎁</Text>
-          <Text style={styles.notEligibleTitle}>Welcome Gift</Text>
-          <Text style={styles.notEligibleText}>
-            {status?.reason === 'Registration without referral link'
-              ? 'Welcome gifts are exclusive to customers who join VUMA via a referral link from a friend.'
-              : status?.reason === 'No active campaign'
-              ? 'No welcome gift campaign is active right now. Check back soon!'
-              : status?.reason || 'You are not eligible for a welcome gift at this time.'}
-          </Text>
-          <View style={styles.referralTip}>
-            <Text style={styles.referralTipTitle}>💡 How to get a Welcome Gift</Text>
-            <Text style={styles.referralTipText}>
-              Ask a friend who is already on VUMA to share their referral link with you.
-              Register using their link and complete phone verification to unlock your FREE gift!
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.shopNowBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.shopNowBtnText}>Continue Shopping</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const { campaign, gifts = [] } = status;
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Welcome Gift</Text>
-          <View style={{ width: 36 }} />
-        </View>
-
-        {/* Hero Banner */}
-        <View style={styles.heroBanner}>
-          <Text style={styles.heroEmoji}>🎁</Text>
-          <Text style={styles.heroTitle}>Your Welcome Gift Awaits!</Text>
-          <Text style={styles.heroSub}>
-            As a thank you for joining VUMA, pick ONE item from our gift collection — absolutely FREE!
-          </Text>
-          <View style={styles.heroStats}>
-            <View style={styles.heroStatItem}>
-              <Text style={styles.heroStatValue}>{campaign.remaining}</Text>
-              <Text style={styles.heroStatLabel}>Gifts Left</Text>
-            </View>
-            <View style={styles.heroStatDivider} />
-            <View style={styles.heroStatItem}>
-              <Text style={styles.heroStatValue}>
-                TZS {Number(campaign.max_gift_value).toLocaleString()}
-              </Text>
-              <Text style={styles.heroStatLabel}>Max Value</Text>
-            </View>
-            <View style={styles.heroStatDivider} />
-            <View style={styles.heroStatItem}>
-              <Text style={styles.heroStatValue}>FREE</Text>
-              <Text style={styles.heroStatLabel}>You Pay</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Rules */}
-        <View style={styles.rulesCard}>
-          <Text style={styles.rulesTitle}>🎯 Gift Rules</Text>
-          <View style={styles.rulesList}>
-            {[
-              '✅ One gift per customer — no exceptions',
-              '✅ Gift must be in your order to apply',
-              '✅ Free delivery included on your order',
-              '⏰ Claim before gifts run out!',
-            ].map((r, i) => (
-              <Text key={i} style={styles.rulesItem}>{r}</Text>
-            ))}
-          </View>
-        </View>
-
-        {/* Gift Collection */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>🎁 Gift Collection</Text>
-          <Text style={styles.sectionSub}>Pick one FREE item</Text>
-        </View>
-
-        {gifts.length === 0 ? (
-          <View style={styles.emptyGifts}>
-            <Text style={styles.emptyGiftsEmoji}>😔</Text>
-            <Text style={styles.emptyGiftsText}>All gifts have been claimed!</Text>
-            <Text style={styles.emptyGiftsSub}>Check back soon for new campaign</Text>
-          </View>
+  } else {
+    // Can claim
+    const type = status.gift_type;
+    const amount = tzs(status.amount);
+    const min = status.min_order_value > 0 ? `Oda kuanzia ${tzs(status.min_order_value)}.` : '';
+    body = (
+      <>
+        {type === 'product' ? (
+          <Hero title="Chagua zawadi yako" note="Bidhaa moja BURE kwa mteja mpya" />
         ) : (
-          <View style={styles.giftsGrid}>
-            {gifts.map(gift => {
-              const isSelected = selected?.id === gift.id;
+          <Hero
+            title={status.invited ? 'Umealikwa na rafiki — umepata zaidi!' : 'Karibu VUMA!'}
+            amount={type === 'wallet' ? amount : `Punguzo la ${amount}`}
+            note={type === 'wallet' ? 'Inaingia kwenye pochi yako ya VUMA' : 'Kwenye oda yako ya kwanza'}
+          />
+        )}
+
+        {type === 'product' ? (
+          <View style={styles.giftGrid}>
+            {(status.gifts || []).length === 0 && <Text style={styles.muted}>Zawadi zote zimeisha kwa sasa.</Text>}
+            {(status.gifts || []).map((g) => {
+              const on = selected?.id === g.id;
               return (
-                <TouchableOpacity
-                  key={gift.id}
-                  onPress={() => setSelected(gift)}
-                  style={[styles.giftCard, isSelected && styles.giftCardSelected]}
-                  activeOpacity={0.85}
-                >
-                  {/* Selected checkmark */}
-                  {isSelected && (
-                    <View style={styles.selectedCheck}>
-                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>
-                    </View>
-                  )}
-
-                  {/* Gift image */}
-                  <View style={styles.giftImageWrap}>
-                    {gift.image ? (
-                      <Image source={{ uri: gift.image }} style={styles.giftImage} resizeMode="cover" />
-                    ) : (
-                      <View style={[styles.giftImage, styles.giftImagePlaceholder]}>
-                        <Text style={{ fontSize: 36 }}>🎁</Text>
-                      </View>
-                    )}
-                    <View style={styles.freePill}>
-                      <Text style={styles.freePillText}>FREE</Text>
-                    </View>
-                  </View>
-
-                  {/* Gift info */}
-                  <View style={styles.giftInfo}>
-                    <Text style={styles.giftName} numberOfLines={2}>{gift.name}</Text>
-                    <View style={styles.giftPriceRow}>
-                      <Text style={styles.giftOriginalPrice}>
-                        TZS {Number(gift.price).toLocaleString()}
-                      </Text>
-                      <Text style={styles.giftFreePrice}>FREE</Text>
-                    </View>
-                    <Text style={styles.giftStock}>{gift.stock} remaining</Text>
-                  </View>
+                <TouchableOpacity key={g.id} style={[styles.giftItem, on && styles.giftItemOn]} onPress={() => setSelected(g)} activeOpacity={0.85}>
+                  {g.image ? <Image source={{ uri: g.image }} style={styles.giftImg} resizeMode="cover" /> : <View style={[styles.giftImg, styles.giftImgEmpty]}><Text style={{ fontSize: 28 }}>🎁</Text></View>}
+                  <Text style={styles.giftName} numberOfLines={2}>{g.name}</Text>
+                  <Text style={styles.giftPrice}>{tzs(g.price)}</Text>
+                  {on && <View style={styles.tick}><Text style={styles.tickText}>✓</Text></View>}
                 </TouchableOpacity>
               );
             })}
           </View>
-        )}
-
-        {/* Selected summary */}
-        {selected && (
-          <View style={styles.selectedSummary}>
-            <View style={styles.selectedSummaryLeft}>
-              <Text style={styles.selectedSummaryLabel}>Selected Gift:</Text>
-              <Text style={styles.selectedSummaryName} numberOfLines={1}>{selected.name}</Text>
-            </View>
-            <View style={styles.selectedSummaryRight}>
-              <Text style={styles.selectedSummaryOriginal}>
-                TZS {Number(selected.price).toLocaleString()}
-              </Text>
-              <Text style={styles.selectedSummaryFree}>FREE</Text>
-            </View>
+        ) : (
+          <View style={styles.card}>
+            {type === 'discount' ? (
+              <>
+                <Line icon="🛒">Linaongezwa lenyewe kwenye malipo — hakuna msimbo wa kuweka.</Line>
+                {!!min && <Line icon="📦">{min}</Line>}
+                <Line icon="⏳">Ni halali kwa siku 30 baada ya kulipokea.</Line>
+              </>
+            ) : (
+              <>
+                <Line icon="💰">Pesa hizi zinatumika kulipia oda kwenye VUMA.</Line>
+                <Line icon="🔒">Huwezi kuzitoa kama pesa taslimu au kumtumia mtu mwingine.</Line>
+              </>
+            )}
           </View>
         )}
 
-        {/* Claim button */}
-        {gifts.length > 0 && (
-          <TouchableOpacity
-            style={[styles.claimBtn, !selected && styles.claimBtnDisabled]}
-            onPress={handleClaim}
-            disabled={claiming || !selected}
-            activeOpacity={0.85}
-          >
-            {claiming ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.claimBtnText}>
-                {selected ? `🎁 Claim ${selected.name} for FREE!` : 'Select a Gift First'}
-              </Text>
-            )}
-          </TouchableOpacity>
+        {status.needs_phone && (
+          <View style={styles.card}>
+            <Text style={styles.label}>Namba yako ya simu</Text>
+            <TextInput
+              style={styles.input}
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              placeholder="0712 345 678"
+              placeholderTextColor={COLORS.textLight}
+              maxLength={16}
+            />
+            <Text style={styles.hint}>Tunatumia namba hii kuhakikisha zawadi inamfikia kila mteja mara moja tu.</Text>
+          </View>
         )}
 
-        {/* Anti abuse notice */}
-        <Text style={styles.antiAbuse}>
-          🔒 Each customer can claim one gift per account, phone number, and device
-        </Text>
+        <TouchableOpacity
+          style={[styles.primaryBtn, (claiming || (type === 'product' && !(status.gifts || []).length)) && styles.btnDisabled]}
+          onPress={handleClaim}
+          disabled={claiming || (type === 'product' && !(status.gifts || []).length)}
+          activeOpacity={0.85}
+        >
+          {claiming ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Pokea Zawadi</Text>}
+        </TouchableOpacity>
+      </>
+    );
+  }
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+  return (
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} accessibilityLabel="Rudi">
+          <Text style={styles.backText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Zawadi ya Karibu</Text>
+        <View style={styles.back} />
+      </View>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {body}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: C.bg },
-  loadingWrap:  { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-  loadingText:  { marginTop: 12, fontSize: 14, color: C.textSec },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: SPACING.sm, paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  backText: { fontSize: 24, color: COLORS.textPrimary },
+  headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  scroll: { padding: SPACING.base, paddingBottom: SPACING['3xl'] },
+  center: { alignItems: 'center', paddingTop: SPACING['3xl'], paddingHorizontal: SPACING.lg },
+  bigEmoji: { fontSize: 54, marginBottom: SPACING.md },
+  heading: { fontSize: FONTS.xl, fontWeight: FONTS.extraBold, color: COLORS.textPrimary, textAlign: 'center' },
+  muted: { fontSize: FONTS.md, color: COLORS.textSecondary, textAlign: 'center', marginTop: SPACING.sm, lineHeight: 21 },
 
-  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.white, borderBottomWidth: 1, borderBottomColor: C.border },
-  backBtn:      { width: 36, height: 36, borderRadius: 18, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
-  backBtnText:  { fontSize: 20, color: C.text },
-  headerTitle:  { fontSize: 16, fontWeight: '700', color: C.text },
+  hero: {
+    backgroundColor: GOLD_FADE, borderRadius: RADIUS.xl, padding: SPACING.lg,
+    alignItems: 'center', borderWidth: 1, borderColor: '#FBE3A3',
+  },
+  heroGreen: { backgroundColor: COLORS.successLight, borderColor: '#B7ECD3' },
+  heroEmoji: { fontSize: 46 },
+  heroTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: '#8A5A00', marginTop: SPACING.sm, textAlign: 'center' },
+  heroAmount: { fontSize: FONTS['3xl'], fontWeight: FONTS.black, color: COLORS.primaryDark, marginTop: SPACING.xs, textAlign: 'center' },
+  heroNote: { fontSize: FONTS.md, color: '#8A5A00', marginTop: SPACING.sm, textAlign: 'center', lineHeight: 21 },
 
-  heroBanner:   { backgroundColor: C.navy, padding: 24, alignItems: 'center' },
-  heroEmoji:    { fontSize: 52, marginBottom: 10 },
-  heroTitle:    { fontSize: 22, fontWeight: '800', color: '#FFFFFF', textAlign: 'center', marginBottom: 8 },
-  heroSub:      { fontSize: 13, color: '#94A3B8', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-  heroStats:    { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: 16, alignItems: 'center' },
-  heroStatItem: { flex: 1, alignItems: 'center' },
-  heroStatValue:{ fontSize: 16, fontWeight: '800', color: C.orange },
-  heroStatLabel:{ fontSize: 10, color: '#94A3B8', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  heroStatDivider: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.15)' },
+  card: {
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.base,
+    marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+  },
+  line: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 5 },
+  lineIcon: { width: 28, fontSize: 16 },
+  lineText: { flex: 1, fontSize: FONTS.md, color: COLORS.textPrimary, lineHeight: 21 },
+  label: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: 6 },
+  input: {
+    borderWidth: 1, borderColor: COLORS.borderStrong, borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md, paddingVertical: 11, fontSize: FONTS.base, color: COLORS.textPrimary,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  hint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 6, lineHeight: 16 },
 
-  rulesCard:    { backgroundColor: C.greenL, margin: 16, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#BBF7D0' },
-  rulesTitle:   { fontSize: 14, fontWeight: '700', color: '#166534', marginBottom: 10 },
-  rulesList:    { gap: 6 },
-  rulesItem:    { fontSize: 13, color: '#166534', lineHeight: 20 },
+  giftGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: SPACING.md },
+  giftItem: {
+    width: '48%', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.sm,
+    marginBottom: SPACING.md, borderWidth: 2, borderColor: COLORS.border, ...SHADOWS.xs,
+  },
+  giftItemOn: { borderColor: COLORS.primary },
+  giftImg: { width: '100%', height: 110, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSunken },
+  giftImgEmpty: { alignItems: 'center', justifyContent: 'center' },
+  giftName: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, marginTop: 6 },
+  giftPrice: { fontSize: FONTS.sm, color: COLORS.textMuted, textDecorationLine: 'line-through', marginTop: 2 },
+  tick: {
+    position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12,
+    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
+  },
+  tickText: { color: '#fff', fontWeight: FONTS.bold },
 
-  sectionHeader:{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: C.text },
-  sectionSub:   { fontSize: 12, color: C.textSec, marginTop: 2 },
-
-  giftsGrid:    { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 12, marginTop: 8 },
-  giftCard:     { width: (width - 36) / 2, backgroundColor: C.white, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: C.border },
-  giftCardSelected: { borderColor: C.orange, shadowColor: C.orange, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  selectedCheck:{ position: 'absolute', top: 8, right: 8, zIndex: 10, width: 24, height: 24, borderRadius: 12, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' },
-  giftImageWrap:{ position: 'relative' },
-  giftImage:    { width: '100%', height: 130 },
-  giftImagePlaceholder: { backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
-  freePill:     { position: 'absolute', bottom: 8, left: 8, backgroundColor: C.green, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  freePillText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  giftInfo:     { padding: 10 },
-  giftName:     { fontSize: 12, fontWeight: '600', color: C.text, lineHeight: 16, marginBottom: 6 },
-  giftPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  giftOriginalPrice: { fontSize: 11, color: C.textMut, textDecorationLine: 'line-through' },
-  giftFreePrice:{ fontSize: 14, fontWeight: '800', color: C.green },
-  giftStock:    { fontSize: 10, color: C.textMut },
-
-  selectedSummary:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.orangeL, marginHorizontal: 16, marginTop: 16, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: `${C.orange}30` },
-  selectedSummaryLeft: { flex: 1 },
-  selectedSummaryLabel:{ fontSize: 11, color: C.orange, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  selectedSummaryName: { fontSize: 14, fontWeight: '700', color: C.text, marginTop: 2 },
-  selectedSummaryRight:{ alignItems: 'flex-end' },
-  selectedSummaryOriginal: { fontSize: 11, color: C.textMut, textDecorationLine: 'line-through' },
-  selectedSummaryFree: { fontSize: 18, fontWeight: '800', color: C.green },
-
-  claimBtn:         { backgroundColor: C.orange, marginHorizontal: 16, marginTop: 16, borderRadius: 14, paddingVertical: 16, alignItems: 'center', shadowColor: C.orange, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 },
-  claimBtnDisabled: { backgroundColor: C.textMut, shadowOpacity: 0 },
-  claimBtnText:     { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 0.3 },
-
-  antiAbuse:    { fontSize: 11, color: C.textMut, textAlign: 'center', marginHorizontal: 24, marginTop: 12, lineHeight: 16 },
-
-  // Claimed state
-  claimedBanner:       { backgroundColor: C.navy, padding: 32, alignItems: 'center' },
-  claimedEmoji:        { fontSize: 56, marginBottom: 12 },
-  claimedTitle:        { fontSize: 26, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
-  claimedSub:          { fontSize: 13, color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
-  claimedCard:         { backgroundColor: C.white, margin: 16, borderRadius: 16, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: C.border },
-  claimedImage:        { width: 160, height: 160, borderRadius: 12, marginBottom: 14 },
-  claimedImagePlaceholder: { backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
-  claimedName:         { fontSize: 18, fontWeight: '700', color: C.text, textAlign: 'center', marginBottom: 10 },
-  claimedPriceRow:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  claimedOriginalPrice:{ fontSize: 16, color: C.textMut, textDecorationLine: 'line-through' },
-  freeBadge:           { backgroundColor: C.green, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
-  freeBadgeText:       { color: '#fff', fontSize: 14, fontWeight: '800' },
-
-  howToUseCard:        { backgroundColor: C.white, marginHorizontal: 16, borderRadius: 14, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: C.border },
-  howToUseTitle:       { fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 14 },
-  howToUseStep:        { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
-  howToUseIcon:        { fontSize: 18, width: 28 },
-  howToUseText:        { fontSize: 13, color: C.textSec, flex: 1, lineHeight: 18 },
-
-  shopNowBtn:          { backgroundColor: C.orange, marginHorizontal: 16, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
-  shopNowBtnText:      { color: '#fff', fontSize: 15, fontWeight: '800' },
-
-  // Not eligible
-  notEligibleWrap:     { flex: 1, padding: 24, alignItems: 'center' },
-  notEligibleEmoji:    { fontSize: 56, marginBottom: 16, marginTop: 32 },
-  notEligibleTitle:    { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 8 },
-  notEligibleText:     { fontSize: 14, color: C.textSec, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  referralTip:         { backgroundColor: C.orangeL, borderRadius: 14, padding: 18, width: '100%', marginBottom: 24, borderWidth: 1, borderColor: `${C.orange}30` },
-  referralTipTitle:    { fontSize: 14, fontWeight: '700', color: C.orange, marginBottom: 8 },
-  referralTipText:     { fontSize: 13, color: C.text, lineHeight: 20 },
-
-  emptyGifts:          { alignItems: 'center', padding: 40 },
-  emptyGiftsEmoji:     { fontSize: 48, marginBottom: 12 },
-  emptyGiftsText:      { fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 4 },
-  emptyGiftsSub:       { fontSize: 13, color: C.textSec },
+  primaryBtn: {
+    backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 15,
+    alignItems: 'center', marginTop: SPACING.lg, minWidth: 200,
+  },
+  primaryBtnText: { color: '#fff', fontSize: FONTS.base, fontWeight: FONTS.bold },
+  secondaryBtn: {
+    borderRadius: RADIUS.full, paddingVertical: 14, alignItems: 'center', marginTop: SPACING.md,
+    borderWidth: 1.5, borderColor: COLORS.primary, minWidth: 200, paddingHorizontal: SPACING.lg,
+  },
+  secondaryBtnText: { color: COLORS.primary, fontSize: FONTS.base, fontWeight: FONTS.bold },
+  btnDisabled: { opacity: 0.55 },
 });
