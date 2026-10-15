@@ -532,30 +532,31 @@ export default function CheckoutScreen({ navigation, route }) {
       });
 
       if (result.id || result.order_number) {
-        // Only the items that were actually just purchased leave the cart —
-        // e.g. if the customer bought 2 of 5 selected items, the other 3
-        // (and anything they never selected at all) stay exactly as they
-        // were. A Buy Now purchase never touched the cart in the first
-        // place, so there's nothing to remove here for that case.
-        if (purchaseSource === 'cart') {
-          purchaseItems.forEach(item => {
-            if (item.product?.id) dispatch(removeFromCartAndSave(item.product.id));
-          });
-        }
+        // An order only exists once it is paid, so the cart is emptied when
+        // the payment goes through, not now: if the payment fails or the
+        // customer backs out, everything is still in the cart. Only the items
+        // that were actually just purchased leave the cart — e.g. if the
+        // customer bought 2 of 5 selected items, the other 3 (and anything
+        // they never selected at all) stay exactly as they were. A Buy Now
+        // purchase never touched the cart in the first place.
+        const cartProductIds = purchaseSource === 'cart'
+          ? purchaseItems.map(item => item.product?.id).filter(Boolean)
+          : [];
         if (result.discount_details?.coupon) clearPendingCoupon();
         // The amount to pay is the server's total (after any coupon / gift).
         const amountToPay = Number(result.total_amount ?? payTotal);
         if (result.payment_status === 'paid') {
           // Paid from the wallet, or fully covered by a discount: nothing left to pay.
+          cartProductIds.forEach(id => dispatch(removeFromCartAndSave(id)));
           navigation.replace('OrderDetail', { orderId: result.id });
           Alert.alert(
             'Order placed ✓',
             amountToPay <= 0 ? 'Your discount covered the whole order — nothing to pay.' : 'Paid from your VUMA wallet.'
           );
         } else if (paymentMethod === 'mobile_money') {
-          navigation.replace('MobileMoney', { orderId: result.id, orderNumber: result.order_number, amount: amountToPay });
+          navigation.replace('MobileMoney', { orderId: result.id, orderNumber: result.order_number, amount: amountToPay, cartProductIds });
         } else if (paymentMethod === 'bank_transfer') {
-          navigation.replace('BankTransfer', { orderId: result.id, orderNumber: result.order_number, amount: amountToPay });
+          navigation.replace('BankTransfer', { orderId: result.id, orderNumber: result.order_number, amount: amountToPay, cartProductIds });
         } else {
           navigation.replace('OrderDetail', { orderId: result.id });
         }

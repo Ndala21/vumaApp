@@ -13,6 +13,8 @@ import {
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import { post } from '../../api/client';
+import { useDispatch } from 'react-redux';
+import { removeFromCartAndSave } from '../../store/cartSlice';
 
 const BANKS = [
   { id: 'crdb', name: 'CRDB Bank', icon: '🏦', color: '#00563F' },
@@ -20,7 +22,8 @@ const BANKS = [
 ];
 
 export default function BankTransferScreen({ navigation, route }) {
-  const { orderId, amount, orderNumber } = route?.params || {};
+  const { orderId, amount, orderNumber, cartProductIds } = route?.params || {};
+  const dispatch = useDispatch();
 
   const [selectedBank, setSelectedBank] = useState(null);
   const [accountNumber, setAccountNumber] = useState('');
@@ -74,6 +77,8 @@ export default function BankTransferScreen({ navigation, route }) {
       });
 
       if (result.success) {
+        // The items bought with this order leave the cart only once it is paid.
+        (Array.isArray(cartProductIds) ? cartProductIds : []).forEach(id => dispatch(removeFromCartAndSave(id)));
         setStep('success');
         setTimeout(() => {
           navigation.navigate('OrderDetail', { orderId });

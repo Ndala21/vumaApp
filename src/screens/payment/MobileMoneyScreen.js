@@ -34,6 +34,8 @@ import {
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
+import { useDispatch } from 'react-redux';
+import { removeFromCartAndSave } from '../../store/cartSlice';
 
 // Provider ids to hide from checkout (e.g. ['mpesa']). Empty = all four
 // providers are shown. M-Pesa has been returning "Invalid Vendor"
@@ -115,7 +117,10 @@ function ProviderLogo({ provider, logoUrl }) {
 }
 
 export default function MobileMoneyScreen({ navigation, route }) {
-  const { orderId, amount, orderNumber } = route?.params || {};
+  const { orderId, amount, orderNumber, cartProductIds } = route?.params || {};
+  const dispatch = useDispatch();
+  // The items bought with this order leave the cart only once it is paid.
+  const paidCartIds = useRef(Array.isArray(cartProductIds) ? cartProductIds : []);
 
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [phone, setPhone] = useState('');
@@ -242,6 +247,8 @@ export default function MobileMoneyScreen({ navigation, route }) {
         if (cancelledRef.current) return;
 
         if (result.success && result.status === 'completed') {
+          paidCartIds.current.forEach(id => dispatch(removeFromCartAndSave(id)));
+          paidCartIds.current = [];
           setStep('success');
           return;
         }
@@ -267,7 +274,7 @@ export default function MobileMoneyScreen({ navigation, route }) {
         pollPaymentStatus(ref);
       }
     }, POLL_INTERVAL_MS);
-  }, [selectedProvider]);
+  }, [selectedProvider, dispatch]);
 
   const handleCancelProcessing = () => {
     cancelledRef.current = true;
