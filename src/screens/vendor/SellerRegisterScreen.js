@@ -10,6 +10,8 @@
  * place as a one-tap Landmark suggestion, keeps anything the seller
  * typed, and saves region, district, village and the address with the
  * application. Coordinates are saved too but never shown.
+ * Updated: the pin, Village/Mtaa/Street and Nearby Landmark are required, and the
+ * seller ticks "The pin is on my shop" (moving the pin takes the tick away).
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -172,6 +174,9 @@ export default function SellerRegisterScreen({ navigation }) {
   // The last values the map filled in for us, so a moved pin refreshes
   // those but never overwrites something the seller typed themselves.
   const autoFilled = useRef({ region: '', district: '', ward: '', village: '' });
+  // The seller must say the pin is on the shop (not at home). Moving the pin takes the tick away.
+  const [pinConfirmed, setPinConfirmed] = useState(false);
+  const lastPin = useRef('');
 
   // Real fix: never let a seller with a pending or approved application
   // re-submit a duplicate - check first and redirect straight to their
@@ -207,6 +212,9 @@ export default function SellerRegisterScreen({ navigation }) {
     suggestedRegion, suggestedDistrict, suggestedWard,
     rawRegionName, rawDistrictName,
   }) => {
+    const pinKey = `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
+    if (lastPin.current && lastPin.current !== pinKey) setPinConfirmed(false);
+    lastPin.current = pinKey;
     const prevAuto = autoFilled.current;
     const next = {
       region: suggestedRegion?.name || rawRegionName || '',
@@ -304,7 +312,23 @@ export default function SellerRegisterScreen({ navigation }) {
   const validateStep2 = () => {
     if (!form.shop_name.trim()) { Alert.alert('Required', 'Shop/business name is required.'); return false; }
     if (!form.business_category) { Alert.alert('Required', 'Please select a category.'); return false; }
+    if (!form.latitude || !form.longitude) {
+      Alert.alert('Place your pin', 'Search for your shop, tap the 🎯 button while you are at your shop, or move the map until the pin sits on your shop.');
+      return false;
+    }
+    if (!pinConfirmed) {
+      Alert.alert('Confirm your pin', 'Tick "The pin is on my shop" under the map.');
+      return false;
+    }
     if (!form.ward.trim()) { Alert.alert('Required', 'Ward/area is required.'); return false; }
+    if (!form.village.trim()) {
+      Alert.alert('Required', 'Village / Mtaa / Street is required. Type it if it is not filled in.');
+      return false;
+    }
+    if (!form.landmark.trim()) {
+      Alert.alert('Required', 'A nearby landmark is required, so couriers and customers can find your shop.');
+      return false;
+    }
     return true;
   };
 
@@ -593,7 +617,7 @@ export default function SellerRegisterScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>📍 Location</Text>
       <Text style={styles.fieldHint}>
-        Search, tap 🎯, or move the map so the pin sits on your shop. We fill in the address below for you to check.
+        Search, tap 🎯 while you are at your shop, or move the map so the pin sits exactly on your shop. We fill in the address below for you to check.
       </Text>
 
       <InlineLocationMap
@@ -601,6 +625,25 @@ export default function SellerRegisterScreen({ navigation }) {
         initialLongitude={form.longitude}
         onLocationChange={handleMapConfirm}
       />
+
+      <TouchableOpacity
+        style={styles.pinConfirmRow}
+        activeOpacity={0.8}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: pinConfirmed }}
+        onPress={() => {
+          if (!form.latitude || !form.longitude) {
+            Alert.alert('Place your pin first', 'Move the map or search until the pin sits on your shop, then tick this.');
+            return;
+          }
+          setPinConfirmed(v => !v);
+        }}
+      >
+        <View style={[styles.pinConfirmBox, pinConfirmed && styles.pinConfirmBoxOn]}>
+          {pinConfirmed && <Text style={styles.pinConfirmTick}>✓</Text>}
+        </View>
+        <Text style={styles.pinConfirmText}>The pin is on my shop</Text>
+      </TouchableOpacity>
 
       <Text style={styles.fieldLabel}>City *</Text>
       <TouchableOpacity style={styles.selector} onPress={() => setShowCityPicker(true)}>
@@ -620,14 +663,14 @@ export default function SellerRegisterScreen({ navigation }) {
       <TextInput style={styles.input} value={form.ward} onChangeText={v => setField('ward', v)}
         placeholder="e.g. Kinondoni, Kariakoo, Ilala" placeholderTextColor={COLORS.textLight} />
 
-      <Text style={styles.fieldLabel}>Village / Mtaa / Street <Text style={styles.optional}>(optional)</Text></Text>
+      <Text style={styles.fieldLabel}>Village / Mtaa / Street *</Text>
       <TextInput style={styles.input} value={form.village} onChangeText={v => setField('village', v)}
         placeholder="e.g. Mtaa wa Kariakoo, Kijiji cha..." placeholderTextColor={COLORS.textLight} />
       <Text style={styles.fieldHint}>
         Village and mtaa names are often missing on maps in Tanzania. If it isn't filled in, type yours.
       </Text>
 
-      <Text style={styles.fieldLabel}>Nearby Landmark <Text style={styles.optional}>(optional)</Text></Text>
+      <Text style={styles.fieldLabel}>Nearby Landmark *</Text>
       <TextInput style={styles.input} value={form.landmark} onChangeText={v => setField('landmark', v)}
         placeholder="e.g. Near Kariakoo Market, Next to CRDB" placeholderTextColor={COLORS.textLight} />
       {!!landmarkSuggestion && !form.landmark.trim() && (
@@ -933,6 +976,11 @@ const styles = StyleSheet.create({
   selectorPlaceholder: { fontSize: FONTS.base, color: COLORS.textLight },
   suggestChip: { alignSelf: 'flex-start', maxWidth: '100%', backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm + 2, paddingVertical: 6, marginBottom: SPACING.xs },
   suggestChipText: { fontSize: FONTS.xs, color: COLORS.primaryDark, fontWeight: FONTS.semiBold },
+  pinConfirmRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, marginBottom: SPACING.xs },
+  pinConfirmBox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+  pinConfirmBoxOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  pinConfirmTick: { color: 'white', fontSize: 16, fontWeight: FONTS.bold, lineHeight: 18 },
+  pinConfirmText: { fontSize: FONTS.base, color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
   idTypeRow: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: SPACING.sm },
   idTypeChip: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surface },
   idTypeChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
