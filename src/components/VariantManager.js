@@ -19,6 +19,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
+import { ColorPicker, MaterialPicker } from './OptionPickers';
 
 const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 const SHOE_SIZES_EU  = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46'];
@@ -69,6 +70,8 @@ export default function VariantManager({ categoryName, variants = [], onChange }
   const [modelName, setModelName] = useState('');
   const [weightVolume, setWeightVolume] = useState('');
   const [stock, setStock] = useState('');
+  // Bumped after each added option so the colour / material pickers start fresh.
+  const [pickerKey, setPickerKey] = useState(0);
 
   if (!variantType) return null;
 
@@ -76,6 +79,7 @@ export default function VariantManager({ categoryName, variants = [], onChange }
     setSize(''); setColor(''); setMaterial('');
     setStorage(''); setRam(''); setModelName('');
     setWeightVolume(''); setStock('');
+    setPickerKey((k) => k + 1);
   };
 
   const buildDraft = () => {
@@ -144,15 +148,9 @@ export default function VariantManager({ categoryName, variants = [], onChange }
             placeholder="Or type a custom size" placeholderTextColor={COLORS.textLight}
           />
           <Text style={styles.fieldLabel}>Color</Text>
-          <TextInput
-            style={styles.input} value={color} onChangeText={setColor}
-            placeholder="e.g. Red, Navy Blue" placeholderTextColor={COLORS.textLight}
-          />
+          <ColorPicker key={`c${pickerKey}`} value={color} onChange={setColor} />
           <Text style={styles.fieldLabel}>Material</Text>
-          <TextInput
-            style={styles.input} value={material} onChangeText={setMaterial}
-            placeholder="e.g. Cotton, Polyester" placeholderTextColor={COLORS.textLight}
-          />
+          <MaterialPicker key={`m${pickerKey}`} value={material} onChange={setMaterial} />
         </>
       )}
 
@@ -173,10 +171,7 @@ export default function VariantManager({ categoryName, variants = [], onChange }
           <Text style={styles.fieldLabel}>Shoe Size *</Text>
           <ChipRow options={SHOE_SIZES_EU} value={size} onSelect={setSize} />
           <Text style={styles.fieldLabel}>Color</Text>
-          <TextInput
-            style={styles.input} value={color} onChangeText={setColor}
-            placeholder="e.g. Black, White" placeholderTextColor={COLORS.textLight}
-          />
+          <ColorPicker key={`c${pickerKey}`} value={color} onChange={setColor} />
         </>
       )}
 
@@ -192,10 +187,7 @@ export default function VariantManager({ categoryName, variants = [], onChange }
           <Text style={styles.fieldLabel}>RAM</Text>
           <ChipRow options={RAM_OPTIONS} value={ram} onSelect={setRam} />
           <Text style={styles.fieldLabel}>Color</Text>
-          <TextInput
-            style={styles.input} value={color} onChangeText={setColor}
-            placeholder="e.g. Space Gray" placeholderTextColor={COLORS.textLight}
-          />
+          <ColorPicker key={`c${pickerKey}`} value={color} onChange={setColor} />
           <Text style={styles.fieldLabel}>Model <Text style={styles.optional}>(optional)</Text></Text>
           <TextInput
             style={styles.input} value={modelName} onChangeText={setModelName}
