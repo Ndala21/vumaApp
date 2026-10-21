@@ -560,7 +560,7 @@ export default function VendorOrders({ navigation, route }) {
   const hasMore = useSelector(selectVendorOrdersHasMore);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('');
+  const [activeTab, setActiveTab] = useState(route && route.params && route.params.status ? route.params.status : '');
   const [page, setPage] = useState(1);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -670,6 +670,18 @@ export default function VendorOrders({ navigation, route }) {
   // Opened from an email or link (vuma://seller/orders/<id>):
   // show that order straight away.
   const deepOrderId = route && route.params ? route.params.orderId : null;
+
+  // Opened from the seller home screen: 'pending' shows the New tab, '' shows All.
+  const paramStatus = route && route.params ? route.params.status : undefined;
+  useEffect(() => {
+    if (paramStatus === undefined) return;
+    setActiveTab(paramStatus || '');
+    setPage(1);
+    if (navigation && navigation.setParams) {
+      navigation.setParams({ status: undefined });
+    }
+  }, [paramStatus]);
+
   useEffect(() => {
     if (!deepOrderId) return;
     openDetails({ id: deepOrderId });

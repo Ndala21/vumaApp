@@ -1,17 +1,19 @@
 /**
- * VUMA Store — Seller Dashboard (Duka Langu)
- * Rebuilt to match the reference design closely: orange earnings card,
- * 4-stage Orders Overview (New/Preparing/On the way/Delivered), My
- * Products + Customers summary row, Quick Actions, and a grouped Menu
- * (Your Store / Money / Delivery / Communication / Store / Help)
- * replacing the earlier flat drawer.
+ * VUMA Store — Seller Home (Duka Langu)
+ *
+ * Built so a seller who is not used to apps can find the important things at once:
+ *   1. money they can withdraw, with one big "Withdraw money" button
+ *   2. a banner when new orders are waiting
+ *   3. big picture-and-word buttons: Add product, My products, Orders,
+ *      Money, Promote, Messages and help
+ *   4. the order stages at a glance
+ * Text is Kiswahili or English, with a language switch on the screen itself.
  *
  * This screen does NOT render its own bottom tab bar — VendorNavigator
- * (Home/Orders/Products/Earnings/Store) already wraps it; adding a
- * second tab bar here would duplicate navigation.
+ * already wraps it.
  *
- * All data below comes from real backend fields — see
- * apps/vendors/views.py `dashboard()`. Nothing here is fabricated.
+ * All numbers come from real backend fields — see
+ * apps/vendors/views.py `dashboard()`. Nothing here is made up.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -20,86 +22,71 @@ import {
   StyleSheet, StatusBar, Platform, RefreshControl, Alert, Modal, Linking,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { selectUser, logout } from '../../store/authSlice';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, VENDOR_STATUS } from '../../utils/constants';
-import { formatPrice, formatNumber, getErrorMessage } from '../../utils/helpers';
-import { t, i18n } from '../../i18n';
+import { selectUser, logout, updateProfile } from '../../store/authSlice';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { getErrorMessage } from '../../utils/helpers';
+import { storage } from '../../utils/storage';
+import { i18n, useTranslation, notifyLanguageChange } from '../../i18n';
 import { vendorsAPI } from '../../api/vendors';
+import { tsh } from '../../utils/payouts';
+import {
+  hx, homeLang, greetingKey, newOrdersLine, productsLine, ordersLine, moneyVisible, badgeText,
+} from '../../utils/sellerHome';
 import Loading from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
 
-const MENU_SECTIONS = [
+// ── Menu (opens from the "Menu" button) ───────────────────────────────────────
+// Only things that really open somewhere. (The old "Coming soon" lines are gone.)
+const menuSections = (lang) => [
   {
-    heading: 'YOUR STORE',
+    heading: hx(lang, 'menuShop'),
     items: [
-      { key: 'home', label: 'Home', icon: '🏠', active: true },
-      { key: 'products', label: 'Products', icon: '🛍️', screen: 'VendorProducts' },
-      { key: 'orders', label: 'Orders', icon: '🧾', screen: 'VendorOrders' },
-      { key: 'customers', label: 'Customers', icon: '👥', screen: null },
+      { key: 'home', label: hx(lang, 'menuHome'), icon: '🏠', active: true },
+      { key: 'products', label: hx(lang, 'menuProducts'), icon: '📦', screen: 'VendorProducts' },
+      { key: 'orders', label: hx(lang, 'menuOrders'), icon: '🧾', screen: 'VendorOrders', params: { status: '' } },
     ],
   },
   {
-    heading: 'MONEY',
+    heading: hx(lang, 'menuMoney'),
     items: [
-      { key: 'earnings', label: 'Earnings & Payments', icon: '💳', screen: 'SellerWallet' },
-      { key: 'promote_products', label: 'Promote Products', icon: '??', screen: 'PromoteProducts' },
-      { key: 'sales', label: 'Sales', icon: '📊', screen: null },
+      { key: 'earnings', label: hx(lang, 'menuEarnings'), icon: '💰', screen: 'SellerWallet', money: true },
+      { key: 'promote', label: hx(lang, 'menuPromote'), icon: '📣', screen: 'PromoteProducts' },
     ],
   },
   {
-    heading: 'DELIVERY',
+    heading: hx(lang, 'menuHelp'),
     items: [
-      { key: 'delivery', label: 'Delivery & Pickup', icon: '🚚', screen: null },
-    ],
-  },
-  {
-    heading: 'COMMUNICATION',
-    items: [
-      { key: 'messages', label: 'Messages', icon: '💬', screen: 'Chat' },
-    ],
-  },
-  {
-    heading: 'STORE',
-    items: [
-      { key: 'store_profile', label: 'Store Profile', icon: '🏪', screen: null },
-      { key: 'store_settings', label: 'Store Settings', icon: '⚙️', screen: 'Settings' },
-    ],
-  },
-  {
-    heading: 'HELP',
-    items: [
-      { key: 'help', label: 'Help & Support', icon: '❓', screen: 'Chat' },
+      { key: 'messages', label: hx(lang, 'menuMessages'), icon: '💬', screen: 'Chat' },
+      { key: 'settings', label: hx(lang, 'menuSettings'), icon: '⚙️', screen: 'Settings' },
     ],
   },
 ];
 
-const SellerMenu = ({ visible, onClose, navigation, shopName, onLogout }) => (
+const SellerMenu = ({ visible, onClose, navigation, shopName, onLogout, lang, showMoney }) => (
   <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
     <View style={styles.menuContainer}>
       <View style={styles.menuHeader}>
         <View style={styles.menuAvatar}>
           <Text style={styles.menuAvatarText}>{(shopName || 'V')[0].toUpperCase()}</Text>
         </View>
-        <Text style={styles.menuShopName} numberOfLines={1}>{(shopName || 'My Store').toUpperCase()}</Text>
-        <TouchableOpacity onPress={onClose} style={styles.menuCloseBtn}>
+        <Text style={styles.menuShopName} numberOfLines={1}>{shopName || 'My Store'}</Text>
+        <TouchableOpacity onPress={onClose} style={styles.menuCloseBtn} accessibilityRole="button">
           <Text style={styles.menuCloseIcon}>✕</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-        {MENU_SECTIONS.map(section => (
+        {menuSections(lang).map((section) => (
           <View key={section.heading} style={styles.menuSection}>
             <Text style={styles.menuSectionHeading}>{section.heading}</Text>
-            {section.items.map(item => (
+            {section.items.filter((item) => showMoney || !item.money).map((item) => (
               <TouchableOpacity
                 key={item.key}
                 style={[styles.menuItem, item.active && styles.menuItemActive]}
                 activeOpacity={0.7}
                 onPress={() => {
-                  if (item.key === 'home') { onClose(); return; }
                   onClose();
-                  if (item.screen) navigation.navigate(item.screen);
-                  else Alert.alert(item.label, 'Coming soon.');
+                  if (item.screen) navigation.navigate(item.screen, item.params);
                 }}
               >
                 <Text style={styles.menuItemIcon}>{item.icon}</Text>
@@ -112,7 +99,7 @@ const SellerMenu = ({ visible, onClose, navigation, shopName, onLogout }) => (
         <View style={styles.menuDivider} />
         <TouchableOpacity style={styles.menuLogout} onPress={() => { onClose(); onLogout(); }} activeOpacity={0.7}>
           <Text style={styles.menuLogoutIcon}>↪</Text>
-          <Text style={styles.menuLogoutLabel}>Log out</Text>
+          <Text style={styles.menuLogoutLabel}>{hx(lang, 'logout')}</Text>
         </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -120,48 +107,51 @@ const SellerMenu = ({ visible, onClose, navigation, shopName, onLogout }) => (
   </Modal>
 );
 
-const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-};
+// ── Small pieces ──────────────────────────────────────────────────────────────
 
-// ------------------------------------------------------------
-// Promote Products card (Seller Dashboard). Opens the existing
-// PromoteProducts screen - same one the menu item uses.
-// ------------------------------------------------------------
-const promoIsSwahili = () => {
-  try {
-    const loc = typeof i18n.getLocale === 'function' ? i18n.getLocale() : i18n.locale;
-    return String(loc || '').toLowerCase().startsWith('sw');
-  } catch (e) {
-    return false;
-  }
-};
-const PL = (en, sw) => (promoIsSwahili() ? sw : en);
+const LangSwitch = ({ lang, onChange }) => (
+  <View style={styles.langWrap}>
+    {[['sw', 'Kiswahili'], ['en', 'English']].map(([code, label]) => (
+      <TouchableOpacity
+        key={code}
+        onPress={() => onChange(code)}
+        style={[styles.langBtn, lang === code && styles.langBtnOn]}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityState={{ selected: lang === code }}
+      >
+        <Text style={[styles.langText, lang === code && styles.langTextOn]}>{label}</Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+);
 
-const promoStyles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.primaryFade,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    padding: SPACING.base + 2,
-    marginBottom: SPACING.xl,
-  },
-  title: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: 4 },
-  body: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 19, marginBottom: SPACING.base },
-  btn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.sm + 2,
-    alignItems: 'center',
-  },
-  btnText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.bold },
-});
+const Tile = ({ icon, title, sub, onPress, primary, badge }) => (
+  <TouchableOpacity
+    style={[styles.tile, primary && styles.tilePrimary]}
+    onPress={onPress}
+    activeOpacity={0.85}
+    accessibilityRole="button"
+    accessibilityLabel={title}
+  >
+    <View style={[styles.tileIcon, primary && styles.tileIconPrimary]}>
+      <Text style={styles.tileEmoji}>{icon}</Text>
+    </View>
+    <Text style={[styles.tileTitle, primary && styles.tileTitlePrimary]} numberOfLines={2}>{title}</Text>
+    {!!sub && <Text style={[styles.tileSub, primary && styles.tileSubPrimary]} numberOfLines={2}>{sub}</Text>}
+    {!!badge && (
+      <View style={styles.tileBadge}>
+        <Text style={styles.tileBadgeText}>{badge}</Text>
+      </View>
+    )}
+  </TouchableOpacity>
+);
 
 export default function VendorDashboard({ navigation }) {
+  useTranslation(); // re-draw when the language changes
+  const lang = homeLang(i18n.getLocale());
+  const T = (key, vars) => hx(lang, key, vars);
+
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
   const [dashboard, setDashboard] = useState(null);
@@ -170,34 +160,56 @@ export default function VendorDashboard({ navigation }) {
   const [error, setError] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const scrollRef = useRef(null);
 
-  const loadDashboard = useCallback(async () => {
+  const lastLoad = useRef(0);
+
+  // silent = a background refresh: if it fails, keep showing what is already on the screen.
+  const loadDashboard = useCallback(async (silent) => {
+    lastLoad.current = Date.now();
     try {
-      setError(null);
+      if (!silent) setError(null);
       const data = await vendorsAPI.getDashboard();
       setDashboard(data);
     } catch (e) {
-      setError(getErrorMessage(e));
+      if (!silent) setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadDashboard(); }, []);
+  useEffect(() => { loadDashboard(false); }, []);
+
+  // Come back to this screen (for example after withdrawing) -> show fresh numbers.
+  useEffect(() => {
+    if (!navigation || typeof navigation.addListener !== 'function') return undefined;
+    return navigation.addListener('focus', () => {
+      if (Date.now() - lastLoad.current > 5000) loadDashboard(true);
+    });
+  }, [navigation, loadDashboard]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadDashboard();
+    await loadDashboard(false);
     setRefreshing(false);
   }, [loadDashboard]);
 
-  // Withdrawing happens on the Wallet screen (the old prompt only worked on iPhone).
-  const handleRequestPayout = () => navigation.navigate('SellerWallet');
+  const changeLanguage = async (code) => {
+    try {
+      i18n.setLocale(code);
+      await storage.setLanguage(code);
+      notifyLanguageChange();
+      try { dispatch(updateProfile({ language: code })); } catch (e) { /* the screen already changed */ }
+    } catch (e) { /* keep the screen as it is */ }
+  };
+
+  const goWallet = () => navigation.navigate('SellerWallet');
+  const goAddProduct = () => navigation.navigate('VendorProducts', { action: 'add' });
+  const goProducts = () => navigation.navigate('VendorProducts');
+  const goOrders = (status) => navigation.navigate('VendorOrders', { status: status || '' });
 
   const handleOpenSellerCenter = () => {
     Linking.openURL('https://vumastore.store/seller/').catch(() => {
-      Alert.alert('Could not open Seller Center', 'Please try again or visit vumastore.store/seller in your browser.');
+      Alert.alert(T('sellerCenterFailTitle'), T('sellerCenterFail'));
     });
   };
 
@@ -206,21 +218,23 @@ export default function VendorDashboard({ navigation }) {
     try {
       await dispatch(logout());
     } catch {
-      Alert.alert('Error', 'Could not log out. Please try again.');
+      Alert.alert(T('error'), T('logoutFail'));
     }
   };
 
   if (loading) return <Loading fullScreen />;
-  if (error) return <FullScreenError error={error} onRetry={loadDashboard} />;
+  if (error) return <FullScreenError error={error} onRetry={() => loadDashboard(false)} />;
 
   const shopName = dashboard?.shop_name || user?.shop_name || 'My Store';
   const counts = dashboard?.order_status_counts || {};
+  const newOrders = Number(counts.new) || 0;
+  const showMoney = moneyVisible(dashboard);
 
-  const ORDER_STAGES = [
-    { key: 'new', icon: '🛍️', label: 'New orders', color: COLORS.primary },
-    { key: 'preparing', icon: '📦', label: 'Preparing', color: COLORS.primary },
-    { key: 'on_the_way', icon: '🚚', label: 'On the way', color: COLORS.primary },
-    { key: 'delivered', icon: '✅', label: 'Delivered', color: COLORS.success },
+  const STAGES = [
+    { key: 'new', icon: '🛍️', label: T('stageNew'), status: 'pending', hot: true },
+    { key: 'preparing', icon: '📦', label: T('stagePreparing') },
+    { key: 'on_the_way', icon: '🚚', label: T('stageOnTheWay') },
+    { key: 'delivered', icon: '✅', label: T('stageDelivered') },
   ];
 
   return (
@@ -231,178 +245,119 @@ export default function VendorDashboard({ navigation }) {
       <View style={styles.header}>
         <Text style={styles.headerLogo}>VUMA</Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIconBtn}>
+          <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIconBtn} accessibilityRole="button">
             <Text style={styles.headerBell}>🔔</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMenu(true)} activeOpacity={0.8}>
-            <View style={styles.headerAvatar}>
-              <Text style={styles.headerAvatarText}>{shopName[0].toUpperCase()}</Text>
-            </View>
+          <TouchableOpacity onPress={() => setShowMenu(true)} activeOpacity={0.8} style={styles.menuBtn} accessibilityRole="button" accessibilityLabel={T('menu')}>
+            <Text style={styles.menuBtnIcon}>☰</Text>
+            <Text style={styles.menuBtnText}>{T('menu')}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView
-        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} />}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Greeting */}
+        {/* Greeting + language */}
         <View style={styles.greetingRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.greetingText}>{getGreeting()}, 👋</Text>
-            <Text style={styles.shopNameText}>{shopName}</Text>
-            <Text style={styles.greetingSub}>Here's how your store is doing today.</Text>
+          <View style={{ flex: 1, paddingRight: SPACING.sm }}>
+            <Text style={styles.greetingText}>{T(greetingKey(new Date().getHours()))} 👋</Text>
+            <Text style={styles.shopNameText} numberOfLines={2}>{shopName}</Text>
+            {dashboard?.is_approved && (
+              <View style={styles.approvedPill}>
+                <Text style={styles.approvedPillText}>{T('approved')}</Text>
+              </View>
+            )}
           </View>
-          {dashboard?.is_approved && (
-            <View style={styles.approvedPill}>
-              <Text style={styles.approvedPillText}>Approved ✓</Text>
-            </View>
-          )}
+          <LangSwitch lang={lang} onChange={changeLanguage} />
         </View>
 
-        {/* Earnings */}
-        <View style={styles.earningsCard}>
-          <View style={styles.earningsTopRow}>
-            <Text style={styles.earningsLabel}>Your earnings</Text>
-            <Text style={styles.earningsViewLink}>View earnings →</Text>
-          </View>
-          <Text style={styles.earningsAmount}>{formatPrice(dashboard?.total_earnings || 0)}</Text>
-          <View style={styles.earningsSplitRow}>
-            <View style={styles.earningsSplitItem}>
-              <Text style={styles.earningsSplitLabel}>Available</Text>
-              <Text style={styles.earningsSplitValue}>{formatPrice(dashboard?.available_balance || 0)}</Text>
-            </View>
-            <View style={styles.earningsSplitItem}>
-              <Text style={styles.earningsSplitLabel}>Pending</Text>
-              <Text style={styles.earningsSplitValue}>{formatPrice(dashboard?.pending_balance || 0)}</Text>
-            </View>
-          </View>
-          {(dashboard?.available_balance || 0) > 0 && (
-            <TouchableOpacity style={styles.payoutBtn} onPress={handleRequestPayout} activeOpacity={0.85}>
-              <Text style={styles.payoutBtnText}>{t('vendor.requestPayout')}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Seller Center — permanent for approved sellers only */}
-        {dashboard?.is_approved && (
-          <TouchableOpacity style={styles.sellerCenterCard} onPress={handleOpenSellerCenter} activeOpacity={0.85}>
-            <View style={styles.sellerCenterIcon}>
-              <Text style={styles.sellerCenterEmoji}>🖥️</Text>
+        {/* New orders waiting */}
+        {newOrders > 0 && (
+          <TouchableOpacity style={styles.alertCard} onPress={() => goOrders('pending')} activeOpacity={0.85} accessibilityRole="button">
+            <View style={styles.alertIcon}>
+              <Text style={styles.alertEmoji}>🔔</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.sellerCenterTitle}>VUMA Seller Center</Text>
-              <Text style={styles.sellerCenterSub}>Manage your store from a desktop — same login</Text>
+              <Text style={styles.alertTitle}>{newOrdersLine(lang, newOrders)}</Text>
+              <Text style={styles.alertSub}>{T('tapToOpen')}</Text>
             </View>
-            <Text style={styles.sellerCenterArrow}>→</Text>
+            <Text style={styles.alertArrow}>›</Text>
           </TouchableOpacity>
         )}
 
-        {/* Promote Products - visible shortcut to the existing promotion feature */}
-        <TouchableOpacity
-          style={promoStyles.card}
-          activeOpacity={0.9}
-          accessibilityRole="button"
-          accessibilityLabel={PL('Promote Products', 'Tangaza Bidhaa')}
-          onPress={() => navigation.navigate('PromoteProducts')}
-        >
-          <Text style={promoStyles.title}>{PL('🚀 Promote Your Products', '🚀 Tangaza Bidhaa Zako')}</Text>
-          <Text style={promoStyles.body}>
-            {PL('Reach more customers, increase visibility, and grow your sales on VUMA.',
-              'Fikia wateja zaidi, ongeza mwonekano wa bidhaa zako na kuza mauzo yako kwenye VUMA.')}
-          </Text>
-          <View style={promoStyles.btn}>
-            <Text style={promoStyles.btnText}>{PL('Promote Products →', 'Tangaza Bidhaa →')}</Text>
-          </View>
-        </TouchableOpacity>
+        {/* Money */}
+        {showMoney && (
+          <TouchableOpacity style={styles.moneyCard} onPress={goWallet} activeOpacity={0.92} accessibilityRole="button" accessibilityLabel={T('withdrawBtn')}>
+            <Text style={styles.moneyLabel}>{T('moneyLabel')}</Text>
+            <Text style={styles.moneyAmount} numberOfLines={1} adjustsFontSizeToFit>{tsh(dashboard.available_balance)}</Text>
+            <View style={styles.moneySplitRow}>
+              <View style={styles.moneySplitItem}>
+                <Text style={styles.moneySplitLabel}>{T('onHold')}</Text>
+                <Text style={styles.moneySplitValue} numberOfLines={1} adjustsFontSizeToFit>{tsh(dashboard.pending_balance)}</Text>
+              </View>
+              <View style={styles.moneySplitItem}>
+                <Text style={styles.moneySplitLabel}>{T('totalEarned')}</Text>
+                <Text style={styles.moneySplitValue} numberOfLines={1} adjustsFontSizeToFit>{tsh(dashboard.total_earnings)}</Text>
+              </View>
+            </View>
+            <View style={styles.moneyBtn}>
+              <Text style={styles.moneyBtnIcon}>💸</Text>
+              <Text style={styles.moneyBtnText}>{T('withdrawBtn')}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
-        {/* Orders Overview */}
+        {/* Big buttons */}
+        <Text style={styles.sectionTitle}>{T('whatToDo')}</Text>
+        <View style={styles.tileGrid}>
+          <Tile primary icon="➕" title={T('addProduct')} sub={T('addProductSub')} onPress={goAddProduct} />
+          <Tile icon="📦" title={T('products')} sub={productsLine(lang, dashboard?.total_products)} onPress={goProducts} />
+          <Tile icon="🧾" title={T('orders')} sub={ordersLine(lang, newOrders)} badge={badgeText(newOrders)} onPress={() => goOrders('')} />
+          {showMoney && <Tile icon="💰" title={T('money')} sub={T('moneySub')} onPress={goWallet} />}
+          <Tile icon="📣" title={T('promote')} sub={T('promoteSub')} onPress={() => navigation.navigate('PromoteProducts')} />
+          <Tile icon="💬" title={T('messages')} sub={T('messagesSub')} onPress={() => navigation.navigate('Chat')} />
+        </View>
+
+        {/* Orders at a glance */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Orders overview</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('VendorOrders')}>
-            <Text style={styles.sectionLink}>View all orders →</Text>
+          <Text style={styles.sectionTitleInline}>{T('yourOrders')}</Text>
+          <TouchableOpacity onPress={() => goOrders('')} accessibilityRole="button">
+            <Text style={styles.sectionLink}>{T('seeAll')} ›</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.ordersGrid}>
-          {ORDER_STAGES.map(stage => (
+        <View style={styles.stageRow}>
+          {STAGES.map((stage) => (
             <TouchableOpacity
               key={stage.key}
-              style={styles.orderStageCard}
-              onPress={() => navigation.navigate('VendorOrders')}
-              activeOpacity={0.75}
+              style={[styles.stageCell, stage.hot && newOrders > 0 && styles.stageCellHot]}
+              onPress={() => goOrders(stage.status)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`${stage.label}: ${Number(counts[stage.key]) || 0}`}
             >
-              <Text style={styles.orderStageIcon}>{stage.icon}</Text>
-              <Text style={styles.orderStageLabel}>{stage.label}</Text>
-              <Text style={[styles.orderStageCount, { color: stage.color }]}>{counts[stage.key] || 0}</Text>
+              <Text style={styles.stageIcon}>{stage.icon}</Text>
+              <Text style={[styles.stageCount, stage.key === 'delivered' && { color: COLORS.success }]}>{Number(counts[stage.key]) || 0}</Text>
+              <Text style={styles.stageLabel} numberOfLines={1} adjustsFontSizeToFit>{stage.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Products + Customers */}
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryIcon}>📦</Text>
-            <Text style={styles.summaryTitle}>My products</Text>
-            <Text style={styles.summaryCount}>{formatNumber(dashboard?.total_products || 0)}</Text>
-            <Text style={styles.summarySub}>products</Text>
-            <View style={styles.summaryLinks}>
-              <TouchableOpacity onPress={() => navigation.navigate('VendorProducts', { action: 'add' })}>
-                <Text style={styles.summaryLinkAdd}>+ Add product</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate('VendorProducts')}>
-                <Text style={styles.summaryLinkView}>Manage products →</Text>
-              </TouchableOpacity>
+        {/* Seller Center — for approved sellers only */}
+        {dashboard?.is_approved && (
+          <TouchableOpacity style={styles.centerCard} onPress={handleOpenSellerCenter} activeOpacity={0.85} accessibilityRole="button">
+            <View style={styles.centerIcon}>
+              <Text style={styles.centerEmoji}>🖥️</Text>
             </View>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryIcon}>👥</Text>
-            <Text style={styles.summaryTitle}>Customers</Text>
-            <Text style={styles.summaryCount}>{formatNumber(dashboard?.total_customers || 0)}</Text>
-            <Text style={styles.summarySub}>customers</Text>
-            <TouchableOpacity onPress={() => Alert.alert('Customers', 'Coming soon.')}>
-              <Text style={styles.summaryLinkView}>View customers →</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Quick Actions */}
-        <Text style={styles.sectionTitle}>Quick actions</Text>
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate('VendorProducts', { action: 'add' })}
-            activeOpacity={0.8}
-          >
-            <View style={styles.quickActionIconSolid}>
-              <Text style={styles.quickActionEmojiSolid}>➕</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.centerTitle}>{T('sellerCenter')}</Text>
+              <Text style={styles.centerSub}>{T('sellerCenterSub')}</Text>
             </View>
-            <Text style={styles.quickActionLabel}>Add Product</Text>
+            <Text style={styles.centerArrow}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation.navigate('VendorOrders')} activeOpacity={0.8}>
-            <View style={styles.quickActionIcon}>
-              <Text style={styles.quickActionEmoji}>🛍️</Text>
-            </View>
-            <Text style={styles.quickActionLabel}>Orders</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
-            activeOpacity={0.8}
-          >
-            <View style={styles.quickActionIcon}>
-              <Text style={styles.quickActionEmoji}>💳</Text>
-            </View>
-            <Text style={styles.quickActionLabel}>Earnings</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation.navigate('Chat')} activeOpacity={0.8}>
-            <View style={styles.quickActionIcon}>
-              <Text style={styles.quickActionEmoji}>💬</Text>
-            </View>
-            <Text style={styles.quickActionLabel}>Messages</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -413,6 +368,8 @@ export default function VendorDashboard({ navigation }) {
         navigation={navigation}
         shopName={shopName}
         onLogout={() => setShowLogoutModal(true)}
+        lang={lang}
+        showMoney={showMoney}
       />
 
       {/* Logout confirm */}
@@ -420,13 +377,13 @@ export default function VendorDashboard({ navigation }) {
         <View style={styles.logoutOverlay}>
           <View style={styles.logoutCard}>
             <Text style={styles.logoutIcon}>👋</Text>
-            <Text style={styles.logoutTitle}>Log out?</Text>
-            <Text style={styles.logoutText}>You will be signed out of your seller account.</Text>
+            <Text style={styles.logoutTitle}>{T('logoutAsk')}</Text>
+            <Text style={styles.logoutText}>{T('logoutText')}</Text>
             <TouchableOpacity style={styles.logoutConfirmBtn} onPress={handleLogout}>
-              <Text style={styles.logoutConfirmText}>Yes, Log out</Text>
+              <Text style={styles.logoutConfirmText}>{T('logoutYes')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.logoutCancelBtn} onPress={() => setShowLogoutModal(false)}>
-              <Text style={styles.logoutCancelText}>Cancel</Text>
+              <Text style={styles.logoutCancelText}>{T('cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -445,89 +402,118 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.sm,
   },
   headerLogo: { fontSize: 24, fontWeight: '900', color: COLORS.primary, letterSpacing: -0.5 },
-  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: SPACING.base },
-  headerIconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  headerBell: { fontSize: 19 },
-  headerAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  headerAvatarText: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: 'white' },
+  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  headerIconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerBell: { fontSize: 21 },
+  menuBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, height: 40,
+    paddingHorizontal: SPACING.md, borderRadius: RADIUS.full,
+    borderWidth: 1.5, borderColor: COLORS.primary, backgroundColor: COLORS.primaryFade,
+  },
+  menuBtnIcon: { fontSize: 17, color: COLORS.primaryDark, fontWeight: FONTS.bold },
+  menuBtnText: { fontSize: FONTS.md, color: COLORS.primaryDark, fontWeight: FONTS.bold },
 
   greetingRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: SPACING.sm, marginBottom: SPACING.base },
-  greetingText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
+  greetingText: { fontSize: FONTS.md, color: COLORS.textSecondary },
   shopNameText: { fontSize: 22, fontWeight: FONTS.black, color: COLORS.textPrimary, marginTop: 2 },
-  greetingSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  approvedPill: { backgroundColor: COLORS.successLight, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm, paddingVertical: 4 },
-  approvedPillText: { fontSize: 10.5, fontWeight: FONTS.bold, color: COLORS.successText },
+  approvedPill: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: COLORS.successLight, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm + 2, paddingVertical: 3 },
+  approvedPillText: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.successText },
 
-  earningsCard: { backgroundColor: COLORS.primary, borderRadius: 18, padding: SPACING.base + 2, marginBottom: SPACING.xl, ...SHADOWS.primary },
-  earningsTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  earningsLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.85)', fontWeight: FONTS.medium },
-  earningsViewLink: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.9)', fontWeight: FONTS.semiBold },
-  earningsAmount: { fontSize: 34, fontWeight: FONTS.black, color: 'white', letterSpacing: -0.5, marginBottom: SPACING.base },
-  earningsSplitRow: { flexDirection: 'row', gap: SPACING.xl, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.25)', paddingTop: SPACING.sm },
-  earningsSplitItem: {},
-  earningsSplitLabel: { fontSize: 10.5, color: 'rgba(255,255,255,0.75)', marginBottom: 2 },
-  earningsSplitValue: { fontSize: FONTS.base, color: 'white', fontWeight: FONTS.bold },
-  payoutBtn: { marginTop: SPACING.base, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: RADIUS.full, paddingVertical: SPACING.sm, alignItems: 'center' },
-  payoutBtnText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.bold },
+  langWrap: { flexDirection: 'row', borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceSunken, padding: 3 },
+  langBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.full },
+  langBtnOn: { backgroundColor: COLORS.primary },
+  langText: { fontSize: FONTS.xs + 0.5, fontWeight: FONTS.bold, color: COLORS.textSecondary },
+  langTextOn: { color: 'white' },
 
-  sellerCenterCard: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.primary, borderRadius: 14,
-    padding: SPACING.base, marginBottom: SPACING.xl,
+  alertCard: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: COLORS.warningLight, borderRadius: 16, borderWidth: 1.5, borderColor: COLORS.warning,
+    padding: SPACING.md + 2, marginBottom: SPACING.base,
   },
-  sellerCenterIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  sellerCenterEmoji: { fontSize: 19 },
-  sellerCenterTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: 'white' },
-  sellerCenterSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  sellerCenterArrow: { fontSize: 18, color: 'white', fontWeight: FONTS.bold },
+  alertIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.warning, alignItems: 'center', justifyContent: 'center' },
+  alertEmoji: { fontSize: 19 },
+  alertTitle: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.textPrimary },
+  alertSub: { fontSize: FONTS.sm, color: COLORS.warningText, marginTop: 2, fontWeight: FONTS.semiBold },
+  alertArrow: { fontSize: 26, color: COLORS.warningText, fontWeight: FONTS.bold },
 
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
-  sectionLink: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  moneyCard: { backgroundColor: COLORS.primary, borderRadius: 20, padding: SPACING.base + 2, marginBottom: SPACING.lg, ...SHADOWS.primary },
+  moneyLabel: { fontSize: FONTS.md, color: 'rgba(255,255,255,0.9)', fontWeight: FONTS.semiBold },
+  moneyAmount: { fontSize: 36, fontWeight: FONTS.black, color: 'white', letterSpacing: -0.5, marginTop: 2, marginBottom: SPACING.sm + 2 },
+  moneySplitRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.28)', paddingTop: SPACING.sm + 2, marginBottom: SPACING.md },
+  moneySplitItem: { flex: 1, paddingRight: SPACING.sm },
+  moneySplitLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.8)', marginBottom: 2 },
+  moneySplitValue: { fontSize: FONTS.lg, color: 'white', fontWeight: FONTS.bold },
+  moneyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
+    backgroundColor: 'white', borderRadius: RADIUS.full, height: 50,
+  },
+  moneyBtnIcon: { fontSize: 20 },
+  moneyBtnText: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.primaryDark },
 
-  ordersGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.xl },
-  orderStageCard: { width: '47%', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, padding: SPACING.base },
-  orderStageIcon: { fontSize: 17, marginBottom: 6 },
-  orderStageLabel: { fontSize: FONTS.xs, color: COLORS.textSecondary, marginBottom: 4 },
-  orderStageCount: { fontSize: 24, fontWeight: FONTS.black },
+  sectionTitle: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary, marginBottom: SPACING.md },
+  sectionTitleInline: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+  sectionLink: { fontSize: FONTS.md, color: COLORS.primary, fontWeight: FONTS.bold },
 
-  summaryRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
-  summaryCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, padding: SPACING.base },
-  summaryIcon: { fontSize: 18, marginBottom: 6 },
-  summaryTitle: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: 4 },
-  summaryCount: { fontSize: 26, fontWeight: FONTS.black, color: COLORS.textPrimary },
-  summarySub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.sm },
-  summaryLinks: { gap: 4 },
-  summaryLinkAdd: { fontSize: 11, color: COLORS.primary, fontWeight: FONTS.bold },
-  summaryLinkView: { fontSize: 11, color: COLORS.textMuted, fontWeight: FONTS.semiBold },
+  tileGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: SPACING.md },
+  tile: {
+    width: '48.5%', minHeight: 108, backgroundColor: '#FFFFFF', borderRadius: 18,
+    borderWidth: 1, borderColor: COLORS.borderStrong, padding: SPACING.md, marginBottom: SPACING.sm + 2,
+  },
+  tilePrimary: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  tileIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  tileIconPrimary: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  tileEmoji: { fontSize: 20 },
+  tileTitle: { fontSize: FONTS.base + 1, fontWeight: FONTS.black, color: COLORS.textPrimary },
+  tileTitlePrimary: { color: 'white' },
+  tileSub: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginTop: 2, lineHeight: 17 },
+  tileSubPrimary: { color: 'rgba(255,255,255,0.9)' },
+  tileBadge: {
+    position: 'absolute', top: 10, right: 10, minWidth: 26, height: 26, borderRadius: 13,
+    backgroundColor: COLORS.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
+  },
+  tileBadgeText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.black },
 
-  quickActions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.base },
-  quickAction: { alignItems: 'center', gap: SPACING.xs, flex: 1 },
-  quickActionIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: COLORS.border },
-  quickActionEmoji: { fontSize: 21 },
-  quickActionIconSolid: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary },
-  quickActionEmojiSolid: { fontSize: 21, color: 'white' },
-  quickActionLabel: { fontSize: 10.5, color: COLORS.textSecondary, fontWeight: FONTS.medium, textAlign: 'center' },
+  stageRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.xl },
+  stageCell: {
+    width: '23.5%', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14,
+    borderWidth: 1, borderColor: COLORS.border, paddingVertical: SPACING.md, paddingHorizontal: 4,
+  },
+  stageCellHot: { borderColor: COLORS.warning, backgroundColor: COLORS.warningLight },
+  stageIcon: { fontSize: 18, marginBottom: 4 },
+  stageCount: { fontSize: FONTS['2xl'], fontWeight: FONTS.black, color: COLORS.primary },
+  stageLabel: { fontSize: FONTS.xs + 0.5, color: COLORS.textSecondary, marginTop: 2, fontWeight: FONTS.medium },
+
+  centerCard: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: COLORS.surfaceAlt, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border,
+    padding: SPACING.md + 2, marginBottom: SPACING.base,
+  },
+  centerIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: COLORS.secondaryFade, alignItems: 'center', justifyContent: 'center' },
+  centerEmoji: { fontSize: 20 },
+  centerTitle: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  centerSub: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginTop: 2 },
+  centerArrow: { fontSize: 24, color: COLORS.textMuted, fontWeight: FONTS.bold },
 
   // Menu
   menuContainer: { flex: 1, backgroundColor: '#FFFFFF' },
   menuHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 54 : SPACING.xl, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  menuAvatar: { width: 40, height: 40, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  menuAvatarText: { fontSize: 17, fontWeight: FONTS.bold, color: 'white' },
-  menuShopName: { flex: 1, fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.textPrimary },
-  menuCloseBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  menuCloseIcon: { fontSize: 18, color: COLORS.textMuted },
+  menuAvatar: { width: 42, height: 42, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  menuAvatarText: { fontSize: 18, fontWeight: FONTS.bold, color: 'white' },
+  menuShopName: { flex: 1, fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.textPrimary },
+  menuCloseBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  menuCloseIcon: { fontSize: 20, color: COLORS.textMuted },
   menuSection: { paddingHorizontal: SPACING.base, marginTop: SPACING.base },
-  menuSectionHeading: { fontSize: 10.5, fontWeight: FONTS.bold, color: COLORS.primary, letterSpacing: 0.6, marginBottom: SPACING.xs },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm + 2, paddingHorizontal: SPACING.sm, borderRadius: 10 },
+  menuSectionHeading: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.primary, marginBottom: SPACING.xs },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm, borderRadius: 12, minHeight: 52 },
   menuItemActive: { backgroundColor: COLORS.primaryFade },
-  menuItemIcon: { fontSize: 17, width: 24 },
-  menuItemLabel: { fontSize: FONTS.sm, color: COLORS.textPrimary, fontWeight: FONTS.medium },
+  menuItemIcon: { fontSize: 20, width: 28 },
+  menuItemLabel: { fontSize: FONTS.base + 1, color: COLORS.textPrimary, fontWeight: FONTS.medium },
   menuItemLabelActive: { color: COLORS.primary, fontWeight: FONTS.bold },
   menuDivider: { height: 1, backgroundColor: COLORS.divider, marginTop: SPACING.base, marginHorizontal: SPACING.base },
-  menuLogout: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.base + SPACING.sm, paddingVertical: SPACING.base },
-  menuLogoutIcon: { fontSize: 17, width: 24, color: COLORS.danger },
-  menuLogoutLabel: { fontSize: FONTS.sm, color: COLORS.danger, fontWeight: FONTS.semiBold },
+  menuLogout: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingHorizontal: SPACING.base + SPACING.sm, paddingVertical: SPACING.base },
+  menuLogoutIcon: { fontSize: 20, width: 28, color: COLORS.danger },
+  menuLogoutLabel: { fontSize: FONTS.base + 1, color: COLORS.danger, fontWeight: FONTS.semiBold },
 
   // Logout confirm modal
   logoutOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
