@@ -135,4 +135,15 @@ export const vendorsAPI = {
    */
   requestPayout: (amount, notes = '') =>
     post(API.VENDOR_PAYOUT_REQUEST, { amount, notes }),
+
+  /**
+   * What the Withdraw screen needs: available / on hold / in progress, the limits and fee,
+   * where the money goes, and whether a withdrawal can be requested (and if not, why).
+   */
+  getPayoutSummary: () => get(API.VENDOR_PAYOUT_SUMMARY),
+
+  /**
+   * Cancel a withdrawal that is still waiting for approval
+   */
+  cancelPayout: (id) => post(`${API.VENDOR_PAYOUTS_BASE}${id}/cancel/`),
 };

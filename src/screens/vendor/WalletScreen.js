@@ -1,7 +1,8 @@
 /**
  * VUMA Store — Seller Wallet & Payments
- * Real balance data (from the vendor dashboard endpoint), real payout
- * history (from the real my-payouts endpoint), real Request Payout —
+ * Real balance data (the withdraw summary and the vendor dashboard), real
+ * withdrawal history (my-payouts), and a Withdraw sheet that works on iPhone
+ * AND Android (the old Alert.prompt only worked on iPhone) —
  * plus the supported payment methods + AzamPay trust section.
  *
  * No brand logo image assets are bundled/confirmed in this app, so
@@ -17,9 +18,11 @@ import {
 } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { formatPrice } from '../../utils/helpers';
-import { t } from '../../i18n';
+import { t, i18n, useTranslation } from '../../i18n';
 import { get, post } from '../../api/client';
 import { vendorsAPI } from '../../api/vendors';
+import WithdrawSheet from '../../components/WithdrawSheet';
+import { tx, tsh, statusLabel, STATUS_STYLE, reasonText, METHOD_LABELS, errorText } from '../../utils/payouts';
 
 const PAYMENT_METHODS = [
   { code: 'mpesa', label: 'M-Pesa', bg: '#4CAF50' },
@@ -30,29 +33,33 @@ const PAYMENT_METHODS = [
   { code: 'crdb', label: 'CRDB', bg: '#003D7A' },
 ];
 
-const STATUS_COLORS = {
-  pending: { bg: '#FFF3CD', text: '#8A6D00' },
-  processing: { bg: '#E8F3FF', text: '#2563EB' },
-  paid: { bg: '#E4F7EC', text: '#1B9C5A' },
-  failed: { bg: '#FDE8EA', text: '#D32F2F' },
-};
-
 export default function WalletScreen({ navigation }) {
+  useTranslation();
+  const lang = i18n.getLocale();
+  const T = (key, vars) => tx(lang, key, vars);
+
   const [dashboard, setDashboard] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [dash, payoutData] = await Promise.all([
+      const [dash, payoutData, sum, prof] = await Promise.all([
         vendorsAPI.getDashboard(),
         get('/vendors/payouts/my-payouts/'),
+        vendorsAPI.getPayoutSummary().catch(() => null),
+        vendorsAPI.getProfile().catch(() => null),
       ]);
       setDashboard(dash);
       setPayouts(Array.isArray(payoutData) ? payoutData : []);
+      setSummary(sum);
+      setProfile(prof);
     } catch (e) {
-      Alert.alert('Error', 'Could not load wallet data.');
+      Alert.alert(t('common.error'), T('loadFail'));
     } finally {
       setLoading(false);
     }
@@ -66,29 +73,22 @@ export default function WalletScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const handleRequestPayout = () => {
-    Alert.prompt(
-      t('vendor.requestPayout'),
-      `Available: ${formatPrice(dashboard?.available_balance || 0)}\nEnter amount:`,
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.confirm'),
-          onPress: async (amount) => {
-            if (!amount || isNaN(amount)) return;
-            try {
-              await vendorsAPI.requestPayout(Number(amount));
-              Alert.alert(t('common.ok'), 'Payout request submitted!');
-              load();
-            } catch (e) {
-              const msg = e?.response?.data?.error || 'Could not submit request.';
-              Alert.alert(t('common.error'), msg);
-            }
-          },
+  const handleCancel = (payout) => {
+    Alert.alert(T('cancelAsk'), tsh(payout.amount), [
+      { text: T('no'), style: 'cancel' },
+      {
+        text: T('yes'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await vendorsAPI.cancelPayout(payout.id);
+            load();
+          } catch (e) {
+            Alert.alert(t('common.error'), errorText(lang, e, summary));
+          }
         },
-      ],
-      'plain-text'
-    );
+      },
+    ]);
   };
 
   if (loading) {
@@ -98,6 +98,9 @@ export default function WalletScreen({ navigation }) {
       </View>
     );
   }
+
+  // Off while a rule says no. "No account yet" keeps it on, because tapping it opens the account form.
+  const btnOff = !!summary && !summary.can_request && summary.reason_code !== 'no_destination';
 
   return (
     <View style={styles.container}>
@@ -116,23 +119,38 @@ export default function WalletScreen({ navigation }) {
       >
         {/* Balance card */}
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available Balance</Text>
-          <Text style={styles.balanceAmount}>{formatPrice(dashboard?.available_balance || 0)}</Text>
+          <Text style={styles.balanceLabel}>{T('available')}</Text>
+          <Text style={styles.balanceAmount}>{formatPrice(summary ? Number(summary.available) : (dashboard?.available_balance || 0))}</Text>
           <View style={styles.balanceSplitRow}>
-            <View style={styles.balanceSplitItem}>
-              <Text style={styles.balanceSplitLabel}>Pending</Text>
-              <Text style={styles.balanceSplitValue}>{formatPrice(dashboard?.pending_balance || 0)}</Text>
+            <View style={[styles.balanceSplitItem, styles.balanceSplitFirst]}>
+              <Text style={styles.balanceSplitLabel}>{T('onHold')}</Text>
+              <Text style={styles.balanceSplitValue} numberOfLines={1} adjustsFontSizeToFit>{formatPrice(dashboard?.pending_balance || 0)}</Text>
             </View>
             <View style={styles.balanceSplitDivider} />
             <View style={styles.balanceSplitItem}>
-              <Text style={styles.balanceSplitLabel}>Total Earned</Text>
-              <Text style={styles.balanceSplitValue}>{formatPrice(dashboard?.total_earnings || 0)}</Text>
+              <Text style={styles.balanceSplitLabel}>{T('inProgress')}</Text>
+              <Text style={styles.balanceSplitValue} numberOfLines={1} adjustsFontSizeToFit>{formatPrice(summary ? Number(summary.in_progress) : 0)}</Text>
+            </View>
+            <View style={styles.balanceSplitDivider} />
+            <View style={styles.balanceSplitItem}>
+              <Text style={styles.balanceSplitLabel}>{T('totalEarned')}</Text>
+              <Text style={styles.balanceSplitValue} numberOfLines={1} adjustsFontSizeToFit>{formatPrice(dashboard?.total_earnings || 0)}</Text>
             </View>
           </View>
-          {(dashboard?.available_balance || 0) > 0 && (
-            <TouchableOpacity style={styles.payoutBtn} onPress={handleRequestPayout} activeOpacity={0.85}>
-              <Text style={styles.payoutBtnText}>Request Payout</Text>
+          <Text style={styles.holdNote}>{T('holdNote')}</Text>
+          {!!summary && (
+            <TouchableOpacity
+              style={[styles.payoutBtn, btnOff && styles.payoutBtnOff]}
+              onPress={() => setSheetOpen(true)}
+              disabled={btnOff}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.payoutBtnText, btnOff && styles.payoutBtnTextOff]}>{T('withdraw')}</Text>
             </TouchableOpacity>
+          )}
+          {!!summary && !summary.can_request && !!summary.reason && (
+            <Text style={styles.reasonText}>{reasonText(lang, summary)}</Text>
           )}
         </View>
 
@@ -150,27 +168,47 @@ export default function WalletScreen({ navigation }) {
           <Text style={styles.trustText}>Secure payment — Secured by AzamPay</Text>
         </View>
 
-        {/* Payout History */}
-        <Text style={styles.sectionTitle}>Payout History</Text>
+        {/* Withdrawals */}
+        <Text style={styles.sectionTitle}>{T('history')}</Text>
         {payouts.length === 0 ? (
-          <Text style={styles.emptyText}>No payout requests yet.</Text>
+          <Text style={styles.emptyText}>{T('empty')}</Text>
         ) : (
           payouts.map((p) => {
-            const colors = STATUS_COLORS[p.status] || STATUS_COLORS.pending;
+            const colors = STATUS_STYLE[p.status] || STATUS_STYLE.pending;
             return (
               <View key={p.id} style={styles.payoutRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.payoutAmount}>{p.currency || 'TZS'} {Number(p.amount).toLocaleString()}</Text>
-                  <Text style={styles.payoutDate}>{p.created_at ? p.created_at.slice(0, 10) : ''} · {p.payout_method}</Text>
+                  <Text style={styles.payoutAmount}>{tsh(p.amount)}</Text>
+                  <Text style={styles.payoutDate}>
+                    {p.created_at ? p.created_at.slice(0, 10) : ''}
+                    {p.destination ? ` · ${p.destination}` : (p.payout_method ? ` · ${METHOD_LABELS[p.payout_method] || p.payout_method}` : '')}
+                  </Text>
+                  {!!p.reference && <Text style={styles.payoutRef}>{p.reference}</Text>}
+                  {p.status === 'failed' && !!p.failure_reason && (
+                    <Text style={styles.payoutReason}>{T('reason')}: {p.failure_reason}</Text>
+                  )}
+                  {p.status === 'pending' && (
+                    <TouchableOpacity onPress={() => handleCancel(p)} accessibilityRole="button">
+                      <Text style={styles.cancelLink}>{T('cancel')}</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <View style={[styles.payoutStatusPill, { backgroundColor: colors.bg }]}>
-                  <Text style={[styles.payoutStatusText, { color: colors.text }]}>{p.status}</Text>
+                  <Text style={[styles.payoutStatusText, { color: colors.fg }]}>{statusLabel(lang, p.status)}</Text>
                 </View>
               </View>
             );
           })
         )}
       </ScrollView>
+
+      <WithdrawSheet
+        visible={sheetOpen}
+        summary={summary}
+        profile={profile}
+        onClose={() => setSheetOpen(false)}
+        onChanged={load}
+      />
     </View>
   );
 }
@@ -191,12 +229,17 @@ const styles = StyleSheet.create({
   balanceLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.85)', marginBottom: 4 },
   balanceAmount: { fontSize: 32, fontWeight: FONTS.black, color: 'white', marginBottom: SPACING.base },
   balanceSplitRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.25)', paddingTop: SPACING.sm },
-  balanceSplitItem: { flex: 1 },
+  balanceSplitItem: { flex: 1, paddingLeft: 10, paddingRight: 4 },
+  balanceSplitFirst: { paddingLeft: 0 },
   balanceSplitDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.25)' },
   balanceSplitLabel: { fontSize: 10.5, color: 'rgba(255,255,255,0.75)', marginBottom: 2 },
   balanceSplitValue: { fontSize: FONTS.base, color: 'white', fontWeight: FONTS.bold },
-  payoutBtn: { marginTop: SPACING.base, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: RADIUS.full, paddingVertical: SPACING.sm, alignItems: 'center' },
-  payoutBtnText: { color: 'white', fontSize: FONTS.sm, fontWeight: FONTS.bold },
+  payoutBtn: { marginTop: SPACING.base, backgroundColor: 'white', borderRadius: RADIUS.full, paddingVertical: SPACING.sm + 2, alignItems: 'center' },
+  payoutBtnText: { color: COLORS.primaryDark, fontSize: FONTS.base, fontWeight: FONTS.bold },
+  payoutBtnOff: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  payoutBtnTextOff: { color: 'rgba(255,255,255,0.7)' },
+  holdNote: { marginTop: SPACING.sm, fontSize: 10.5, color: 'rgba(255,255,255,0.8)', lineHeight: 15 },
+  reasonText: { marginTop: SPACING.sm, fontSize: FONTS.xs, color: 'white', textAlign: 'center' },
 
   sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, marginTop: SPACING.sm },
   methodsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.sm },
@@ -210,6 +253,9 @@ const styles = StyleSheet.create({
   payoutRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.xs, borderWidth: 1, borderColor: COLORS.border },
   payoutAmount: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   payoutDate: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2, textTransform: 'capitalize' },
+  payoutRef: { fontSize: 10.5, color: COLORS.textLight, marginTop: 2 },
+  payoutReason: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: 4 },
+  cancelLink: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.primary, marginTop: 6 },
   payoutStatusPill: { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full },
-  payoutStatusText: { fontSize: 10.5, fontWeight: FONTS.bold, textTransform: 'capitalize' },
+  payoutStatusText: { fontSize: 10.5, fontWeight: FONTS.bold },
 });

@@ -192,29 +192,8 @@ export default function VendorDashboard({ navigation }) {
     setRefreshing(false);
   }, [loadDashboard]);
 
-  const handleRequestPayout = () => {
-    Alert.prompt(
-      t('vendor.requestPayout'),
-      `Available: ${formatPrice(dashboard?.available_balance || 0)}\nEnter amount:`,
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.confirm'),
-          onPress: async (amount) => {
-            if (!amount || isNaN(amount)) return;
-            try {
-              await vendorsAPI.requestPayout(Number(amount));
-              Alert.alert(t('common.ok'), 'Payout request submitted!');
-              loadDashboard();
-            } catch (e) {
-              Alert.alert(t('common.error'), getErrorMessage(e));
-            }
-          },
-        },
-      ],
-      'plain-text'
-    );
-  };
+  // Withdrawing happens on the Wallet screen (the old prompt only worked on iPhone).
+  const handleRequestPayout = () => navigation.navigate('SellerWallet');
 
   const handleOpenSellerCenter = () => {
     Linking.openURL('https://vumastore.store/seller/').catch(() => {

@@ -63,6 +63,8 @@ export const API = {
   VENDOR_DASHBOARD: '/vendors/profiles/dashboard/',
   VENDOR_PAYOUTS: '/vendors/payouts/my-payouts/',
   VENDOR_PAYOUT_REQUEST: '/vendors/payouts/request/',
+  VENDOR_PAYOUT_SUMMARY: '/vendors/payouts/summary/',
+  VENDOR_PAYOUTS_BASE: '/vendors/payouts/',
 
   // Promotions
   PROMOTIONS_TRENDING: '/promotions/trending/',
