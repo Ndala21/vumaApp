@@ -10,6 +10,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { post } from './src/api/client';
 import SplashScreen from './src/components/SplashScreen';
+import SystemBarsFrame from './src/components/SystemBarsFrame';
 
 // ── Configure foreground notification display ─────────
 Notifications.setNotificationHandler({
@@ -229,7 +230,9 @@ function App() {
         <SafeAreaProvider>
           {i18nReady ? (
             <Provider store={store}>
-              <AppNavigator />
+              <SystemBarsFrame>
+                <AppNavigator />
+              </SystemBarsFrame>
             </Provider>
           ) : (
             <View style={{ flex: 1, backgroundColor: '#fff' }} />

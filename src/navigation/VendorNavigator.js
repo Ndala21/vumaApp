@@ -4,9 +4,11 @@
  * Fixed: Added Home, Search, Cart tabs so vendors can browse store
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useIsFocused } from '@react-navigation/native';
+import { setBottomStripColor } from '../components/SystemBarsFrame';
 import { SCREENS, COLORS, FONTS } from '../utils/constants';
 
 import VendorDashboard from '../screens/vendor/VendorDashboard';
@@ -28,6 +30,14 @@ function VendorTabIcon({ icon, label, focused }) {
 }
 
 export default function VendorNavigator() {
+  // The seller tab bar is dark: while it is on screen, the strip under it
+  // (where the phone's own buttons sit) is dark too, so there is no white band.
+  const focused = useIsFocused();
+  useEffect(() => {
+    setBottomStripColor(focused ? COLORS.secondary : null);
+    return () => setBottomStripColor(null);
+  }, [focused]);
+
   return (
     <Tab.Navigator
       screenOptions={{
