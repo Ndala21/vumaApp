@@ -718,6 +718,9 @@ export default function HomeScreen({ navigation }) {
         {/* Trending */}
         <HorizontalRow title="Trending Now" data={trending} accent={COLORS.info} />
 
+        {/* Products sellers paid to promote (nothing shows until there are some) */}
+        <RecommendationSection title="Sponsored" endpoint="/products/sponsored/" navigation={navigation} />
+
         {/* Recommendations */}
         {isAuthenticated && recommendations.length > 0 && (
           <HorizontalRow title="Recommended for You" data={recommendations} accent={COLORS.rating} />
