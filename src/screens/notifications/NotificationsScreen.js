@@ -1,293 +1,360 @@
 /**
- * VUMA Store — Notifications Screen
+ * VUMA Store - Notification Center
+ *
+ * Laid out like Coupang's: tabs along the top (All, Orders, Promotions, Restock, Account), and
+ * a card for every notification with its time, the message, product pictures when there are
+ * any, and a button. Everything is tappable:
+ *   - tap a card (or its button): opens the screen it is about (order, product, cart...)
+ *   - a card with nowhere to go, or a long press: opens the full message in a sheet
+ *   - "Read more" opens a long message in place
+ * The server sends the link, the button text, the tab and the pictures with each notification
+ * (apps/notifications/serializers.py); how a link becomes a screen is in utils/notificationLink.js.
  */
 
-import React, {
-  useEffect,
-  useCallback,
-  useState,
-} from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   StatusBar,
   Platform,
   RefreshControl,
+  Modal,
+  Image,
+  Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchNotifications,
+  fetchNotificationCount,
   markNotificationsRead,
+  markGroupRead,
   deleteNotification,
   clearAllNotifications,
+  setActiveGroup,
   selectNotifications,
   selectNotificationsLoading,
+  selectNotificationsErrors,
   selectUnreadCount,
+  selectUnreadByGroup,
+  selectActiveGroup,
+  selectGroupsSupported,
   selectNotificationsHasMore,
 } from '../../store/notificationSlice';
+import { selectIsApprovedVendor } from '../../store/authSlice';
+import { COLORS, FONTS, SPACING, RADIUS } from '../../utils/constants';
+import { t, useTranslation } from '../../i18n';
 import {
-  COLORS,
-  FONTS,
-  SPACING,
-  RADIUS,
-  SHADOWS,
-} from '../../utils/constants';
-import { timeAgo } from '../../utils/helpers';
-import {
-  SkeletonListItem,
-} from '../../components/common/Loading';
-import {
-  EmptyState,
-} from '../../components/common/ErrorMessage';
+  GROUPS, linkOf, parseLink, openLink, buttonText, iconOf, formatWhen, isLong,
+} from '../../utils/notificationLink';
+import { SkeletonListItem } from '../../components/common/Loading';
+import { EmptyState } from '../../components/common/ErrorMessage';
 
-const NOTIF_ICONS = {
-  order: '📦',
-  payment: '💳',
-  vendor: '🏪',
-  system: '🔔',
-  marketing: '🎁',
-  info: 'ℹ️',
-  success: '✅',
-  warning: '⚠️',
-  error: '❌',
+const T = (key, params) => t('notifications.' + key, params);
+const TAB_KEY = { all: 'tabAll', orders: 'tabOrders', promotions: 'tabPromotions', restock: 'tabRestock', account: 'tabAccount' };
+const EMPTY_KEY = { all: 'emptyAll', orders: 'emptyOrders', promotions: 'emptyPromotions', restock: 'emptyRestock', account: 'emptyAccount' };
+const EMPTY_ICON = { all: '🔔', orders: '📦', promotions: '🎁', restock: '🔔', account: '👤' };
+
+/** Does tapping this notification lead to a screen? */
+const hasTarget = (item) => {
+  const link = parseLink(linkOf(item));
+  return !!link && link.kind !== 'notifications';
 };
 
+// ── One notification ──────────────────────────────────
+const NotifCard = React.memo(function NotifCard({ item, onOpen, onDetail, onThumb }) {
+  const [expanded, setExpanded] = useState(false);
+  const thumbs = Array.isArray(item.thumbs) ? item.thumbs : [];
+  const long = isLong(item.message);
+  const unread = !item.is_read;
+
+  return (
+    <TouchableOpacity
+      testID={'notif-' + item.id}
+      style={[styles.card, unread && styles.cardUnread]}
+      onPress={() => onOpen(item)}
+      onLongPress={() => onDetail(item)}
+      activeOpacity={0.85}
+    >
+      <View style={styles.iconWrap}>
+        <Text style={styles.iconText}>{iconOf(item)}</Text>
+        {unread && <View style={styles.iconDot} testID={'notif-dot-' + item.id} />}
+      </View>
+
+      <View style={styles.cardBody}>
+        <View style={styles.titleRow}>
+          <Text style={[styles.cardTitle, unread && styles.cardTitleUnread]} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <Text style={styles.when}>{formatWhen(item.created_at)}</Text>
+        </View>
+
+        <Text style={styles.message} numberOfLines={expanded ? undefined : 3}>
+          {item.message}
+        </Text>
+        {long && (
+          <TouchableOpacity
+            testID={'notif-more-' + item.id}
+            onPress={() => setExpanded((v) => !v)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 16 }}
+          >
+            <Text style={styles.readMore}>{expanded ? T('showLess') : T('readMore')}</Text>
+          </TouchableOpacity>
+        )}
+
+        {thumbs.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.thumbs}
+            contentContainerStyle={styles.thumbsContent}
+          >
+            {thumbs.map((th, i) => (
+              <TouchableOpacity
+                key={(th.id || 'p') + '-' + i}
+                testID={'notif-thumb-' + item.id + '-' + i}
+                onPress={() => onThumb(item, th)}
+                activeOpacity={0.8}
+              >
+                <Image source={{ uri: th.image }} style={styles.thumb} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {hasTarget(item) && (
+          <TouchableOpacity
+            testID={'notif-cta-' + item.id}
+            style={styles.cta}
+            onPress={() => onOpen(item)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaText}>{buttonText(item)}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+// ── The screen ────────────────────────────────────────
 export default function NotificationsScreen({ navigation }) {
+  useTranslation(); // draw again when the language changes
   const dispatch = useDispatch();
 
   const notifications = useSelector(selectNotifications);
   const loading = useSelector(selectNotificationsLoading);
+  const errors = useSelector(selectNotificationsErrors);
   const unreadCount = useSelector(selectUnreadCount);
+  const unreadByGroup = useSelector(selectUnreadByGroup) || {};
   const hasMore = useSelector(selectNotificationsHasMore);
+  const group = useSelector(selectActiveGroup);
+  const groupsSupported = useSelector(selectGroupsSupported);
+  const currentPage = useSelector((s) => s.notifications.currentPage);
+  const isVendor = useSelector(selectIsApprovedVendor);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage] = useState(1);
+  const [detail, setDetail] = useState(null);
 
+  // An older server does not know the tabs: stay on the one list, so no tab action can touch other messages.
   useEffect(() => {
-    dispatch(fetchNotifications({ page: 1 }));
-  }, []);
+    if (groupsSupported === false && group !== 'all') dispatch(setActiveGroup('all'));
+  }, [groupsSupported, group]);
+
+  // First load, and again each time another tab is chosen.
+  useEffect(() => {
+    dispatch(fetchNotifications({ page: 1, group }));
+    dispatch(fetchNotificationCount());
+  }, [group]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    setPage(1);
-    await dispatch(
-      fetchNotifications({ page: 1 })
-    );
+    await dispatch(fetchNotifications({ page: 1, group }));
+    await dispatch(fetchNotificationCount());
     setRefreshing(false);
-  }, []);
+  }, [group]);
 
   const handleLoadMore = useCallback(() => {
-    if (loading.loadingMore || !hasMore) return;
-    const next = page + 1;
-    setPage(next);
-    dispatch(fetchNotifications({ page: next }));
-  }, [loading, hasMore, page]);
+    if (loading.loadingMore || loading.fetch || !hasMore) return;
+    dispatch(fetchNotifications({ page: (currentPage || 1) + 1, group }));
+  }, [loading, hasMore, currentPage, group]);
 
-  const handleMarkAllRead = () => {
-    dispatch(markNotificationsRead([]));
+  const goBack = () => {
+    if (navigation.canGoBack && !navigation.canGoBack()) navigation.navigate('Tabs');
+    else navigation.goBack();
   };
 
-  const handleClearAll = () => {
-    dispatch(clearAllNotifications());
+  const selectTab = (g) => {
+    if (g !== group) dispatch(setActiveGroup(g));
   };
 
-  const handleNotificationPress = (notif) => {
-    if (!notif.is_read) {
-      dispatch(markNotificationsRead([notif.id]));
-    }
-    // Navigate based on category
-    if (notif.category === 'order' && notif.related_id) {
-      navigation.navigate('OrderDetail', {
-        orderId: notif.related_id,
-      });
-    }
+  const markRead = (item) => {
+    if (!item.is_read) dispatch(markNotificationsRead([item.id]));
   };
 
-  const handleDelete = (notifId) => {
-    dispatch(deleteNotification(notifId));
+  // Tap: go to the screen it is about; when there is none, show the whole message.
+  const openItem = useCallback((item) => {
+    markRead(item);
+    if (!openLink(navigation, linkOf(item), { isVendor })) setDetail(item);
+  }, [navigation, isVendor]);
+
+  const showDetail = useCallback((item) => {
+    markRead(item);
+    setDetail(item);
+  }, []);
+
+  const openThumb = useCallback((item, thumb) => {
+    markRead(item);
+    if (thumb && thumb.id) openLink(navigation, 'vuma://product/' + thumb.id, { isVendor });
+    else openItem(item);
+  }, [navigation, isVendor, openItem]);
+
+  const markAllRead = () => {
+    dispatch(markGroupRead(group)).then(() => dispatch(fetchNotificationCount()));
   };
 
-  // ── Notification Item ─────────────────────────────────
-  const NotifItem = ({ item }) => {
-    const icon =
-      NOTIF_ICONS[item.category] ||
-      NOTIF_ICONS[item.notif_type] ||
-      '🔔';
-
-    return (
-      <TouchableOpacity
-        style={[
-          styles.notifItem,
-          !item.is_read && styles.notifItemUnread,
-        ]}
-        onPress={() => handleNotificationPress(item)}
-        activeOpacity={0.8}
-      >
-        {/* Icon */}
-        <View
-          style={[
-            styles.notifIcon,
-            !item.is_read && styles.notifIconUnread,
-          ]}
-        >
-          <Text style={styles.notifIconText}>{icon}</Text>
-        </View>
-
-        {/* Content */}
-        <View style={styles.notifContent}>
-          <Text
-            style={[
-              styles.notifTitle,
-              !item.is_read && styles.notifTitleUnread,
-            ]}
-            numberOfLines={1}
-          >
-            {item.title}
-          </Text>
-          <Text
-            style={styles.notifMessage}
-            numberOfLines={2}
-          >
-            {item.message}
-          </Text>
-          <Text style={styles.notifTime}>
-            {timeAgo(item.created_at)}
-          </Text>
-        </View>
-
-        {/* Unread dot + delete */}
-        <View style={styles.notifRight}>
-          {!item.is_read && (
-            <View style={styles.unreadDot} />
-          )}
-          <TouchableOpacity
-            onPress={() => handleDelete(item.id)}
-            hitSlop={{
-              top: 8,
-              bottom: 8,
-              left: 8,
-              right: 8,
-            }}
-            style={styles.deleteBtn}
-          >
-            <Text style={styles.deleteBtnText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+  const clearAll = () => {
+    Alert.alert(
+      T('clearTitle'),
+      group === 'all' ? T('clearAllMessage') : T('clearTabMessage'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: T('clearAll'),
+          style: 'destructive',
+          onPress: () => {
+            dispatch(clearAllNotifications(group)).then(() => dispatch(fetchNotificationCount()));
+          },
+        },
+      ]
     );
   };
 
-  const ListFooter = () => {
-    if (!loading.loadingMore) return null;
-    return (
-      <View style={styles.loadingMore}>
-        <Text style={styles.loadingMoreText}>
-          Loading...
-        </Text>
-      </View>
-    );
+  const closeDetail = () => setDetail(null);
+
+  const deleteDetail = () => {
+    if (detail) dispatch(deleteNotification(detail.id)).then(() => dispatch(fetchNotificationCount()));
+    setDetail(null);
   };
+
+  const openFromDetail = () => {
+    const item = detail;
+    setDetail(null);
+    if (item) openLink(navigation, linkOf(item), { isVendor });
+  };
+
+  const unreadHere = group === 'all' ? unreadCount : (unreadByGroup[group] || 0);
 
   const ListEmpty = () => {
     if (loading.fetch) {
       return (
         <View>
-          {[1, 2, 3, 4].map((i) => (
-            <SkeletonListItem key={i} />
-          ))}
+          {[1, 2, 3, 4].map((i) => <SkeletonListItem key={i} />)}
+        </View>
+      );
+    }
+    if (errors && errors.fetch) {
+      return (
+        <View style={styles.errorBox} testID="notif-error">
+          <Text style={styles.errorText}>{T('loadFailed')}</Text>
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => dispatch(fetchNotifications({ page: 1, group }))}
+          >
+            <Text style={styles.retryText}>{T('retry')}</Text>
+          </TouchableOpacity>
         </View>
       );
     }
     return (
       <EmptyState
-        icon="🔔"
-        title="No notifications"
-        message="You're all caught up! New notifications will appear here."
+        icon={EMPTY_ICON[group] || '🔔'}
+        title={T(EMPTY_KEY[group] || 'emptyAll')}
+        message={T((EMPTY_KEY[group] || 'emptyAll') + 'Message')}
       />
     );
   };
 
+  const ListFooter = () => (loading.loadingMore ? (
+    <View style={styles.loadingMore}>
+      <Text style={styles.loadingMoreText}>{t('common.loading')}</Text>
+    </View>
+  ) : null);
+
   return (
     <View style={styles.container}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor={COLORS.surface}
-      />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>
-            Notifications
-          </Text>
-          {unreadCount > 0 && (
-            <Text style={styles.unreadCount}>
-              {unreadCount} unread
-            </Text>
-          )}
-        </View>
-        <View style={styles.headerActions}>
-          {unreadCount > 0 && (
-            <TouchableOpacity
-              style={styles.headerAction}
-              onPress={handleMarkAllRead}
-            >
-              <Text style={styles.headerActionText}>
-                Mark all read
-              </Text>
-            </TouchableOpacity>
-          )}
-          {notifications.length > 0 && (
-            <TouchableOpacity
-              style={styles.headerAction}
-              onPress={handleClearAll}
-            >
-              <Text
-                style={[
-                  styles.headerActionText,
-                  { color: COLORS.danger },
-                ]}
-              >
-                Clear all
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <TouchableOpacity
+          testID="notif-back"
+          onPress={goBack}
+          accessibilityRole="button"
+          accessibilityLabel={T('back')}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 14 }}
+          style={styles.headerSide}
+        >
+          <Text style={styles.headerBack}>‹</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{T('title')}</Text>
+        <View style={styles.headerSide} />
       </View>
 
-      {/* Filter tabs */}
-      <View style={styles.filterRow}>
-        {['All', '📦 Orders', '💳 Payments', '🔔 System'].map(
-          (tab, i) => (
-            <TouchableOpacity
-              key={tab}
-              style={[
-                styles.filterTab,
-                i === 0 && styles.filterTabActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterTabText,
-                  i === 0 && styles.filterTabTextActive,
-                ]}
+      {/* Tabs */}
+      {groupsSupported !== false && (
+      <View style={styles.tabsWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+          {GROUPS.map((g) => {
+            const active = g === group;
+            const dot = (g === 'all' ? unreadCount : (unreadByGroup[g] || 0)) > 0;
+            return (
+              <TouchableOpacity
+                key={g}
+                testID={'notif-tab-' + g}
+                style={[styles.tab, active && styles.tabActive]}
+                onPress={() => selectTab(g)}
+                activeOpacity={0.8}
               >
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          )
-        )}
+                <Text style={[styles.tabText, active && styles.tabTextActive]}>{T(TAB_KEY[g])}</Text>
+                {dot && <View style={[styles.tabDot, active && styles.tabDotActive]} testID={'notif-tabdot-' + g} />}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
+      )}
+
+      {/* Unread count and the two list actions */}
+      {(unreadHere > 0 || notifications.length > 0) && (
+        <View style={styles.actions}>
+          <Text style={styles.unreadText} testID="notif-unread">
+            {unreadHere > 0 ? unreadHere + ' ' + T('unread') : ''}
+          </Text>
+          <View style={styles.actionBtns}>
+            {unreadHere > 0 && (
+              <TouchableOpacity testID="notif-markall" onPress={markAllRead} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.actionText}>{T('markAllRead')}</Text>
+              </TouchableOpacity>
+            )}
+            {notifications.length > 0 && (
+              <TouchableOpacity testID="notif-clear" onPress={clearAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.actionText, styles.actionDanger]}>{T('clearAll')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* List */}
       <FlatList
         data={notifications}
-        keyExtractor={(item) => item.id?.toString()}
+        keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <NotifItem item={item} />
+          <NotifCard item={item} onOpen={openItem} onDetail={showDetail} onThumb={openThumb} />
         )}
         ListEmptyComponent={ListEmpty}
         ListFooterComponent={ListFooter}
@@ -304,161 +371,188 @@ export default function NotificationsScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
       />
+
+      {/* The whole message */}
+      <Modal visible={!!detail} transparent animationType="slide" onRequestClose={closeDetail}>
+        <View style={styles.sheetBackdrop}>
+          <TouchableOpacity style={styles.sheetDismiss} activeOpacity={1} onPress={closeDetail} testID="notif-sheet-dismiss" />
+          {detail && (
+            <View style={styles.sheet} testID="notif-sheet">
+              <View style={styles.sheetHead}>
+                <View style={styles.iconWrap}>
+                  <Text style={styles.iconText}>{iconOf(detail)}</Text>
+                </View>
+                <View style={styles.sheetHeadText}>
+                  <Text style={styles.sheetTitle}>{detail.title}</Text>
+                  <Text style={styles.when}>{formatWhen(detail.created_at)}</Text>
+                </View>
+              </View>
+              <ScrollView style={styles.sheetScroll} showsVerticalScrollIndicator>
+                <Text style={styles.sheetMessage} selectable>{detail.message}</Text>
+                {Array.isArray(detail.thumbs) && detail.thumbs.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbs} contentContainerStyle={styles.thumbsContent}>
+                    {detail.thumbs.map((th, i) => (
+                      <TouchableOpacity
+                        key={(th.id || 'p') + '-' + i}
+                        onPress={() => { setDetail(null); openThumb(detail, th); }}
+                      >
+                        <Image source={{ uri: th.image }} style={styles.thumb} />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+              </ScrollView>
+              {hasTarget(detail) && (
+                <TouchableOpacity testID="notif-sheet-open" style={styles.cta} onPress={openFromDetail} activeOpacity={0.85}>
+                  <Text style={styles.ctaText}>{buttonText(detail)}</Text>
+                </TouchableOpacity>
+              )}
+              <View style={styles.sheetFoot}>
+                <TouchableOpacity testID="notif-sheet-delete" onPress={deleteDetail} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={[styles.actionText, styles.actionDanger]}>{T('delete')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity testID="notif-sheet-close" onPress={closeDetail} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={styles.actionText}>{T('close')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  container: { flex: 1, backgroundColor: COLORS.surface },
+
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.base,
-    paddingTop:
-      Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
-    paddingBottom: SPACING.base,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
-    ...SHADOWS.sm,
+    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base,
+    paddingBottom: SPACING.md,
   },
-  headerTitle: {
-    fontSize: FONTS['2xl'],
-    fontWeight: FONTS.bold,
-    color: COLORS.textPrimary,
-  },
-  unreadCount: {
-    fontSize: FONTS.xs,
-    color: COLORS.primary,
-    fontWeight: FONTS.semiBold,
-    marginTop: 2,
-  },
-  headerActions: {
+  headerSide: { width: 36, alignItems: 'flex-start' },
+  headerBack: { fontSize: 34, lineHeight: 36, color: COLORS.textPrimary, fontWeight: '300' },
+  headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, textAlign: 'center' },
+
+  tabsWrap: { backgroundColor: COLORS.surface },
+  tabs: { paddingHorizontal: SPACING.sm, paddingBottom: SPACING.sm, alignItems: 'center' },
+  tab: {
     flexDirection: 'row',
-    gap: SPACING.sm,
     alignItems: 'center',
-    paddingTop: SPACING.xs,
-  },
-  headerAction: {
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-  },
-  headerActionText: {
-    fontSize: FONTS.sm,
-    color: COLORS.primary,
-    fontWeight: FONTS.semiBold,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: SPACING.base,
     paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.full,
+    marginHorizontal: 2,
+  },
+  tabActive: { backgroundColor: COLORS.secondary },
+  tabText: { fontSize: FONTS.md, color: COLORS.textSecondary, fontWeight: FONTS.medium },
+  tabTextActive: { color: COLORS.textWhite, fontWeight: FONTS.bold },
+  tabDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primary, marginLeft: 5, marginTop: -8 },
+  tabDotActive: { backgroundColor: COLORS.primaryLight },
+
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.divider,
-    gap: SPACING.xs,
+    backgroundColor: COLORS.surfaceAlt,
   },
-  filterTab: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: RADIUS.full,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-  },
-  filterTabActive: {
-    backgroundColor: COLORS.primaryFade,
-    borderColor: COLORS.primary,
-  },
-  filterTabText: {
-    fontSize: FONTS.xs,
-    color: COLORS.textMuted,
-    fontWeight: FONTS.medium,
-  },
-  filterTabTextActive: {
-    color: COLORS.primary,
-    fontWeight: FONTS.bold,
-  },
-  listContent: {
-    paddingBottom: 100,
-  },
-  notifItem: {
+  unreadText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  actionBtns: { flexDirection: 'row', gap: SPACING.base },
+  actionText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  actionDanger: { color: COLORS.danger },
+
+  listContent: { paddingBottom: 100 },
+
+  card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingHorizontal: SPACING.base,
     paddingVertical: SPACING.base,
     backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
-    gap: SPACING.sm,
+    gap: SPACING.md,
   },
-  notifItemUnread: {
-    backgroundColor: COLORS.primaryFade + '40',
-  },
-  notifIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.surfaceAlt,
+  cardUnread: { backgroundColor: COLORS.primaryFade },
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
   },
-  notifIconUnread: {
-    backgroundColor: COLORS.primaryFade,
-  },
-  notifIconText: {
-    fontSize: 20,
-  },
-  notifContent: {
-    flex: 1,
-    gap: 3,
-  },
-  notifTitle: {
-    fontSize: FONTS.sm,
-    fontWeight: FONTS.medium,
-    color: COLORS.textPrimary,
-  },
-  notifTitleUnread: {
-    fontWeight: FONTS.bold,
-  },
-  notifMessage: {
-    fontSize: FONTS.sm,
-    color: COLORS.textMuted,
-    lineHeight: 18,
-  },
-  notifTime: {
-    fontSize: FONTS.xs,
-    color: COLORS.textLight,
-    marginTop: 2,
-  },
-  notifRight: {
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingTop: 2,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: RADIUS.full,
+  iconText: { fontSize: 22 },
+  iconDot: {
+    position: 'absolute',
+    top: -1,
+    right: -1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: COLORS.surface,
   },
-  deleteBtn: {
-    padding: 2,
+  cardBody: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: SPACING.sm },
+  cardTitle: { flex: 1, fontSize: FONTS.md, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  cardTitleUnread: { fontWeight: FONTS.bold },
+  when: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  message: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20, marginTop: 4 },
+  readMore: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold, marginTop: 4 },
+
+  thumbs: { marginTop: SPACING.md, marginRight: -SPACING.base },
+  thumbsContent: { paddingRight: SPACING.base, gap: SPACING.sm },
+  thumb: {
+    width: 64,
+    height: 64,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceSunken,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  deleteBtnText: {
-    fontSize: FONTS.xs,
-    color: COLORS.textLight,
-    fontWeight: FONTS.bold,
-  },
-  loadingMore: {
-    padding: SPACING.xl,
+
+  cta: {
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
     alignItems: 'center',
   },
-  loadingMoreText: {
-    fontSize: FONTS.sm,
-    color: COLORS.textMuted,
+  ctaText: { color: COLORS.textWhite, fontSize: FONTS.md, fontWeight: FONTS.bold },
+
+  loadingMore: { padding: SPACING.xl, alignItems: 'center' },
+  loadingMoreText: { fontSize: FONTS.sm, color: COLORS.textMuted },
+  errorBox: { padding: SPACING.xl, alignItems: 'center', gap: SPACING.md },
+  errorText: { fontSize: FONTS.md, color: COLORS.textSecondary, textAlign: 'center' },
+  retryBtn: { paddingHorizontal: SPACING.xl, paddingVertical: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.primary },
+  retryText: { color: COLORS.primary, fontWeight: FONTS.bold },
+
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheetDismiss: { flex: 1 },
+  sheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    padding: SPACING.base,
+    maxHeight: '80%',
   },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.md },
+  sheetHeadText: { flex: 1 },
+  sheetTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  sheetScroll: { flexGrow: 0 },
+  sheetMessage: { fontSize: FONTS.md, color: COLORS.textPrimary, lineHeight: 24 },
+  sheetFoot: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.base, paddingBottom: SPACING.sm },
 });

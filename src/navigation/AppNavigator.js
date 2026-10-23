@@ -30,6 +30,10 @@
  * table - and the cart is reported to the server (syncCartToServer) so the
  * server can send a reminder when it is left behind.
  *
+ * Updated: tapping a push notification now opens the screen it is about (the link the
+ * server puts in the push, see pushLinks.js), also when the app was closed; 'chat' is in the
+ * link table.
+ *
  * Updated: PromotionProducts screen registered - the dedicated
  * results screen shown when a Home screen promotion targets multiple
  * products, rather than one.
@@ -44,6 +48,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { initializeAuth, forceLogout } from '../store/authSlice';
 import { loadCart, loadWishlist, syncCartToServer } from '../store/cartSlice';
 import { fetchNotificationCount } from '../store/notificationSlice';
+import { getInitialURL, subscribe } from './pushLinks';
 import { storage } from '../utils/storage';
 import { COLORS, SCREENS } from '../utils/constants';
 
@@ -93,6 +98,9 @@ const Stack = createNativeStackNavigator();
 // Deep linking — routes for email CTA buttons (order updates, referral
 // rewards, password reset) and any future universal-link support.
 const linking = {
+  // A tap on a push notification opens its link, like a tap on an e-mail button does.
+  getInitialURL,
+  subscribe,
   // The longer web prefixes come first so 'https://vumastore.store/app/product/1'
   // is read as 'product/1'.
   prefixes: [
@@ -124,6 +132,7 @@ const linking = {
           OrderDetail: 'orders/:orderId',
           Wishlist: 'wishlist',
           Notifications: 'notifications',
+          Chat: 'chat',
           Referral: 'referral',
           SellerWallet: 'seller/earnings',
           ShopProfile: 'seller/shop',

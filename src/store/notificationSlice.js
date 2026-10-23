@@ -5,6 +5,7 @@
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getErrorMessage } from '../utils/helpers';
+import { groupOf } from '../utils/notificationLink';
 
 // ══════════════════════════════════════════════════════
 // ASYNC THUNKS
@@ -16,7 +17,7 @@ import { getErrorMessage } from '../utils/helpers';
 export const fetchNotifications = createAsyncThunk(
   'notifications/fetchNotifications',
   async (
-    { page = 1, category = '', unread_only = false } = {},
+    { page = 1, category = '', unread_only = false, group = '' } = {},
     { rejectWithValue }
   ) => {
     try {
@@ -27,6 +28,7 @@ export const fetchNotifications = createAsyncThunk(
         page,
         category,
         unread_only,
+        group,
       });
       return { data, page };
     } catch (error) {
@@ -66,6 +68,24 @@ export const markNotificationsRead = createAsyncThunk(
       );
       await notificationsAPI.markRead(notificationIds);
       return notificationIds;
+    } catch (error) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
+/**
+ * Mark one tab (orders, promotions, restock, account) as read - or everything for 'all'
+ */
+export const markGroupRead = createAsyncThunk(
+  'notifications/markGroupRead',
+  async (group = 'all', { rejectWithValue }) => {
+    try {
+      const { notificationsAPI } = await import(
+        '../api/notifications'
+      );
+      await notificationsAPI.markGroupRead(group);
+      return group;
     } catch (error) {
       return rejectWithValue(getErrorMessage(error));
     }
@@ -115,13 +135,13 @@ export const deleteNotification = createAsyncThunk(
  */
 export const clearAllNotifications = createAsyncThunk(
   'notifications/clearAll',
-  async (_, { rejectWithValue }) => {
+  async (group = 'all', { rejectWithValue }) => {
     try {
       const { notificationsAPI } = await import(
         '../api/notifications'
       );
-      await notificationsAPI.clearAll();
-      return true;
+      await notificationsAPI.clearAll(group);
+      return group;
     } catch (error) {
       return rejectWithValue(getErrorMessage(error));
     }
@@ -142,6 +162,13 @@ const initialState = {
   // Unread counts
   unreadCount: 0,
   unreadByCategory: {},
+  unreadByGroup: {},
+  // Does the server know the tabs? null until the first count answers. An older server does not
+  // send by_group, and then the screen shows one list and leaves the tab actions out.
+  groupsSupported: null,
+
+  // Active tab of the Notification Center: all, orders, promotions, restock, account
+  activeGroup: 'all',
 
   // Active filter
   activeCategory: '',
@@ -188,8 +215,19 @@ const notificationSlice = createSlice({
           const cat = notification.category || 'system';
           state.unreadByCategory[cat] =
             (state.unreadByCategory[cat] || 0) + 1;
+          const grp = groupOf(notification);
+          state.unreadByGroup[grp] =
+            (state.unreadByGroup[grp] || 0) + 1;
         }
       }
+    },
+
+    // Choose a tab of the Notification Center
+    setActiveGroup: (state, action) => {
+      state.activeGroup = action.payload || 'all';
+      state.items = [];
+      state.currentPage = 1;
+      state.hasNextPage = false;
     },
 
     // Set active category filter
@@ -215,6 +253,7 @@ const notificationSlice = createSlice({
     resetUnreadCount: (state) => {
       state.unreadCount = 0;
       state.unreadByCategory = {};
+      state.unreadByGroup = {};
     },
 
     // Reset notifications list
@@ -249,6 +288,8 @@ const notificationSlice = createSlice({
         (state, action) => {
           state.loading.fetch = false;
           state.loading.loadingMore = false;
+          // The person may have moved to another tab while this was loading.
+          if ((action.meta.arg?.group || 'all') !== state.activeGroup) return;
           const { data, page } = action.payload;
           const results = data.results || data;
 
@@ -286,9 +327,11 @@ const notificationSlice = createSlice({
         fetchNotificationCount.fulfilled,
         (state, action) => {
           state.loading.count = false;
-          const { unread, by_category } = action.payload;
+          const { unread, by_category, by_group } = action.payload;
           state.unreadCount = unread || 0;
           state.unreadByCategory = by_category || {};
+          state.unreadByGroup = by_group || {};
+          state.groupsSupported = !!by_group && typeof by_group === 'object';
         }
       )
       .addCase(fetchNotificationCount.rejected, (state) => {
@@ -314,23 +357,48 @@ const notificationSlice = createSlice({
             }));
             state.unreadCount = 0;
             state.unreadByCategory = {};
+            state.unreadByGroup = {};
           } else {
             // Mark specific ones
             const idSet = new Set(ids.map(String));
+            state.items.forEach((n) => {
+              if (idSet.has(String(n.id)) && !n.is_read) {
+                const grp = groupOf(n);
+                if (state.unreadByGroup[grp] > 0) state.unreadByGroup[grp] -= 1;
+                if (state.unreadCount > 0) state.unreadCount -= 1;
+              }
+            });
             state.items = state.items.map((n) =>
               idSet.has(String(n.id))
                 ? { ...n, is_read: true }
                 : n
             );
-            // Recalculate unread count
-            state.unreadCount = state.items.filter(
-              (n) => !n.is_read
-            ).length;
           }
         }
       )
       .addCase(markNotificationsRead.rejected, (state) => {
         state.loading.markRead = false;
+      });
+
+    // ── Mark a whole tab read ─────────────────────────
+    builder
+      .addCase(markGroupRead.fulfilled, (state, action) => {
+        const group = action.payload;
+        if (group === 'all') {
+          state.items = state.items.map((n) => ({ ...n, is_read: true }));
+          state.unreadCount = 0;
+          state.unreadByCategory = {};
+          state.unreadByGroup = {};
+        } else {
+          state.items = state.items.map((n) =>
+            groupOf(n) === group ? { ...n, is_read: true } : n
+          );
+          state.unreadCount = Math.max(
+            0,
+            state.unreadCount - (state.unreadByGroup[group] || 0)
+          );
+          state.unreadByGroup[group] = 0;
+        }
       });
 
     // ── Mark Single Read ──────────────────────────────
@@ -353,6 +421,8 @@ const notificationSlice = createSlice({
           if (cat && state.unreadByCategory[cat] > 0) {
             state.unreadByCategory[cat] -= 1;
           }
+          const grp = groupOf(state.items[index]);
+          if (state.unreadByGroup[grp] > 0) state.unreadByGroup[grp] -= 1;
         }
       });
 
@@ -374,6 +444,8 @@ const notificationSlice = createSlice({
               0,
               state.unreadCount - 1
             );
+            const grp = groupOf(notif);
+            if (state.unreadByGroup[grp] > 0) state.unreadByGroup[grp] -= 1;
           }
           state.items = state.items.filter(
             (n) => String(n.id) !== String(id)
@@ -395,11 +467,21 @@ const notificationSlice = createSlice({
       })
       .addCase(
         clearAllNotifications.fulfilled,
-        (state) => {
+        (state, action) => {
           state.loading.clearAll = false;
+          const group = action.payload || 'all';
           state.items = [];
-          state.unreadCount = 0;
-          state.unreadByCategory = {};
+          if (group === 'all') {
+            state.unreadCount = 0;
+            state.unreadByCategory = {};
+            state.unreadByGroup = {};
+          } else {
+            state.unreadCount = Math.max(
+              0,
+              state.unreadCount - (state.unreadByGroup[group] || 0)
+            );
+            state.unreadByGroup[group] = 0;
+          }
           state.totalCount = 0;
           state.currentPage = 1;
           state.hasNextPage = false;
@@ -417,6 +499,7 @@ const notificationSlice = createSlice({
 
 export const {
   addNotification,
+  setActiveGroup,
   setActiveCategory,
   toggleUnreadOnly,
   setUnreadCount,
@@ -435,6 +518,12 @@ export const selectUnreadCount = (state) =>
   state.notifications.unreadCount;
 export const selectUnreadByCategory = (state) =>
   state.notifications.unreadByCategory;
+export const selectUnreadByGroup = (state) =>
+  state.notifications.unreadByGroup;
+export const selectActiveGroup = (state) =>
+  state.notifications.activeGroup;
+export const selectGroupsSupported = (state) =>
+  state.notifications.groupsSupported;
 export const selectNotificationsLoading = (state) =>
   state.notifications.loading;
 export const selectNotificationsErrors = (state) =>
