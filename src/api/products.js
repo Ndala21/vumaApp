@@ -8,7 +8,7 @@ import { API } from '../utils/constants';
 
 export const productsAPI = {
 
-  getProducts: ({ page = 1, category = '', q = '', ordering = '-created_at', min_price = '', max_price = '', featured = false, flash_sale = false } = {}) => {
+  getProducts: ({ page = 1, category = '', q = '', ordering = '-created_at', min_price = '', max_price = '', featured = false, flash_sale = false, free_delivery = false } = {}) => {
     const params = { page };
     if (category) params.category = category;
     if (q) params.q = q;
@@ -17,6 +17,7 @@ export const productsAPI = {
     if (max_price) params.max_price = max_price;
     if (featured) params.featured = 'true';
     if (flash_sale) params.flash_sale = 'true';
+    if (free_delivery) params.free_delivery = 'true';
     return get(API.PRODUCTS, params);
   },
 

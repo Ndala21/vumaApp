@@ -246,6 +246,7 @@ export default function CheckoutScreen({ navigation, route }) {
           coupon_code: couponCode,
           device_id: await getDeviceId(),
           payment_method: paymentMethod,
+          delivery_type: deliveryType,
         });
         if (seq === quoteSeq.current) setQuote(data);
       } catch {
@@ -255,7 +256,17 @@ export default function CheckoutScreen({ navigation, route }) {
         if (seq === quoteSeq.current) setQuoting(false);
       }
     })();
-  }, [isAuthenticated, itemsKey, couponCode, paymentMethod]);
+  }, [isAuthenticated, itemsKey, couponCode, paymentMethod, deliveryType]);
+
+  // Delivery as the server priced it: one fee per seller parcel, free only where every product
+  // in the parcel has free delivery, and nothing at all while the VUMA team has fees switched off.
+  const delivery = quote && quote.delivery ? quote.delivery : null;
+  const feesCharged = !!(delivery && delivery.charging);
+  const deliveryHint = (type) => {
+    if (!feesCharged) return '';
+    if (delivery.all_free) return 'Free';
+    return `${tzs(type === 'pickup' ? delivery.fee_pickup : delivery.fee_home)} per shop`;
+  };
 
   const payTotal = quote ? Number(quote.total) : cartTotal;
   const isFree = !!(quote && quote.free_order);
@@ -651,6 +662,9 @@ export default function CheckoutScreen({ navigation, route }) {
                 <Text style={[styles.deliveryLabel, deliveryType === dt.value && styles.deliveryLabelActive]}>
                   {dt.label}
                 </Text>
+                {!!deliveryHint(dt.value) && (
+                  <Text style={styles.deliveryHint}>{deliveryHint(dt.value)}</Text>
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -920,10 +934,22 @@ export default function CheckoutScreen({ navigation, route }) {
               <Text style={[styles.summaryPrice, { color: COLORS.success }]}>− {tzs(quote.gift.amount)}</Text>
             </View>
           )}
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryItem}>Delivery</Text>
-            <Text style={[styles.summaryPrice, { color: COLORS.success }]}>FREE</Text>
-          </View>
+          {!delivery && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryItem}>Delivery</Text>
+              <Text style={styles.summaryPrice}>Confirmed when you pay</Text>
+            </View>
+          )}
+          {feesCharged && delivery.shipments.map((s, i) => (
+            <View key={`ship-${s.seller_id || i}`} style={styles.summaryRow}>
+              <Text style={styles.summaryItem} numberOfLines={1}>
+                {delivery.shipments.length > 1 ? `Delivery · ${s.shop_name || 'Seller'}` : 'Delivery'}
+              </Text>
+              {s.free || Number(s.fee) <= 0
+                ? <Text style={[styles.summaryPrice, { color: COLORS.success }]}>FREE</Text>
+                : <Text style={styles.summaryPrice}>{tzs(s.fee)}</Text>}
+            </View>
+          ))}
           <View style={styles.summaryTotal}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
             <Text style={styles.summaryTotalValue}>{isFree ? 'FREE' : tzs(payTotal)}</Text>
@@ -956,7 +982,7 @@ export default function CheckoutScreen({ navigation, route }) {
           />
           <View style={styles.secureRow}>
             <Text style={styles.secureIcon}>🔒</Text>
-            <Text style={styles.secureText}>Secured by AzamPay · Free delivery on all orders</Text>
+            <Text style={styles.secureText}>Secured by AzamPay</Text>
           </View>
         </View>
 
@@ -1017,6 +1043,7 @@ const styles = StyleSheet.create({
   deliveryIcon: { fontSize: 27, marginBottom: 4 },
   deliveryLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
   deliveryLabelActive: { color: COLORS.primaryDark, fontWeight: FONTS.bold },
+  deliveryHint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   phoneWrap: { flexDirection: 'row', borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, overflow: 'hidden' },
   phoneFlag: { backgroundColor: COLORS.surfaceAlt, paddingHorizontal: SPACING.sm, justifyContent: 'center', borderRightWidth: 1, borderRightColor: COLORS.border },
   phoneFlagText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },

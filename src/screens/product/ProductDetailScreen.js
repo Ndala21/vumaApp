@@ -31,7 +31,7 @@ import {
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SCREENS, SHADOWS } from '../../utils/constants';
 import {
-  formatPrice, formatDate, getDiscount, isFlashSale,
+  formatPrice, formatDate, formatEastAfricaDate, getDiscount, isFlashSale,
   getEffectivePrice, formatCountdown, secondsUntil, getInitials,
 } from '../../utils/helpers';
 import Button from '../../components/common/Button';
@@ -299,6 +299,10 @@ export default function ProductDetailScreen({ navigation, route }) {
   // Room for the phone's clock/battery bar above the round buttons.
   const topInset = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 6;
   const vendorLabel = displayProduct.vendor_info?.shop_name || displayProduct.vendor_name || '';
+  // "until 25 Oct" when the VUMA team set an end date for this product's free delivery.
+  const freeUntilText = displayProduct.free_delivery && displayProduct.free_delivery_until
+    ? t('products.freeDeliveryUntil', { date: formatEastAfricaDate(displayProduct.free_delivery_until) })
+    : '';
   // Quantity list for the drop-down: 1 up to what is in stock (at most 30).
   const qtyChoices = Array.from({ length: Math.max(1, Math.min(unitsLeft, 30)) }, (_, i) => i + 1);
   const lowStock = !needsVariant && unitsLeft > 0 && unitsLeft <= 5;
@@ -414,7 +418,14 @@ export default function ProductDetailScreen({ navigation, route }) {
             <Text style={styles.shortDescription} numberOfLines={4}>{shortText}</Text>
           )}
           <Text style={styles.deliveryLine}>
-            <Text style={styles.deliveryBold}>{t('products.freeDelivery')}</Text>
+            {displayProduct.free_delivery ? (
+              <Text style={styles.deliveryBold}>
+                {t('products.freeDelivery')}
+                {freeUntilText ? '  ' + freeUntilText : ''}
+              </Text>
+            ) : (
+              <Text>{t('products.deliveryAtCheckout')}</Text>
+            )}
             {vendorLabel ? <Text>{'  ·  ' + t('products.soldBy') + ' ' + vendorLabel}</Text> : null}
           </Text>
         </View>

@@ -368,6 +368,7 @@ export default function HomeScreen({ navigation }) {
   // ── VUMA Faida & Ofa — promotion cards, Swahili-labeled, each only
   // shown when its real backing campaign is active. ──
   const giftCopy = giftCardCopy(promotions?.welcome_gift);
+  const freeDeliverySubtitle = (n) => (n > 0 ? `Bidhaa ${n} zilizochaguliwa` : 'Bidhaa zilizochaguliwa');
   const couponCount = promotions?.coupons?.count || 0;
   const FAIDA_CARDS = [
     {
@@ -402,11 +403,11 @@ export default function HomeScreen({ navigation }) {
       key: 'free_delivery',
       show: promotions?.free_delivery?.active,
       icon: '🚚', bg: COLORS.primaryFade,
-      title: 'Usafirishaji Bure', subtitle: 'Kwa oda zote Tanzania nzima',
+      // Only chosen products have free delivery (the VUMA team picks them), so the card says
+      // how many there are right now and opens just those products.
+      title: 'Usafirishaji Bure', subtitle: freeDeliverySubtitle(promotions?.free_delivery?.count),
       cta: 'Tazama', ctaColor: COLORS.primary,
-      onPress: () => {
-        mainScrollRef.current?.scrollTo({ y: Math.max(0, allProductsYRef.current - 12), animated: true });
-      },
+      onPress: () => navigation.navigate('ProductList', { free_delivery: true, title: '🚚 Usafirishaji Bure' }),
     },
     {
       key: 'referral',

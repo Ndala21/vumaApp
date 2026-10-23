@@ -91,6 +91,19 @@ export const formatDate = (dateString, options = {}) => {
 };
 
 /**
+ * A day as the VUMA team set it: in Tanzania time (East Africa Time, UTC+3), whatever time zone the
+ * phone is in. formatEastAfricaDate('2026-11-05T20:59:59Z') -> 'Nov 5' (the end of 5 November).
+ */
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const formatEastAfricaDate = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  const eat = new Date(date.getTime() + 3 * 60 * 60 * 1000);
+  return `${SHORT_MONTHS[eat.getUTCMonth()]} ${eat.getUTCDate()}`;
+};
+
+/**
  * Format date and time
  * formatDateTime('2024-01-15T14:30:00') → 'Jan 15, 2024 2:30 PM'
  */
@@ -449,8 +462,17 @@ export const getEffectivePrice = (product) => {
 // ══════════════════════════════════════════════════════
 
 /**
- * Calculate cart totals
- * Delivery is free on all orders (VUMA policy) — shipping is always 0.
+ * Does VUMA pay the delivery of this product? Only the products the VUMA team chose
+ * (the server sends `free_delivery`). Everything else pays the delivery fee that checkout shows.
+ */
+export const hasFreeDelivery = (product) => !!(product && product.free_delivery);
+
+/**
+ * Calculate cart totals (the goods only).
+ * Delivery is NOT added here: the fee depends on the sellers, on home delivery or pickup and on
+ * which products have free delivery, so the server works it out (POST /orders/quote/) and the
+ * cart and checkout screens show that. `shipping` stays 0 and means "not counted here".
+ * `isfreeDelivery` is true only when every item in the cart has free delivery.
  */
 export const calculateCartTotals = (items) => {
   if (!items || items.length === 0) {
@@ -459,7 +481,7 @@ export const calculateCartTotals = (items) => {
       shipping: 0,
       total: 0,
       itemCount: 0,
-      isfreeDelivery: true,
+      isfreeDelivery: false,
     };
   }
   const subtotal = items.reduce(
@@ -472,7 +494,7 @@ export const calculateCartTotals = (items) => {
     shipping,
     total: subtotal + shipping,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-    isfreeDelivery: true,
+    isfreeDelivery: items.every((item) => hasFreeDelivery(item.product)),
   };
 };
 

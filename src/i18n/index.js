@@ -28,12 +28,12 @@ const translations = {
     },
     home: {
       flashSale: '⚡ Flash Sale', featured: '⭐ Featured', allProducts: '🛍️ All Products',
-      freeDelivery: '🚚 Free Delivery on orders over', shopNow: 'Shop Now!',
+      freeDelivery: '🚚 Free delivery on chosen items', shopNow: 'Shop Now!',
       searchPlaceholder: '🔍 Search products...',
     },
     products: {
       addToCart: 'Add to Cart', buyNow: 'Buy Now', outOfStock: 'Out of Stock',
-      inStock: 'In Stock', freeDelivery: '🚚 Free Delivery', quantity: 'Quantity', soldBy: 'Sold by', percentOff: '{count}% off', freeDeliveryChip: 'Free Delivery',
+      inStock: 'In Stock', freeDelivery: '🚚 Free Delivery', quantity: 'Quantity', soldBy: 'Sold by', percentOff: '{count}% off', freeDeliveryChip: 'Free Delivery', deliveryAtCheckout: 'Delivery fee is shown at checkout', freeDeliveryUntil: 'until {date}',
       sold: 'sold', reviews: '⭐ Reviews', wishlist: 'Wishlist', description: 'Description',
       details: 'Details', writeReview: 'Write Review', noReviews: 'No reviews yet',
       relatedProducts: 'Related Products', share: 'Share',
@@ -47,7 +47,7 @@ const translations = {
       emptyCartMessage: 'Browse products and add items to your cart',
       startShopping: 'Start Shopping', checkout: 'Checkout', clearCart: 'Clear',
       orderSummary: 'Order Summary', subtotal: 'Subtotal', shipping: 'Shipping',
-      total: 'Total', free: 'FREE', freeDeliveryEarned: "🎉 You've earned Free Delivery!",
+      total: 'Total', free: 'FREE', delivery: 'Delivery', deliveryAtCheckout: 'Shown at checkout',
       removeItem: 'Remove Item', clearCartMessage: 'Remove all items from cart?',
     },
     orders: {
@@ -146,7 +146,7 @@ const translations = {
     },
     products: {
       addToCart: '장바구니 담기', buyNow: '바로 구매', outOfStock: '품절', inStock: '재고 있음',
-      freeDelivery: '🚚 무료배송', quantity: '수량', soldBy: '판매자', percentOff: '{count}% 할인', freeDeliveryChip: '무료배송', sold: '판매됨', reviews: '⭐ 리뷰',
+      freeDelivery: '🚚 무료배송', quantity: '수량', soldBy: '판매자', percentOff: '{count}% 할인', freeDeliveryChip: '무료배송', deliveryAtCheckout: '배송비는 결제 시 표시됩니다', freeDeliveryUntil: '{date}까지', sold: '판매됨', reviews: '⭐ 리뷰',
       wishlist: '위시리스트', description: '상품 설명', details: '상세 정보',
       writeReview: '리뷰 작성', noReviews: '리뷰가 없습니다', relatedProducts: '관련 상품', share: '공유',
     },
@@ -155,7 +155,7 @@ const translations = {
       emptyCartMessage: '상품을 둘러보고 장바구니에 추가하세요',
       startShopping: '쇼핑 시작', checkout: '결제하기', clearCart: '비우기',
       orderSummary: '주문 요약', subtotal: '소계', shipping: '배송비',
-      total: '합계', free: '무료', freeDeliveryEarned: '🎉 무료배송 혜택을 받으셨습니다!',
+      total: '합계', free: '무료', delivery: '배송', deliveryAtCheckout: '결제 시 표시',
       removeItem: '상품 삭제', clearCartMessage: '장바구니를 비우시겠습니까?',
     },
     orders: {
@@ -251,7 +251,7 @@ const translations = {
     },
     products: {
       addToCart: '加入购物车', buyNow: '立即购买', outOfStock: '缺货', inStock: '有货',
-      freeDelivery: '🚚 免费配送', quantity: '数量', soldBy: '卖家', percentOff: '立减{count}%', freeDeliveryChip: '免费配送', sold: '已售', reviews: '⭐ 评价',
+      freeDelivery: '🚚 免费配送', quantity: '数量', soldBy: '卖家', percentOff: '立减{count}%', freeDeliveryChip: '免费配送', deliveryAtCheckout: '运费将在结算时显示', freeDeliveryUntil: '截止 {date}', sold: '已售', reviews: '⭐ 评价',
       wishlist: '收藏', description: '商品描述', details: '详情',
       writeReview: '写评价', noReviews: '暂无评价', relatedProducts: '相关商品', share: '分享',
     },
@@ -259,7 +259,7 @@ const translations = {
       myCart: '购物车', emptyCart: '购物车是空的', emptyCartMessage: '浏览商品并添加到购物车',
       startShopping: '开始购物', checkout: '结账', clearCart: '清空',
       orderSummary: '订单摘要', subtotal: '小计', shipping: '运费',
-      total: '合计', free: '免费', freeDeliveryEarned: '🎉 您已获得免费配送！',
+      total: '合计', free: '免费', delivery: '配送', deliveryAtCheckout: '结算时显示',
       removeItem: '删除商品', clearCartMessage: '确定清空购物车？',
     },
     orders: {
@@ -352,7 +352,7 @@ const translations = {
     },
     products: {
       addToCart: 'Ongeza kwenye Kikapu', buyNow: 'Nunua Sasa', outOfStock: 'Haina Stok',
-      inStock: 'Ipo', freeDelivery: '🚚 Usafirishaji Bure', quantity: 'Wingi', soldBy: 'Muuzaji', percentOff: 'Punguzo {count}%', freeDeliveryChip: 'Usafirishaji Bure',
+      inStock: 'Ipo', freeDelivery: '🚚 Usafirishaji Bure', quantity: 'Wingi', soldBy: 'Muuzaji', percentOff: 'Punguzo {count}%', freeDeliveryChip: 'Usafirishaji Bure', deliveryAtCheckout: 'Gharama ya usafirishaji huonekana wakati wa kulipa', freeDeliveryUntil: 'hadi {date}',
       sold: 'Imeuzwa', reviews: '⭐ Maoni', wishlist: 'Orodha ya Matakwa',
       description: 'Maelezo', details: 'Undani', writeReview: 'Andika Maoni',
       noReviews: 'Hakuna maoni bado', relatedProducts: 'Bidhaa Zinazohusiana', share: 'Shiriki',
@@ -366,7 +366,7 @@ const translations = {
       emptyCartMessage: 'Vinjari bidhaa na uongeze kwenye kikapu',
       startShopping: 'Anza Kununua', checkout: 'Lipia', clearCart: 'Futa',
       orderSummary: 'Muhtasari wa Agizo', subtotal: 'Jumla ndogo', shipping: 'Usafirishaji',
-      total: 'Jumla', free: 'BURE', freeDeliveryEarned: '🎉 Umepata Usafirishaji Bure!',
+      total: 'Jumla', free: 'BURE', delivery: 'Usafirishaji', deliveryAtCheckout: 'Itaonekana wakati wa kulipa',
       removeItem: 'Ondoa Bidhaa', clearCartMessage: 'Ondoa bidhaa zote kwenye kikapu?',
     },
     orders: {
@@ -460,7 +460,7 @@ const translations = {
     },
     products: {
       addToCart: 'Ajouter au panier', buyNow: 'Acheter maintenant', outOfStock: 'Rupture de stock',
-      inStock: 'En stock', freeDelivery: '🚚 Livraison gratuite', quantity: 'Quantité', soldBy: 'Vendu par', percentOff: '{count}% de réduction', freeDeliveryChip: 'Livraison gratuite',
+      inStock: 'En stock', freeDelivery: '🚚 Livraison gratuite', quantity: 'Quantité', soldBy: 'Vendu par', percentOff: '{count}% de réduction', freeDeliveryChip: 'Livraison gratuite', deliveryAtCheckout: "Les frais de livraison s'affichent au paiement", freeDeliveryUntil: "jusqu'au {date}",
       sold: 'vendu', reviews: '⭐ Avis', wishlist: 'Liste de souhaits',
       description: 'Description', details: 'Détails', writeReview: 'Écrire un avis',
       noReviews: "Pas encore d'avis", relatedProducts: 'Produits similaires', share: 'Partager',
@@ -470,7 +470,7 @@ const translations = {
       emptyCartMessage: 'Parcourez les produits et ajoutez des articles à votre panier',
       startShopping: 'Commencer les achats', checkout: 'Commander', clearCart: 'Vider',
       orderSummary: 'Résumé de la commande', subtotal: 'Sous-total', shipping: 'Livraison',
-      total: 'Total', free: 'GRATUIT', freeDeliveryEarned: '🎉 Vous avez gagné la Livraison gratuite!',
+      total: 'Total', free: 'GRATUIT', delivery: 'Livraison', deliveryAtCheckout: 'Affiché au paiement',
       removeItem: "Supprimer l'article", clearCartMessage: 'Vider le panier?',
     },
     orders: {
@@ -565,7 +565,7 @@ const translations = {
     },
     products: {
       addToCart: 'أضف إلى السلة', buyNow: 'اشتر الآن', outOfStock: 'نفذت الكمية',
-      inStock: 'متوفر', freeDelivery: '🚚 شحن مجاني', quantity: 'الكمية', soldBy: 'البائع', percentOff: 'خصم {count}%', freeDeliveryChip: 'شحن مجاني',
+      inStock: 'متوفر', freeDelivery: '🚚 شحن مجاني', quantity: 'الكمية', soldBy: 'البائع', percentOff: 'خصم {count}%', freeDeliveryChip: 'شحن مجاني', deliveryAtCheckout: 'تظهر رسوم التوصيل عند الدفع', freeDeliveryUntil: 'حتى {date}',
       sold: 'مُباع', reviews: '⭐ التقييمات', wishlist: 'قائمة الأمنيات',
       description: 'الوصف', details: 'التفاصيل', writeReview: 'كتابة تقييم',
       noReviews: 'لا توجد تقييمات بعد', relatedProducts: 'منتجات مشابهة', share: 'مشاركة',
@@ -575,7 +575,7 @@ const translations = {
       emptyCartMessage: 'تصفح المنتجات وأضف العناصر إلى سلتك',
       startShopping: 'ابدأ التسوق', checkout: 'إتمام الشراء', clearCart: 'مسح',
       orderSummary: 'ملخص الطلب', subtotal: 'المجموع الفرعي', shipping: 'الشحن',
-      total: 'الإجمالي', free: 'مجاني', freeDeliveryEarned: '🎉 حصلت على شحن مجاني!',
+      total: 'الإجمالي', free: 'مجاني', delivery: 'التوصيل', deliveryAtCheckout: 'تظهر عند الدفع',
       removeItem: 'إزالة المنتج', clearCartMessage: 'إزالة جميع العناصر من السلة؟',
     },
     orders: {

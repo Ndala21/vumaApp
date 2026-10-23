@@ -137,6 +137,7 @@ export default function SellerStoreScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [reportModal, setReportModal] = useState(false);
+  const [posterOpen, setPosterOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [reporting, setReporting] = useState(false);
@@ -260,7 +261,8 @@ export default function SellerStoreScreen({ route, navigation }) {
 
         {/* Store Info */}
         <View style={styles.storeInfo}>
-          <Text style={styles.storeName}>{info.shop_name}</Text>
+          <Text style={[styles.storeName, !!info.tagline && { marginBottom: 2 }]}>{info.shop_name}</Text>
+          {info.tagline ? <Text style={styles.tagline}>{info.tagline}</Text> : null}
 
           {/* Badges */}
           {badges.length > 0 && (
@@ -286,6 +288,13 @@ export default function SellerStoreScreen({ route, navigation }) {
           {/* Description */}
           {info.description ? (
             <Text style={styles.description}>{info.description}</Text>
+          ) : null}
+
+          {/* The shop's own poster - tap to see it large */}
+          {info.poster ? (
+            <TouchableOpacity style={styles.posterCard} onPress={() => setPosterOpen(true)} activeOpacity={0.9} accessibilityRole="imagebutton" testID="store-poster">
+              <Image source={{ uri: info.poster }} style={styles.posterImage} resizeMode="contain" />
+            </TouchableOpacity>
           ) : null}
 
           {/* Stats */}
@@ -438,7 +447,7 @@ export default function SellerStoreScreen({ route, navigation }) {
               <Text style={styles.protectionTitle}>🔒 VUMA Buyer Protection</Text>
               {[
                 '100% secure payments via M-Pesa, Airtel, Tigo',
-                'Free delivery on all orders',
+                'Delivery fee shown before you pay',
                 'Easy returns & refunds within 7 days',
                 'Direct support from VUMA team',
               ].map((item, i) => (
@@ -453,6 +462,13 @@ export default function SellerStoreScreen({ route, navigation }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Poster, full size */}
+      <Modal visible={posterOpen && !!info.poster} animationType="fade" transparent onRequestClose={() => setPosterOpen(false)}>
+        <TouchableOpacity style={styles.posterModal} activeOpacity={1} onPress={() => setPosterOpen(false)} testID="store-poster-close">
+          {info.poster ? <Image source={{ uri: info.poster }} style={styles.posterFull} resizeMode="contain" /> : null}
+        </TouchableOpacity>
+      </Modal>
 
       {/* Report Modal */}
       <Modal visible={reportModal} animationType="slide" transparent>
@@ -540,6 +556,11 @@ const styles = StyleSheet.create({
   metaIcon:     { fontSize: 12 },
   metaText:     { fontSize: 12, color: C.textSec },
   description:  { fontSize: 13, color: C.textSec, lineHeight: 20, marginBottom: 16 },
+  tagline:      { fontSize: 14, color: C.textSec, marginBottom: 8 },
+  posterCard:   { width: '100%', height: 320, borderRadius: 14, overflow: 'hidden', backgroundColor: '#F4F4F6', marginBottom: 16 },
+  posterImage:  { width: '100%', height: '100%' },
+  posterModal:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' },
+  posterFull:   { width: '100%', height: '88%' },
 
   // Stats
   statsRow:     { flexDirection: 'row', backgroundColor: C.bg, borderRadius: 12, padding: 16, marginBottom: 16, justifyContent: 'space-around' },

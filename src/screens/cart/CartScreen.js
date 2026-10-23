@@ -3,7 +3,7 @@
  * Fixed: uses item.product.* structure, real vendor names, real images
  */
 
-import React, { useState, useCallback, useMemo, useEffect, memo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   StatusBar, Platform, Alert, Image, ScrollView,
@@ -16,9 +16,9 @@ import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import ProductCard from '../../components/ProductCard';
 import { productsAPI } from '../../api/products';
-import { get } from '../../api/client';
-
-const DELIVERY_FEE = 0;
+import { get, post } from '../../api/client';
+import { tzs } from '../../utils/rewards';
+import { t } from '../../i18n';
 
 // TabNavigator renders a floating tab bar (position: absolute) that overlays
 // screen content instead of pushing it up — so any bottom-pinned element in
@@ -153,15 +153,17 @@ const CartItem = memo(({ item, selected, onToggle, onQuantityChange, onDelete })
 });
 
 // ── Seller Group Header ───────────────────────────────
-const SellerGroupHeader = memo(({ seller, allSelected, someSelected, onToggleAll }) => (
+const SellerGroupHeader = memo(({ seller, allSelected, someSelected, onToggleAll, freeDelivery }) => (
   <View style={styles.sellerHeader}>
     <Checkbox checked={allSelected} indeterminate={someSelected && !allSelected}
       onPress={onToggleAll} size={20} />
     <Text style={styles.sellerHeaderIcon}>🏪</Text>
     <Text style={styles.sellerHeaderName}>{seller}</Text>
-    <View style={styles.sellerFreeDelivery}>
-      <Text style={styles.sellerFreeDeliveryText}>🚚 Free Delivery</Text>
-    </View>
+    {freeDelivery ? (
+      <View style={styles.sellerFreeDelivery}>
+        <Text style={styles.sellerFreeDeliveryText}>🚚 {t('products.freeDeliveryChip')}</Text>
+      </View>
+    ) : null}
   </View>
 ));
 
@@ -227,7 +229,46 @@ export default function CartScreen({ navigation }) {
     [selectedItems]
   );
 
-  const total = subtotal + DELIVERY_FEE;
+  // ── Delivery: worked out by the server, never assumed ──
+  // What delivery costs depends on the sellers, on home delivery or pickup and on which products
+  // have free delivery, so the cart asks /orders/quote/ (signed-in customers). Without an answer
+  // it claims nothing: the delivery row says the fee is shown at checkout.
+  const [quote, setQuote] = useState(null);
+  const quoteSeq = useRef(0);
+  const quoteLines = useMemo(() => selectedItems.map(i => ({
+    product_id: i.product?.id || i.id,
+    variant_id: i.selectedVariant?.id || undefined,
+    quantity: i.quantity,
+  })), [selectedItems]);
+  const quoteKey = JSON.stringify(quoteLines);
+  useEffect(() => {
+    if (!isAuthenticated || quoteLines.length === 0) { setQuote(null); return undefined; }
+    const seq = ++quoteSeq.current;
+    const timer = setTimeout(async () => {
+      try {
+        const data = await post('/orders/quote/', { items: quoteLines, delivery_type: 'home' });
+        if (seq === quoteSeq.current) setQuote(data);
+      } catch {
+        if (seq === quoteSeq.current) setQuote(null);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, quoteKey]);
+
+  const delivery = quote && quote.delivery ? quote.delivery : null;
+  const feesCharged = !!(delivery && delivery.charging);
+  const deliveryFee = feesCharged ? Number(delivery.gross || 0) : 0;
+  // Pickup can cost less than delivery to a door: tell the customer it exists.
+  const pickupCheaper = feesCharged && deliveryFee > 0 && Number(delivery.fee_pickup) < Number(delivery.fee_home);
+  const freeIds = useMemo(() => new Set((delivery && delivery.free_product_ids) || []), [delivery]);
+  // A seller's chip: every ticked product of that seller has free delivery (per the server).
+  const sellerHasFreeDelivery = useCallback((seller) => {
+    if (!feesCharged) return false;
+    const rows = (groupedBySeller[seller] || []).filter(i => selectedIds.has(i.product?.id));
+    return rows.length > 0 && rows.every(i => freeIds.has(i.product?.id));
+  }, [feesCharged, groupedBySeller, selectedIds, freeIds]);
+
+  const total = subtotal + deliveryFee;
   const allSelected = cartItems.length > 0 && selectedIds.size === cartItems.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < cartItems.length;
 
@@ -296,8 +337,8 @@ export default function CartScreen({ navigation }) {
       return;
     }
     if (selectedItems.length === 0) return;
-    navigation.navigate('Checkout', { items: selectedItems, total, source: 'cart' });
-  }, [isAuthenticated, selectedItems, total, navigation]);
+    navigation.navigate('Checkout', { items: selectedItems, total: subtotal, source: 'cart' });
+  }, [isAuthenticated, selectedItems, subtotal, navigation]);
 
   // ── Continue Shopping — real product suggestions below the cart,
   // so the customer never has to leave this screen to keep browsing. ──
@@ -379,6 +420,7 @@ export default function CartScreen({ navigation }) {
                 allSelected={allSellerSelected}
                 someSelected={someSellerSelected}
                 onToggleAll={() => toggleSeller(seller)}
+                freeDelivery={sellerHasFreeDelivery(seller)}
               />
               {sellerItems.map(item => (
                 <CartItem
@@ -421,10 +463,22 @@ export default function CartScreen({ navigation }) {
               <Text style={styles.summaryDiscount}>- TZS {discount.toLocaleString()}</Text>
             </View>
           )}
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryFree}>🚚 Free</Text>
-          </View>
+          {!delivery ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>{t('cart.delivery')}</Text>
+              <Text style={styles.summaryLabel}>{t('cart.deliveryAtCheckout')}</Text>
+            </View>
+          ) : feesCharged ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>{t('cart.delivery')}</Text>
+              {deliveryFee > 0
+                ? <Text style={styles.summaryValue}>{tzs(deliveryFee)}</Text>
+                : <Text style={styles.summaryFree}>🚚 {t('cart.free')}</Text>}
+            </View>
+          ) : null}
+          {pickupCheaper ? (
+            <Text style={styles.summaryHint}>Pickup point costs less — choose it at checkout.</Text>
+          ) : null}
         </View>
 
         <View style={styles.summaryTotalRow}>
@@ -501,6 +555,7 @@ const styles = StyleSheet.create({
   summaryValue: { fontSize: FONTS.sm, color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
   summaryDiscount: { fontSize: FONTS.sm, color: COLORS.success, fontWeight: FONTS.semiBold },
   summaryFree: { fontSize: FONTS.sm, color: COLORS.success, fontWeight: FONTS.semiBold },
+  summaryHint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: 4 },
   summaryTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.divider, marginBottom: SPACING.sm },
   summaryTotalLabel: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   summaryTotalValue: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.primary },

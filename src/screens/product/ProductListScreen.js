@@ -90,6 +90,7 @@ export default function ProductListScreen({
     category: initialCategory = '',
     featured: initialFeatured = false,
     flash_sale: initialFlashSale = false,
+    free_delivery: initialFreeDelivery = false,
     title: screenTitle = '',
   } = route?.params || {};
 
@@ -155,6 +156,7 @@ export default function ProductListScreen({
           category: initialCategory,
           featured: initialFeatured,
           flash_sale: initialFlashSale,
+          free_delivery: initialFreeDelivery,
           ordering: tempFilters.ordering,
           min_price: tempFilters.minPrice,
           max_price: tempFilters.maxPrice,
@@ -166,6 +168,7 @@ export default function ProductListScreen({
       initialCategory,
       initialFeatured,
       initialFlashSale,
+      initialFreeDelivery,
       tempFilters,
       currentPage,
     ]
@@ -209,6 +212,9 @@ export default function ProductListScreen({
         fetchBrowseProducts({
           page: currentPage + 1,
           category: initialCategory,
+          featured: initialFeatured,
+          flash_sale: initialFlashSale,
+          free_delivery: initialFreeDelivery,
           ordering: tempFilters.ordering,
           min_price: tempFilters.minPrice,
           max_price: tempFilters.maxPrice,
@@ -222,6 +228,10 @@ export default function ProductListScreen({
     query,
     currentPage,
     tempFilters,
+    initialCategory,
+    initialFeatured,
+    initialFlashSale,
+    initialFreeDelivery,
   ]);
 
   // Replaces FlatList's onEndReached - the grid is now rendered as
@@ -248,6 +258,9 @@ export default function ProductListScreen({
       fetchBrowseProducts({
         page: 1,
         category: initialCategory,
+        featured: initialFeatured,
+        flash_sale: initialFlashSale,
+        free_delivery: initialFreeDelivery,
         ordering: tempFilters.ordering,
         min_price: tempFilters.minPrice,
         max_price: tempFilters.maxPrice,
@@ -588,6 +601,9 @@ export default function ProductListScreen({
                   fetchBrowseProducts({
                     page: 1,
                     category: initialCategory,
+                    featured: initialFeatured,
+                    flash_sale: initialFlashSale,
+                    free_delivery: initialFreeDelivery,
                     ordering: opt.value,
                     min_price: tempFilters.minPrice,
                     max_price: tempFilters.maxPrice,

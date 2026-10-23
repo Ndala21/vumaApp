@@ -89,9 +89,11 @@ function ProductCard({ product, onPress, style, variant = 'grid', onAddedToCart 
         <Text style={styles.price}>{formatPrice(effectivePrice)}</Text>
         {discount > 0 && <Text style={styles.originalPrice}>{formatPrice(product.price)}</Text>}
       </View>
-      <View style={styles.freeTag}>
-        <Text style={styles.freeTagText} numberOfLines={1}>{t('products.freeDeliveryChip')}</Text>
-      </View>
+      {!!product.free_delivery && (
+        <View style={styles.freeTag}>
+          <Text style={styles.freeTagText} numberOfLines={1}>{t('products.freeDeliveryChip')}</Text>
+        </View>
+      )}
       {hasRating && (
         <View style={styles.ratingRow}>
           <Text style={styles.stars}>{starsFor(product.rating_avg)}</Text>

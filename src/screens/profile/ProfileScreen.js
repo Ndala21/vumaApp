@@ -100,7 +100,7 @@ export default function ProfileScreen({ navigation }) {
       { icon: '❤️', label: 'Save your favourite products' },
       { icon: '⚡', label: 'Faster checkout every time' },
       { icon: '🔔', label: 'Get deals and flash sale alerts' },
-      { icon: '🚚', label: 'Free delivery on all orders' },
+      { icon: '🚚', label: 'See the delivery fee before you pay' },
       { icon: '🎁', label: 'Earn rewards by inviting friends' },
     ];
 

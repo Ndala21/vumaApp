@@ -36,6 +36,7 @@ export const fetchProducts = createAsyncThunk(
       max_price = '',
       featured = false,
       flash_sale = false,
+      free_delivery = false,
       refresh = false,
     } = {},
     { rejectWithValue }
@@ -51,6 +52,7 @@ export const fetchProducts = createAsyncThunk(
         max_price,
         featured,
         flash_sale,
+        free_delivery,
       });
       return { data, page, refresh };
     } catch (error) {
@@ -76,6 +78,7 @@ export const fetchBrowseProducts = createAsyncThunk(
       max_price = '',
       featured = false,
       flash_sale = false,
+      free_delivery = false,
       refresh = false,
     } = {},
     { rejectWithValue }
@@ -90,6 +93,7 @@ export const fetchBrowseProducts = createAsyncThunk(
         max_price,
         featured,
         flash_sale,
+        free_delivery,
       });
       return { data, page, refresh };
     } catch (error) {

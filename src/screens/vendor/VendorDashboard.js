@@ -29,6 +29,7 @@ import { storage } from '../../utils/storage';
 import { i18n, useTranslation, notifyLanguageChange } from '../../i18n';
 import { vendorsAPI } from '../../api/vendors';
 import { tsh } from '../../utils/payouts';
+import { needsLogo } from '../../utils/shopProfile';
 import {
   hx, homeLang, greetingKey, newOrdersLine, productsLine, ordersLine, moneyVisible, badgeText,
 } from '../../utils/sellerHome';
@@ -43,6 +44,7 @@ const menuSections = (lang) => [
     items: [
       { key: 'home', label: hx(lang, 'menuHome'), icon: '🏠', active: true },
       { key: 'products', label: hx(lang, 'menuProducts'), icon: '📦', screen: 'VendorProducts' },
+      { key: 'shopProfile', label: hx(lang, 'menuShopProfile'), icon: '🏪', screen: 'ShopProfile' },
       { key: 'orders', label: hx(lang, 'menuOrders'), icon: '🧾', screen: 'VendorOrders', params: { status: '' } },
     ],
   },
@@ -288,6 +290,18 @@ export default function VendorDashboard({ navigation }) {
           </TouchableOpacity>
         )}
 
+        {/* A shop without a logo looks unfinished: one tap to the Shop profile screen */}
+        {showMoney && needsLogo(dashboard?.shop_pictures) && (
+          <TouchableOpacity style={styles.nudgeCard} onPress={() => navigation.navigate('ShopProfile')} activeOpacity={0.85} accessibilityRole="button" testID="logo-nudge">
+            <Text style={styles.nudgeEmoji}>🏪</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.nudgeTitle}>{T('logoNudgeTitle')}</Text>
+              <Text style={styles.nudgeText}>{T('logoNudgeText')}</Text>
+            </View>
+            <Text style={styles.nudgeBtn}>{T('logoNudgeBtn')}</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Money */}
         {showMoney && (
           <TouchableOpacity style={styles.moneyCard} onPress={goWallet} activeOpacity={0.92} accessibilityRole="button" accessibilityLabel={T('withdrawBtn')}>
@@ -434,6 +448,15 @@ const styles = StyleSheet.create({
   alertEmoji: { fontSize: 19 },
   alertTitle: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.textPrimary },
   alertSub: { fontSize: FONTS.sm, color: COLORS.warningText, marginTop: 2, fontWeight: FONTS.semiBold },
+  nudgeCard: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: COLORS.primaryFade, borderRadius: 16, borderWidth: 1.5, borderColor: COLORS.primary,
+    padding: SPACING.md + 2, marginBottom: SPACING.base,
+  },
+  nudgeEmoji: { fontSize: 26 },
+  nudgeTitle: { fontSize: FONTS.base, fontWeight: FONTS.black, color: COLORS.textPrimary },
+  nudgeText: { fontSize: FONTS.sm, color: COLORS.textSecondary, marginTop: 2 },
+  nudgeBtn: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primaryDark },
   alertArrow: { fontSize: 26, color: COLORS.warningText, fontWeight: FONTS.bold },
 
   moneyCard: { backgroundColor: COLORS.primary, borderRadius: 20, padding: SPACING.base + 2, marginBottom: SPACING.lg, ...SHADOWS.primary },

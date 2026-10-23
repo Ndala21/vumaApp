@@ -63,6 +63,10 @@ export default function OrderDetailScreen({ navigation, route }) {
   const loading = useSelector(selectOrdersLoading);
   const errors = useSelector(selectOrdersErrors);
   const displayOrder = order || routeOrder;
+  // The delivery fee before a free-delivery coupon: the coupon row above already shows the money
+  // it took off, so the rows add up to the total.
+  const shippingBeforeCoupon = Number(displayOrder?.shipping_cost || 0)
+    + Number(displayOrder?.discount_details?.coupon?.delivery_fee_waived || 0);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showReturnPolicy, setShowReturnPolicy] = useState(false);
   const [tracking, setTracking] = useState(null);
@@ -323,7 +327,7 @@ export default function OrderDetailScreen({ navigation, route }) {
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Shipping:</Text>
                 <Text style={styles.receiptValue}>
-                  {displayOrder.shipping_cost > 0 ? formatPrice(displayOrder.shipping_cost) : 'FREE'}
+                  {shippingBeforeCoupon > 0 ? formatPrice(shippingBeforeCoupon) : 'FREE'}
                 </Text>
               </View>
               <View style={styles.receiptTotalRow}>
@@ -529,7 +533,7 @@ export default function OrderDetailScreen({ navigation, route }) {
             ...(Number(displayOrder.discount_details?.welcome_gift?.amount) > 0
               ? [['🎁 Welcome gift', `-${formatPrice(displayOrder.discount_details.welcome_gift.amount)}`]]
               : []),
-            ['Shipping', displayOrder.shipping_cost > 0 ? formatPrice(displayOrder.shipping_cost) : '🎉 FREE'],
+            ['Shipping', shippingBeforeCoupon > 0 ? formatPrice(shippingBeforeCoupon) : '🎉 FREE'],
           ].map(([label, value]) => (
             <View key={label} style={styles.priceRow}>
               <Text style={styles.priceLabel}>{label}</Text>

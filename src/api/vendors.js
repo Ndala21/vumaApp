@@ -73,41 +73,29 @@ export const vendorsAPI = {
   /**
    * Update vendor profile
    */
-  updateProfile: (data) => {
-    if (
-      (data.shop_logo &&
-        typeof data.shop_logo === 'object') ||
-      (data.shop_banner &&
-        typeof data.shop_banner === 'object')
-    ) {
+  updateProfile: (data, onProgress = null) => {
+    // A picture is an object picked on the phone ({ uri, fileName, mimeType }): it goes up as
+    // multipart. The three pictures of a shop: shop_logo, shop_banner (cover), promotional_poster.
+    // `remove_shop_logo` / `remove_shop_banner` / `remove_promotional_poster` = true clear one.
+    const isPicture = (v) => !!v && typeof v === 'object' && !!v.uri;
+    const PICTURE_KEYS = ['shop_logo', 'shop_banner', 'promotional_poster'];
+    if (PICTURE_KEYS.some((k) => isPicture(data[k]))) {
       const formData = new FormData();
       Object.keys(data).forEach((key) => {
-        if (
-          key === 'shop_logo' &&
-          typeof data[key] === 'object'
-        ) {
-          formData.append('shop_logo', {
-            uri: data[key].uri,
-            name: data[key].fileName || 'logo.jpg',
-            type: data[key].type || 'image/jpeg',
+        const value = data[key];
+        if (PICTURE_KEYS.includes(key) && isPicture(value)) {
+          const extension = ((value.uri.split('?')[0].split('.').pop() || 'jpg').toLowerCase()).replace(/[^a-z0-9]/g, '') || 'jpg';
+          const type = value.mimeType || value.type || (extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : 'image/jpeg');
+          formData.append(key, {
+            uri: value.uri,
+            name: value.fileName || `${key}.${extension}`,
+            type: String(type).includes('/') ? type : 'image/jpeg',
           });
-        } else if (
-          key === 'shop_banner' &&
-          typeof data[key] === 'object'
-        ) {
-          formData.append('shop_banner', {
-            uri: data[key].uri,
-            name: data[key].fileName || 'banner.jpg',
-            type: data[key].type || 'image/jpeg',
-          });
-        } else if (
-          data[key] !== undefined &&
-          data[key] !== null
-        ) {
-          formData.append(key, String(data[key]));
+        } else if (value !== undefined && value !== null && !PICTURE_KEYS.includes(key)) {
+          formData.append(key, String(value));
         }
       });
-      return upload(API.VENDOR_PROFILE_UPDATE, formData);
+      return upload(API.VENDOR_PROFILE_UPDATE, formData, onProgress);
     }
     return patch(API.VENDOR_PROFILE_UPDATE, data);
   },
