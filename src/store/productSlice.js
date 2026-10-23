@@ -177,10 +177,12 @@ export const fetchFlashSaleProducts = createAsyncThunk(
  */
 export const searchProducts = createAsyncThunk(
   'products/search',
-  async ({ q, page = 1 }, { rejectWithValue }) => {
+  async ({ q, page = 1, category = '', featured = false, flash_sale = false, free_delivery = false }, { rejectWithValue }) => {
     try {
       const { productsAPI } = await import('../api/products');
-      const data = await productsAPI.getProducts({ q, page });
+      // The list the person is looking at (a category, Featured, Flash sale, Free delivery) stays
+      // the scope of the search. With no scope this is the same whole-shop search as before.
+      const data = await productsAPI.getProducts({ q, page, category, featured, flash_sale, free_delivery });
       return { data, page, query: q };
     } catch (error) {
       return rejectWithValue(getErrorMessage(error));

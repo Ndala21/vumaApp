@@ -30,6 +30,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { get, post } from '../api/client';
+import { t } from '../i18n';
 
 const RECENT_KEY = '@vuma_recent_searches';
 const MAX_RECENT = 8;
@@ -73,6 +74,10 @@ export default function SearchBar({
   onFocus,
   placeholder = 'Search phones, clothes, food...',
   autoFocus = false,
+  // scoped = the search box of a curated list (Free delivery, Flash sale, Featured, a category).
+  // It only searches inside that list, so it has no Recent / Trending box and no suggestions
+  // from the whole shop.
+  scoped = false,
   style,
 }) {
   const [query, setQuery] = useState('');
@@ -80,6 +85,10 @@ export default function SearchBar({
   const [recentSearches, setRecentSearches] = useState([]);
   const [trending, setTrending] = useState([]);
   const [loading, setLoading] = useState(false);
+  // The Recent / Trending box is shown only while the search field is in use. Before, it was
+  // derived from "is there anything to show", so it stayed open over Home and over every list.
+  const [open, setOpen] = useState(false);
+  const closeTimerRef = useRef(null);
   const focusedRef = useRef(false);
 
   const inputRef = useRef(null);
@@ -87,9 +96,22 @@ export default function SearchBar({
   const dropdownAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    loadRecent();
-    loadTrending();
+    if (!scoped) {
+      loadRecent();
+      loadTrending();
+    }
     if (autoFocus) setTimeout(() => inputRef.current?.focus(), 300);
+    // Android: the back button hides the keyboard but leaves the field focused, so the box
+    // would stay open. Close it, and let go of the field so the next tap opens it again.
+    const sub = Keyboard.addListener('keyboardDidHide', () => {
+      setOpen(false);
+      if (focusedRef.current) inputRef.current?.blur?.();
+    });
+    return () => {
+      sub?.remove?.();
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   const loadRecent = async () => {
@@ -142,17 +164,19 @@ export default function SearchBar({
   const handleChangeText = useCallback((text) => {
     setQuery(text);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (text.length >= 2) {
+    // A scoped box (Free delivery, Flash sale...) has no suggestions from the whole shop.
+    if (!scoped && text.length >= 2) {
       debounceRef.current = setTimeout(() => fetchSuggestions(text), DEBOUNCE_MS);
     } else {
       setSuggestions([]);
       setLoading(false);
     }
-  }, [fetchSuggestions]);
+  }, [fetchSuggestions, scoped]);
 
   const handleSubmit = useCallback(async (searchQuery = query) => {
     const q = searchQuery.trim();
     if (!q) return;
+    setOpen(false);
     Keyboard.dismiss();
     await saveRecent(q);
     try { await post('/products/search/record/', { query: q }); } catch {}
@@ -161,6 +185,7 @@ export default function SearchBar({
 
   const handleFillQuery = useCallback((text) => {
     setQuery(text);
+    setOpen(true);
     inputRef.current?.focus();
     fetchSuggestions(text);
   }, [fetchSuggestions]);
@@ -170,11 +195,16 @@ export default function SearchBar({
   // mount/unmount anywhere in this component.
   const handleFocus = useCallback(() => {
     focusedRef.current = true;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    setOpen(true);
     onFocus?.();
   }, [onFocus]);
 
+  // A short delay, so a tap on a row of the box still lands before the box closes.
   const handleBlur = useCallback(() => {
     focusedRef.current = false;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => setOpen(false), 250);
   }, []);
 
   const clearQuery = useCallback(() => {
@@ -185,7 +215,9 @@ export default function SearchBar({
 
   const dropdownItems = [];
 
-  if (query.length >= 2 && suggestions.length > 0) {
+  if (scoped) {
+    // nothing: a plain search box
+  } else if (query.length >= 2 && suggestions.length > 0) {
     const corrections = suggestions.filter(s => s.type === 'correction');
     const rest = suggestions.filter(s => s.type !== 'correction');
     if (corrections.length > 0) {
@@ -209,17 +241,27 @@ export default function SearchBar({
     // regardless of length keeps something on screen through that
     // gap, so nothing structurally collapses mid-keystroke.
     if (recentSearches.length > 0) {
-      dropdownItems.push({ key: 'h_recent', type: 'header', title: 'Recent Searches', showClear: true });
+      dropdownItems.push({ key: 'h_recent', type: 'header', title: t('home.recentSearches'), showClear: true });
       recentSearches.slice(0, 5).forEach((r, i) => dropdownItems.push({ key: `rec_${i}`, text: r, type: 'recent', icon: '🕒', category: '' }));
     }
-    if (trending.length > 0) {
-      dropdownItems.push({ key: 'h_trending', type: 'header', title: 'Trending in Tanzania' });
-      trending.slice(0, 6).forEach((t, i) => dropdownItems.push({ ...t, key: `trend_${i}` }));
+    // "Trending" is only for what customers really searched (type 'trending'). The fixed starter
+    // list the server falls back on (type 'popular') is shown as ideas, never as a trend.
+    const realTrending = trending.filter((x) => x.type === 'trending');
+    const starterIdeas = trending.filter((x) => x.type !== 'trending');
+    if (realTrending.length > 0) {
+      dropdownItems.push({ key: 'h_trending', type: 'header', title: t('home.trendingSearches') });
+      realTrending.slice(0, 6).forEach((x, i) => dropdownItems.push({ ...x, key: `trend_${i}` }));
+    }
+    if (starterIdeas.length > 0) {
+      dropdownItems.push({ key: 'h_ideas', type: 'header', title: t('home.searchIdeas') });
+      starterIdeas.slice(0, realTrending.length > 0 ? 3 : 6).forEach((x, i) => dropdownItems.push({ ...x, key: `idea_${i}` }));
     }
   }
 
-  // Derived purely from content, never from focus state directly.
-  const hasDropdownContent = dropdownItems.length > 0;
+  // Shown only while the field is in use AND there is something to show. The stacking order of
+  // the container below stays fixed, so opening the box never changes the layout around the
+  // focused field.
+  const hasDropdownContent = open && dropdownItems.length > 0;
 
   useEffect(() => {
     Animated.timing(dropdownAnim, {
@@ -230,7 +272,7 @@ export default function SearchBar({
   }, [hasDropdownContent]);
 
   return (
-    <View style={[styles.container, { zIndex: hasDropdownContent ? 100 : 0 }, style]}>
+    <View style={[styles.container, { zIndex: 100 }, style]}>
       <View style={styles.inputWrap}>
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
@@ -288,7 +330,7 @@ export default function SearchBar({
                   </View>
                   {item.showClear && (
                     <TouchableOpacity onPress={clearRecent}>
-                      <Text style={styles.clearRecent}>Clear</Text>
+                      <Text style={styles.clearRecent}>{t('home.clearRecent')}</Text>
                     </TouchableOpacity>
                   )}
                 </View>

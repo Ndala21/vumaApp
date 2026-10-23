@@ -30,6 +30,13 @@ const translations = {
       flashSale: '⚡ Flash Sale', featured: '⭐ Featured', allProducts: '🛍️ All Products',
       freeDelivery: '🚚 Free delivery on chosen items', shopNow: 'Shop Now!',
       searchPlaceholder: '🔍 Search products...',
+      recentSearches: 'Recent searches', clearRecent: 'Clear',
+      trendingSearches: 'Trending in Tanzania', searchIdeas: 'Try searching',
+      searchInFreeDelivery: '🔍  Search in free delivery products', searchInList: '🔍  Search in this list',
+      freeDeliveryNote: 'VUMA delivers these products free. The list changes when an offer ends.',
+      freeDeliveryEmpty: 'No products have free delivery right now',
+      freeDeliveryEmptyHint: 'Check back soon, or browse all products on Home.',
+      goBack: 'Go back', noMatchInList: 'No products in this list match "{query}"',
     },
     products: {
       addToCart: 'Add to Cart', buyNow: 'Buy Now', outOfStock: 'Out of Stock',
@@ -349,6 +356,13 @@ const translations = {
     home: {
       flashSale: '⚡ Mauzo ya Haraka', featured: '⭐ Iliyoangaziwa', allProducts: '🛍️ Bidhaa Zote',
       freeDelivery: '🚚 Usafirishaji Bure', shopNow: 'Nunua Sasa!', searchPlaceholder: '🔍  Tafuta bidhaa...',
+      recentSearches: 'Ulizotafuta hivi karibuni', clearRecent: 'Futa',
+      trendingSearches: 'Zinazotafutwa sana Tanzania', searchIdeas: 'Jaribu kutafuta',
+      searchInFreeDelivery: '🔍  Tafuta kwenye bidhaa za usafirishaji bure', searchInList: '🔍  Tafuta kwenye orodha hii',
+      freeDeliveryNote: 'VUMA husafirisha bidhaa hizi bure. Orodha hubadilika ofa inapoisha.',
+      freeDeliveryEmpty: 'Hakuna bidhaa zenye usafirishaji bure kwa sasa',
+      freeDeliveryEmptyHint: 'Angalia tena hivi karibuni, au tazama bidhaa zote kwenye Mwanzo.',
+      goBack: 'Rudi nyuma', noMatchInList: 'Hakuna bidhaa kwenye orodha hii zinazolingana na "{query}"',
     },
     products: {
       addToCart: 'Ongeza kwenye Kikapu', buyNow: 'Nunua Sasa', outOfStock: 'Haina Stok',

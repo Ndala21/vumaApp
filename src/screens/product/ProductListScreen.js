@@ -94,6 +94,16 @@ export default function ProductListScreen({
     title: screenTitle = '',
   } = route?.params || {};
 
+  // A list with a scope (a category, Featured, Flash sale, Free delivery) searches only inside
+  // itself. The Search tab has no scope and searches the whole shop.
+  const isScoped = !!(initialFreeDelivery || initialFlashSale || initialFeatured || initialCategory);
+  const scopeParams = {
+    category: initialCategory,
+    featured: initialFeatured,
+    flash_sale: initialFlashSale,
+    free_delivery: initialFreeDelivery,
+  };
+
   // Redux
   const products = useSelector(selectBrowseProducts);
   const searchResults = useSelector(selectSearchResults);
@@ -183,22 +193,22 @@ export default function ProductListScreen({
         return;
       }
       setIsSearchMode(true);
-      dispatch(searchProducts({ q: searchText, page }));
+      dispatch(searchProducts({ q: searchText, page, ...scopeParams }));
     },
-    [loadProducts]
+    [loadProducts, initialCategory, initialFeatured, initialFlashSale, initialFreeDelivery]
   );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     if (isSearchMode && query) {
       await dispatch(
-        searchProducts({ q: query, page: 1 })
+        searchProducts({ q: query, page: 1, ...scopeParams })
       );
     } else {
       await loadProducts(true);
     }
     setRefreshing(false);
-  }, [isSearchMode, query, loadProducts]);
+  }, [isSearchMode, query, loadProducts, initialCategory, initialFeatured, initialFlashSale, initialFreeDelivery]);
 
   const handleLoadMore = useCallback(() => {
     if (loading.browseLoadingMore || loading.search || !displayHasMore)
@@ -425,9 +435,16 @@ export default function ProductListScreen({
   // with no search history) - real backend engines, not fabricated.
   const ListHeader = () => (
     <View>
-      <RecommendationSection title="Now Trending" endpoint="/promotions/trending/" navigation={navigation} />
-      {isAuthenticated && (
+      {!isScoped && (
+        <RecommendationSection title="Now Trending" endpoint="/promotions/trending/" navigation={navigation} />
+      )}
+      {!isScoped && isAuthenticated && (
         <RecommendationSection title="Inspired by Your Recent Searches" endpoint="/promotions/search-inspired/" navigation={navigation} />
+      )}
+      {initialFreeDelivery && (
+        <View style={styles.scopeNote} testID="free-delivery-note">
+          <Text style={styles.scopeNoteText}>🚚 {t('home.freeDeliveryNote')}</Text>
+        </View>
       )}
       {displayData.length > 0 && (
         <View style={styles.listHeader}>
@@ -474,6 +491,17 @@ export default function ProductListScreen({
         />
       );
     }
+    if (initialFreeDelivery && !isSearchMode) {
+      return (
+        <EmptyState
+          icon="🚚"
+          title={t('home.freeDeliveryEmpty')}
+          message={t('home.freeDeliveryEmptyHint')}
+          actionLabel={t('home.goBack')}
+          onAction={() => navigation.goBack()}
+        />
+      );
+    }
     return (
       <EmptyState
         icon="🔍"
@@ -484,7 +512,7 @@ export default function ProductListScreen({
         }
         message={
           isSearchMode
-            ? `No products match "${query}"`
+            ? (isScoped ? t('home.noMatchInList', { query }) : `No products match "${query}"`)
             : 'Check back soon!'
         }
         actionLabel={
@@ -507,7 +535,7 @@ export default function ProductListScreen({
   // returns zero results - reuses the same real backend engine, not
   // fabricated "similar" results.
   const ListEmptyFooter = () => {
-    if (isLoading || errors.browseProducts || errors.search || !isSearchMode) return null;
+    if (isLoading || errors.browseProducts || errors.search || !isSearchMode || isScoped) return null;
     return (
       <RecommendationSection
         title="You Might Like"
@@ -541,11 +569,15 @@ export default function ProductListScreen({
               handleSearch(q);
             }}
             placeholder={
-              initialCategory
-                ? `Search in ${initialCategory}...`
-                : '🔍  Search products...'
+              initialFreeDelivery
+                ? t('home.searchInFreeDelivery')
+                : initialCategory
+                  ? `Search in ${initialCategory}...`
+                  : isScoped
+                    ? t('home.searchInList')
+                    : '🔍  Search products...'
             }
-            showHistory
+            scoped={isScoped}
             style={styles.searchBarStyle}
           />
         </View>
@@ -570,8 +602,8 @@ export default function ProductListScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Screen Title */}
-      {!isSearchMode && (
+      {/* Screen Title (kept while searching inside a list, so you know which list you are in) */}
+      {(!isSearchMode || isScoped) && (
         <View style={styles.titleBar}>
           <Text style={styles.screenTitle}>
             {getTitle()}
@@ -696,6 +728,18 @@ export default function ProductListScreen({
 }
 
 const styles = StyleSheet.create({
+  scopeNote: {
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryFade,
+  },
+  scopeNoteText: {
+    fontSize: FONTS.sm,
+    color: COLORS.textSecondary,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
