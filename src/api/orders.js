@@ -134,4 +134,21 @@ export const ordersAPI = {
    */
   setDefaultAddress: (addressId) =>
     post(API.ADDRESS_DEFAULT(addressId)),
+
+  // ══════════════════════════════════════════════════
+  // DELIVERY CODE (handover to the rider)
+  // ══════════════════════════════════════════════════
+
+  /**
+   * The customer's own deliveries (newest 20), each with order_number and status
+   */
+  getMyDeliveries: () =>
+    get('/delivery/deliveries/my-deliveries/'),
+
+  /**
+   * The customer's handover code for one delivery. Works only while the parcel is on its way.
+   * Returns { message, code, delivery_number }. The code is also texted to the receiving phone.
+   */
+  getDeliveryCode: (deliveryId) =>
+    post(`/delivery/deliveries/${deliveryId}/request-otp/`),
 };

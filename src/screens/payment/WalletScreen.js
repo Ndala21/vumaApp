@@ -1,6 +1,7 @@
 /**
  * VUMA Store — Wallet Screen
- * Balance, transactions, deposit, transfer
+ * A closed wallet: gift money (with its end dates), invite rewards and refunds come in,
+ * orders are paid out of it. No deposit, no withdraw, no transfer to a person.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -12,10 +13,7 @@ import {
   StyleSheet,
   StatusBar,
   Platform,
-  Alert,
   RefreshControl,
-  TextInput,
-  Modal,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { selectUser } from '../../store/authSlice';
@@ -29,41 +27,54 @@ import {
 import {
   formatPrice,
   formatDateTime,
-  validateAmount,
-  validateEmail,
   getErrorMessage,
 } from '../../utils/helpers';
 import { paymentsAPI } from '../../api/payments';
-import Button from '../../components/common/Button';
 import Loading from '../../components/common/Loading';
 import {
   FullScreenError,
   EmptyState,
 } from '../../components/common/ErrorMessage';
 import { t } from '../../i18n';
+import {
+  giftLots,
+  nextEnding,
+  daysLeftText,
+  refundStatus,
+  refundMessage,
+} from '../../utils/walletInfo';
 
 const TX_ICONS = {
-  deposit: '💰',
-  withdrawal: '🏦',
-  transfer: '📤',
   order_payment: '🛒',
   refund: '↩️',
   payout: '💸',
   commission: '📊',
   promo_credit: '🎁',
   referral_reward: '🎁',
+  promo_expiry: '⌛',
+  adjustment: '🛠️',
 };
 
-const TX_COLORS = {
-  deposit: COLORS.success,
-  withdrawal: COLORS.danger,
-  transfer: COLORS.warning,
-  order_payment: COLORS.primary,
-  refund: COLORS.info,
-  payout: COLORS.success,
-  commission: COLORS.textMuted,
-  promo_credit: COLORS.success,
-  referral_reward: COLORS.success,
+// the words for a transaction type; anything new falls back to the plain type name
+const TX_LABELS = {
+  order_payment: 'wallet.txOrder',
+  refund: 'wallet.txRefund',
+  promo_credit: 'wallet.txPromo',
+  referral_reward: 'wallet.txReferral',
+  promo_expiry: 'wallet.txGiftEnded',
+  adjustment: 'wallet.txAdjustment',
+};
+
+const REFUND_TONES = {
+  done: { bg: COLORS.successLight, fg: COLORS.successText },
+  wait: { bg: COLORS.warningLight, fg: COLORS.warningText },
+  stop: { bg: COLORS.surfaceAlt, fg: COLORS.textMuted },
+};
+
+const txLabel = (type) => {
+  const key = TX_LABELS[type];
+  if (key) return t(key);
+  return String(type || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
 export default function WalletScreen({ navigation }) {
@@ -71,27 +82,24 @@ export default function WalletScreen({ navigation }) {
 
   const [wallet, setWallet] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [refunds, setRefunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [showDeposit, setShowDeposit] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false);
-  const [depositAmount, setDepositAmount] = useState('');
-  const [transferAmount, setTransferAmount] = useState('');
-  const [transferEmail, setTransferEmail] = useState('');
-  const [transferNote, setTransferNote] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState('');
 
   const loadData = useCallback(async () => {
     try {
       setError(null);
-      const [walletData, txData] = await Promise.all([
+      const [walletData, txData, refundData] = await Promise.all([
         paymentsAPI.getWallet(),
         paymentsAPI.getTransactions({ page: 1 }),
+        // an older server has no refund list: the screen simply shows none
+        paymentsAPI.getMyRefunds().catch(() => null),
       ]);
       setWallet(walletData);
       setTransactions(txData.results || txData || []);
+      const list = refundData && (refundData.results || refundData);
+      setRefunds(Array.isArray(list) ? list : []);
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
@@ -109,63 +117,21 @@ export default function WalletScreen({ navigation }) {
     setRefreshing(false);
   }, [loadData]);
 
-  const handleDeposit = async () => {
-    const amountErr = validateAmount(depositAmount, 1000, 10000000);
-    if (amountErr) { setActionError(amountErr); return; }
-    setActionLoading(true);
-    setActionError('');
-    try {
-      const data = await paymentsAPI.deposit(Number(depositAmount));
-      setShowDeposit(false);
-      setDepositAmount('');
-      Alert.alert('💳 Stripe Checkout', `Redirect to: ${data.checkout_url}\n\nSession: ${data.session_id}`, [{ text: t('common.ok') }]);
-    } catch (e) {
-      setActionError(getErrorMessage(e));
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleTransfer = async () => {
-    const emailErr = validateEmail(transferEmail);
-    if (emailErr) { setActionError(emailErr); return; }
-    const amountErr = validateAmount(transferAmount, 100);
-    if (amountErr) { setActionError(amountErr); return; }
-    setActionLoading(true);
-    setActionError('');
-    try {
-      await paymentsAPI.transfer({
-        receiverEmail: transferEmail.trim(),
-        amount: Number(transferAmount),
-        description: transferNote.trim(),
-      });
-      setShowTransfer(false);
-      setTransferAmount('');
-      setTransferEmail('');
-      setTransferNote('');
-      Alert.alert('Success', `${formatPrice(Number(transferAmount))} sent!`);
-      await loadData();
-    } catch (e) {
-      setActionError(getErrorMessage(e));
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   if (loading) return <Loading fullScreen />;
   if (error) return <FullScreenError error={error} onRetry={loadData} />;
 
-  const TransactionItem = ({ tx }) => {
+  const lots = giftLots(wallet);
+  const ending = nextEnding(wallet);
+
+  const renderTx = (tx, i) => {
     const isIncoming = tx.receiver_email === user?.email && tx.tx_type !== 'order_payment';
     return (
-      <View style={styles.txItem}>
+      <View key={tx.id || i} style={styles.txItem}>
         <View style={styles.txIconWrap}>
           <Text style={styles.txIcon}>{TX_ICONS[tx.tx_type] || '💳'}</Text>
         </View>
         <View style={styles.txInfo}>
-          <Text style={styles.txType}>
-            {tx.tx_type?.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
-          </Text>
+          <Text style={styles.txType}>{txLabel(tx.tx_type)}</Text>
           <Text style={styles.txDescription} numberOfLines={1}>{tx.description || '-'}</Text>
           <Text style={styles.txDate}>{formatDateTime(tx.created_at)}</Text>
         </View>
@@ -183,94 +149,22 @@ export default function WalletScreen({ navigation }) {
     );
   };
 
-  const DepositModal = () => (
-    <Modal visible={showDeposit} transparent animationType="slide" onRequestClose={() => setShowDeposit(false)}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>💰 Deposit Funds</Text>
-            <TouchableOpacity onPress={() => { setShowDeposit(false); setActionError(''); }}>
-              <Text style={styles.modalClose}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.inputLabel}>Amount (₩)</Text>
-          <TextInput
-            style={styles.modalInput}
-            value={depositAmount}
-            onChangeText={(v) => { setDepositAmount(v); setActionError(''); }}
-            placeholder="Min ₩1,000"
-            keyboardType="numeric"
-            placeholderTextColor={COLORS.textLight}
-          />
-          <View style={styles.quickAmounts}>
-            {[10000, 50000, 100000, 500000].map((amt) => (
-              <TouchableOpacity
-                key={amt}
-                style={[styles.quickAmtBtn, depositAmount === String(amt) && styles.quickAmtBtnActive]}
-                onPress={() => setDepositAmount(String(amt))}
-              >
-                <Text style={[styles.quickAmtText, depositAmount === String(amt) && styles.quickAmtTextActive]}>
-                  {formatPrice(amt)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {actionError ? <Text style={styles.modalError}>⚠️ {actionError}</Text> : null}
-          <Text style={styles.modalHint}>🔒 Secure payment via Stripe. No card stored.</Text>
-          <Button title="Proceed to Payment" onPress={handleDeposit} loading={actionLoading} fullWidth style={styles.modalBtn} />
+  const renderRefund = (refund) => {
+    const status = refundStatus(refund);
+    const tone = REFUND_TONES[status.tone] || REFUND_TONES.wait;
+    return (
+      <View key={refund.id} style={styles.refundItem} testID={`wallet-refund-${refund.id}`}>
+        <View style={styles.refundTop}>
+          <Text style={styles.refundOrder}>{t('wallet.refundOrder', { order: refund.order_number || refund.reference })}</Text>
+          <Text style={styles.refundAmount}>{formatPrice(Number(refund.amount))}</Text>
         </View>
-      </View>
-    </Modal>
-  );
-
-  const TransferModal = () => (
-    <Modal visible={showTransfer} transparent animationType="slide" onRequestClose={() => setShowTransfer(false)}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>📤 Transfer Funds</Text>
-            <TouchableOpacity onPress={() => { setShowTransfer(false); setActionError(''); }}>
-              <Text style={styles.modalClose}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.inputLabel}>Recipient Email</Text>
-          <TextInput
-            style={styles.modalInput}
-            value={transferEmail}
-            onChangeText={(v) => { setTransferEmail(v); setActionError(''); }}
-            placeholder="recipient@email.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor={COLORS.textLight}
-          />
-          <Text style={styles.inputLabel}>Amount (₩)</Text>
-          <TextInput
-            style={styles.modalInput}
-            value={transferAmount}
-            onChangeText={(v) => { setTransferAmount(v); setActionError(''); }}
-            placeholder="Min ₩100"
-            keyboardType="numeric"
-            placeholderTextColor={COLORS.textLight}
-          />
-          <Text style={styles.inputLabel}>Note (optional)</Text>
-          <TextInput
-            style={styles.modalInput}
-            value={transferNote}
-            onChangeText={setTransferNote}
-            placeholder="What's this for?"
-            placeholderTextColor={COLORS.textLight}
-          />
-          <View style={styles.balanceHint}>
-            <Text style={styles.balanceHintText}>
-              Available: <Text style={styles.balanceHintBold}>{formatPrice(wallet?.withdrawable_balance ?? wallet?.balance ?? 0)}</Text>
-            </Text>
-          </View>
-          {actionError ? <Text style={styles.modalError}>⚠️ {actionError}</Text> : null}
-          <Button title="Send Transfer" onPress={handleTransfer} loading={actionLoading} fullWidth style={styles.modalBtn} />
+        <View style={[styles.refundPill, { backgroundColor: tone.bg }]}>
+          <Text style={[styles.refundPillText, { color: tone.fg }]}>{status.label}</Text>
         </View>
+        <Text style={styles.refundMessage}>{refundMessage(refund)}</Text>
       </View>
-    </Modal>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -280,7 +174,7 @@ export default function WalletScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>VUMA Wallet</Text>
+        <Text style={styles.headerTitle}>{t('wallet.vumaWallet')}</Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -290,34 +184,41 @@ export default function WalletScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Total Balance</Text>
+          <Text style={styles.balanceLabel}>{t('wallet.totalBalance')}</Text>
           <Text style={styles.balanceAmount}>{formatPrice(wallet?.balance || 0)}</Text>
           <Text style={styles.balanceCurrency}>TZS • {user?.username}</Text>
           {Number(wallet?.promo_balance) > 0 && (
-            <View style={styles.promoPill}>
+            <View style={styles.promoPill} testID="wallet-gift-pill">
               <Text style={styles.promoPillText}>
-                🎁 Gift money: {formatPrice(wallet.promo_balance)}. Use it to pay for orders on VUMA. It cannot be withdrawn or sent.
+                🎁 {t('wallet.giftTitle')}: {formatPrice(wallet.promo_balance)}. {t('wallet.giftIntro')}
               </Text>
+              {ending ? (
+                <Text
+                  testID="wallet-next-ends"
+                  style={[styles.promoPillText, styles.promoPillEnds, ending.soon && styles.promoPillSoon]}
+                >
+                  ⏳ {ending.line}
+                </Text>
+              ) : null}
             </View>
           )}
           {wallet?.is_frozen && (
             <View style={styles.frozenBadge}>
-              <Text style={styles.frozenText}>🔒 Wallet Frozen</Text>
+              <Text style={styles.frozenText}>{t('wallet.frozen')}</Text>
             </View>
           )}
         </View>
 
         <View style={styles.actionsRow}>
           {[
-            { icon: '💰', label: 'Deposit', onPress: () => setShowDeposit(true), disabled: wallet?.is_frozen },
-            { icon: '📤', label: 'Transfer', onPress: () => setShowTransfer(true), disabled: wallet?.is_frozen || !Number(wallet?.withdrawable_balance ?? wallet?.balance) },
-            { icon: '📊', label: 'History', onPress: () => {}, disabled: false },
+            { key: 'invite', icon: '🎁', label: t('wallet.invite'), onPress: () => navigation.navigate('Referral') },
+            { key: 'shop', icon: '🛍️', label: t('wallet.shop'), onPress: () => navigation.navigate('Tabs') },
           ].map((action) => (
             <TouchableOpacity
-              key={action.label}
-              style={[styles.actionBtn, action.disabled && styles.actionBtnDisabled]}
+              key={action.key}
+              testID={`wallet-action-${action.key}`}
+              style={styles.actionBtn}
               onPress={action.onPress}
-              disabled={action.disabled}
             >
               <View style={styles.actionIconWrap}>
                 <Text style={styles.actionIcon}>{action.icon}</Text>
@@ -327,18 +228,46 @@ export default function WalletScreen({ navigation }) {
           ))}
         </View>
 
+        {lots.length > 0 && (
+          <View style={styles.section} testID="wallet-gift-lots">
+            <Text style={styles.sectionTitle}>🎁 {t('wallet.giftTitle')}</Text>
+            {lots.map((lot) => (
+              <View key={lot.id} style={styles.lotRow} testID={`wallet-lot-${lot.id}`}>
+                <View style={styles.lotInfo}>
+                  <Text style={styles.lotLabel}>{lot.label}</Text>
+                  <Text style={[styles.lotEnds, lot.soon && styles.lotEndsSoon]}>
+                    {lot.endsAt
+                      ? `${t('wallet.endsOn', { date: lot.endsText })} - ${daysLeftText(lot.days)}`
+                      : t('wallet.noEnd')}
+                  </Text>
+                </View>
+                <Text style={styles.lotAmount}>{t('wallet.lotLeft', { amount: formatPrice(lot.left) })}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {refunds.length > 0 && (
+          <View style={styles.section} testID="wallet-refunds">
+            <Text style={styles.sectionTitle}>↩️ {t('wallet.refundsTitle')}</Text>
+            {refunds.slice(0, 10).map(renderRefund)}
+          </View>
+        )}
+
         <View style={styles.txSection}>
-          <Text style={styles.txTitle}>📋 Recent Transactions</Text>
+          <Text style={styles.txTitle}>📋 {t('wallet.recentTransactions')}</Text>
           {transactions.length === 0 ? (
-            <EmptyState icon="📋" title="No transactions yet" message="Deposit funds or make a purchase to see activity" style={styles.emptyTx} />
+            <EmptyState icon="📋" title={t('wallet.noTransactions')} message={t('wallet.noTransactionsHint')} style={styles.emptyTx} />
           ) : (
-            transactions.map((tx, i) => <TransactionItem key={tx.id || i} tx={tx} />)
+            transactions.map(renderTx)
           )}
         </View>
-      </ScrollView>
 
-      <DepositModal />
-      <TransferModal />
+        <View style={styles.howCard} testID="wallet-how">
+          <Text style={styles.howTitle}>{t('wallet.howTitle')}</Text>
+          <Text style={styles.howText}>{t('wallet.howText')}</Text>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -363,14 +292,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, maxWidth: 320,
   },
   promoPillText: { color: 'rgba(255,255,255,0.92)', fontSize: FONTS.sm, lineHeight: 18, textAlign: 'center' },
+  promoPillEnds: { marginTop: SPACING.xs, fontWeight: FONTS.semiBold },
+  promoPillSoon: { color: '#FFD27A' },
   frozenBadge: { marginTop: SPACING.sm, backgroundColor: COLORS.danger, borderRadius: RADIUS.full, paddingHorizontal: SPACING.base, paddingVertical: SPACING.xs },
   frozenText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
   actionsRow: { flexDirection: 'row', backgroundColor: COLORS.surface, paddingVertical: SPACING.xl, paddingHorizontal: SPACING.base, gap: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
   actionBtn: { flex: 1, alignItems: 'center', gap: SPACING.xs },
-  actionBtnDisabled: { opacity: 0.4 },
   actionIconWrap: { width: 52, height: 52, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.primary },
   actionIcon: { fontSize: 22 },
   actionLabel: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold, color: COLORS.textSecondary },
+  section: { backgroundColor: COLORS.surface, marginTop: SPACING.sm, paddingTop: SPACING.base },
+  sectionTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, paddingHorizontal: SPACING.base, marginBottom: SPACING.sm },
+  lotRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderTopWidth: 1, borderTopColor: COLORS.borderLight, gap: SPACING.sm },
+  lotInfo: { flex: 1, gap: 2 },
+  lotLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  lotEnds: { fontSize: FONTS.xs, color: COLORS.textMuted },
+  lotEndsSoon: { color: COLORS.danger, fontWeight: FONTS.semiBold },
+  lotAmount: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.success },
+  refundItem: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderTopWidth: 1, borderTopColor: COLORS.borderLight, gap: SPACING.xs },
+  refundTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  refundOrder: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  refundAmount: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  refundPill: { alignSelf: 'flex-start', paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: RADIUS.full },
+  refundPillText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold },
+  refundMessage: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 17 },
   txSection: { backgroundColor: COLORS.surface, marginTop: SPACING.sm, paddingTop: SPACING.base },
   txTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, paddingHorizontal: SPACING.base, marginBottom: SPACING.sm },
   txItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, gap: SPACING.sm },
@@ -385,22 +330,7 @@ const styles = StyleSheet.create({
   txStatusBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: RADIUS.full },
   txStatusText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold, textTransform: 'capitalize' },
   emptyTx: { paddingVertical: SPACING.xl },
-  modalOverlay: { flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.xl, paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.xl },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xl },
-  modalTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  modalClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
-  inputLabel: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.xs },
-  modalInput: { backgroundColor: COLORS.surfaceAlt, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 4, fontSize: FONTS.base, color: COLORS.textPrimary, marginBottom: SPACING.base },
-  quickAmounts: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.base },
-  quickAmtBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs + 2, borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surfaceAlt },
-  quickAmtBtnActive: { backgroundColor: COLORS.primaryFade, borderColor: COLORS.primary },
-  quickAmtText: { fontSize: FONTS.sm, color: COLORS.textSecondary, fontWeight: FONTS.medium },
-  quickAmtTextActive: { color: COLORS.primary, fontWeight: FONTS.bold },
-  balanceHint: { backgroundColor: COLORS.primaryFade, borderRadius: RADIUS.lg, padding: SPACING.sm, marginBottom: SPACING.base, alignItems: 'center' },
-  balanceHintText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
-  balanceHintBold: { fontWeight: FONTS.bold, color: COLORS.primary },
-  modalError: { fontSize: FONTS.sm, color: COLORS.danger, marginBottom: SPACING.sm },
-  modalHint: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center', marginBottom: SPACING.base },
-  modalBtn: { marginTop: SPACING.xs },
+  howCard: { backgroundColor: COLORS.surfaceAlt, marginHorizontal: SPACING.base, marginTop: SPACING.base, borderRadius: RADIUS.lg, padding: SPACING.base, gap: SPACING.xs },
+  howTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  howText: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 17 },
 });

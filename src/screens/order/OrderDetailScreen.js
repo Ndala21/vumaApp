@@ -28,6 +28,12 @@ import Button from '../../components/common/Button';
 import Loading from '../../components/common/Loading';
 import { FullScreenError } from '../../components/common/ErrorMessage';
 import { get } from '../../api/client';
+import { ordersAPI } from '../../api/orders';
+import { paymentsAPI } from '../../api/payments';
+import {
+  shouldLoadDelivery, deliveryForOrder, canShowCode, spacedCode,
+  shouldLoadRefund, refundForOrder, refundStatus, refundMessage,
+} from '../../utils/walletInfo';
 
 const ORDER_STEPS = [
   { key: 'pending', label: 'Order Placed', icon: '📋' },
@@ -70,6 +76,12 @@ export default function OrderDetailScreen({ navigation, route }) {
   const [showReceipt, setShowReceipt] = useState(false);
   const [showReturnPolicy, setShowReturnPolicy] = useState(false);
   const [tracking, setTracking] = useState(null);
+  const [delivery, setDelivery] = useState(null);
+  const [code, setCode] = useState('');
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeError, setCodeError] = useState('');
+  const [refund, setRefund] = useState(null);
+  const [refundChecked, setRefundChecked] = useState(false);
 
   useEffect(() => {
     if (orderId) dispatch(fetchOrderDetail(orderId));
@@ -82,6 +94,51 @@ export default function OrderDetailScreen({ navigation, route }) {
       .then((data) => setTracking(data || null))
       .catch(() => setTracking(null));
   }, [orderId]);
+
+  // The handover code: only while the parcel of a paid order is on its way.
+  const needDelivery = shouldLoadDelivery(displayOrder);
+  useEffect(() => {
+    setCode('');
+    setCodeError('');
+    if (!needDelivery) { setDelivery(null); return undefined; }
+    let alive = true;
+    ordersAPI.getMyDeliveries()
+      .then((rows) => { if (alive) setDelivery(deliveryForOrder(rows, displayOrder)); })
+      .catch(() => { if (alive) setDelivery(null); });
+    return () => { alive = false; };
+  }, [needDelivery, displayOrder?.id, displayOrder?.status]);
+
+  // The refund: only when a paid order ended as cancelled, rejected, returned or refunded.
+  const needRefund = shouldLoadRefund(displayOrder);
+  useEffect(() => {
+    if (!needRefund) { setRefund(null); setRefundChecked(false); return undefined; }
+    let alive = true;
+    paymentsAPI.getMyRefunds()
+      .then((data) => {
+        if (!alive) return;
+        setRefund(refundForOrder(data && (data.results || data), displayOrder));
+        setRefundChecked(true);
+      })
+      .catch(() => { if (alive) { setRefund(null); setRefundChecked(true); } });
+    return () => { alive = false; };
+  }, [needRefund, displayOrder?.id, displayOrder?.status]);
+
+  const handleShowCode = useCallback(async () => {
+    if (!delivery || codeBusy) return;
+    setCodeBusy(true);
+    setCodeError('');
+    try {
+      const res = await ordersAPI.getDeliveryCode(delivery.id);
+      const value = String((res && res.code) || '');
+      setCode(value);
+      if (!value) setCodeError(t('wallet.codeError'));
+    } catch (e) {
+      setCode('');
+      setCodeError(e && e.type === 'VALIDATION_ERROR' && e.message ? e.message : t('wallet.codeError'));
+    } finally {
+      setCodeBusy(false);
+    }
+  }, [delivery, codeBusy]);
 
   const handleCancel = useCallback(() => {
     Alert.alert(
@@ -140,8 +197,8 @@ export default function OrderDetailScreen({ navigation, route }) {
           <View>
             <Text style={styles.cancelledTitle}>Order Cancelled</Text>
             <Text style={styles.cancelledSub}>
-              {displayOrder.payment_status === 'paid'
-                ? 'Refund will be processed in 3-5 business days.'
+              {displayOrder.payment_status === 'paid' || displayOrder.payment_status === 'refunded'
+                ? t('wallet.orderRefundBanner')
                 : 'No charge was made.'}
             </Text>
           </View>
@@ -166,6 +223,64 @@ export default function OrderDetailScreen({ navigation, route }) {
             </View>
           );
         })}
+      </View>
+    );
+  };
+
+  // ── The customer's handover code ──
+  const renderCodeCard = () => {
+    if (!canShowCode(delivery)) return null;
+    return (
+      <View style={[styles.card, styles.codeCard]} testID="delivery-code-card">
+        <Text style={styles.cardTitle}>🔑 {t('wallet.codeTitle')}</Text>
+        <Text style={styles.codeHow}>{t('wallet.codeHow')}</Text>
+        {code ? (
+          <View>
+            <Text style={styles.codeDigits} testID="delivery-code-digits" selectable>{spacedCode(code)}</Text>
+            <Text style={styles.codeHint}>{t('wallet.codeValid')}</Text>
+            <Text style={styles.codeHint}>{t('wallet.codeSms')}</Text>
+          </View>
+        ) : null}
+        {codeError ? <Text style={styles.codeError} testID="delivery-code-error">{codeError}</Text> : null}
+        <TouchableOpacity
+          testID="delivery-code-button"
+          style={styles.codeBtn}
+          disabled={codeBusy}
+          onPress={code ? () => setCode('') : handleShowCode}
+        >
+          <Text style={styles.codeBtnText}>
+            {codeBusy ? t('wallet.codeBusy') : (code ? t('wallet.codeHide') : t('wallet.codeShow'))}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // ── The refund of a paid order that ended ──
+  const renderRefundCard = () => {
+    if (!shouldLoadRefund(displayOrder) || (!refund && !refundChecked)) return null;
+    const status = refund ? refundStatus(refund) : null;
+    const tone = status ? ({
+      done: { bg: COLORS.successLight, fg: COLORS.successText },
+      wait: { bg: COLORS.warningLight, fg: COLORS.warningText },
+      stop: { bg: COLORS.surfaceAlt, fg: COLORS.textMuted },
+    })[status.tone] : null;
+    return (
+      <View style={styles.card} testID="order-refund-card">
+        <Text style={styles.cardTitle}>↩️ {t('wallet.orderRefundTitle')}</Text>
+        {refund ? (
+          <View>
+            <View style={styles.refundRow}>
+              <Text style={styles.refundAmount}>{formatPrice(Number(refund.amount))}</Text>
+              <View style={[styles.refundPill, { backgroundColor: tone.bg }]}>
+                <Text style={[styles.refundPillText, { color: tone.fg }]}>{status.label}</Text>
+              </View>
+            </View>
+            <Text style={styles.refundMessage} testID="order-refund-message">{refundMessage(refund)}</Text>
+          </View>
+        ) : (
+          <Text style={styles.refundMessage} testID="order-refund-soon">{t('wallet.orderRefundSoon')}</Text>
+        )}
       </View>
     );
   };
@@ -471,6 +586,9 @@ export default function OrderDetailScreen({ navigation, route }) {
           <ProgressTracker />
         </View>
 
+        {renderRefundCard()}
+        {renderCodeCard()}
+
         {/* Real Delivery Tracking — only shown when a real Shipment exists */}
         <DeliveryTrackingCard />
 
@@ -721,4 +839,18 @@ const styles = StyleSheet.create({
   policySection: { marginBottom: SPACING.base, backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.base },
   policySectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   policySectionContent: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 22 },
+  // Delivery code card
+  codeCard: { borderWidth: 1.5, borderColor: COLORS.primary },
+  codeHow: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20, marginBottom: SPACING.sm },
+  codeDigits: { fontSize: 36, fontWeight: FONTS.black, color: COLORS.primary, letterSpacing: 6, textAlign: 'center', marginVertical: SPACING.sm },
+  codeHint: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center', lineHeight: 17 },
+  codeError: { fontSize: FONTS.sm, color: COLORS.danger, marginBottom: SPACING.sm },
+  codeBtn: { marginTop: SPACING.sm, backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, paddingVertical: SPACING.sm + 2, alignItems: 'center' },
+  codeBtnText: { color: COLORS.textWhite, fontSize: FONTS.base, fontWeight: FONTS.bold },
+  // Refund card
+  refundRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xs },
+  refundAmount: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  refundPill: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: RADIUS.full },
+  refundPillText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold },
+  refundMessage: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20 },
 });

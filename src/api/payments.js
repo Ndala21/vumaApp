@@ -18,35 +18,15 @@ export const paymentsAPI = {
    */
   getWallet: () => get(API.WALLET),
 
-  /**
-   * Deposit to wallet via Stripe
-   * Returns { checkout_url, session_id, amount }
-   * Redirect user to checkout_url
-   */
-  deposit: (amount, currency = 'KRW') =>
-    post(API.DEPOSIT, { amount, currency }),
+  // The wallet is closed: no deposit, no withdraw, no transfer to a person.
+  // Gift money, invite rewards and refunds come in; orders are paid out of it.
 
   /**
-   * Withdraw from wallet to bank account
-   * data = { amount, payment_method_id, description }
+   * The customer's own refunds (newest first): status, where the money goes, a sentence
+   * in English (message) and Kiswahili (message_sw).
+   * Returns { results: [{ id, reference, order_number, order_id, amount, status, goes_to, ... }] }
    */
-  withdraw: (data) =>
-    post(API.WITHDRAW, {
-      amount: data.amount,
-      payment_method_id: data.paymentMethodId,
-      description: data.description || 'Withdrawal',
-    }),
-
-  /**
-   * Transfer to another VUMA user
-   * data = { receiver_email, amount, description }
-   */
-  transfer: (data) =>
-    post(API.TRANSFER, {
-      receiver_email: data.receiverEmail,
-      amount: data.amount,
-      description: data.description || '',
-    }),
+  getMyRefunds: () => get('/payments/refunds/'),
 
   // ══════════════════════════════════════════════════
   // TRANSACTIONS
