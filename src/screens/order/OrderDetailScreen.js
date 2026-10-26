@@ -8,7 +8,7 @@
  * the existing 5-step progress tracker above still covers that case.
  */
 
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, StatusBar, Platform, Alert, Image, Modal,
@@ -34,6 +34,12 @@ import {
   shouldLoadDelivery, deliveryForOrder, canShowCode, spacedCode,
   shouldLoadRefund, refundForOrder, refundStatus, refundMessage,
 } from '../../utils/walletInfo';
+import { parcelsAPI } from '../../api/parcels';
+import {
+  POLL_MS, shouldLoadParcels, orderRef, parcelList, orderedParcels, signature, tone, toneColors, statusText,
+  hintFor, progressStep, stageNames, historyOf, canShowCode as canShowParcelCode, codeErrorText, manyNote,
+  waybillLine,
+} from '../../utils/parcelInfo';
 
 const ORDER_STEPS = [
   { key: 'pending', label: 'Order Placed', icon: '📋' },
@@ -82,6 +88,14 @@ export default function OrderDetailScreen({ navigation, route }) {
   const [codeError, setCodeError] = useState('');
   const [refund, setRefund] = useState(null);
   const [refundChecked, setRefundChecked] = useState(false);
+  const [parcels, setParcels] = useState([]);
+  const [parcelsChecked, setParcelsChecked] = useState(false);
+  const [parcelCodes, setParcelCodes] = useState({});
+  const [parcelCodeErrors, setParcelCodeErrors] = useState({});
+  const [parcelCodeBusy, setParcelCodeBusy] = useState('');
+  const parcelsSeen = useRef(null);
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
 
   useEffect(() => {
     if (orderId) dispatch(fetchOrderDetail(orderId));
@@ -95,8 +109,45 @@ export default function OrderDetailScreen({ navigation, route }) {
       .catch(() => setTracking(null));
   }, [orderId]);
 
-  // The handover code: only while the parcel of a paid order is on its way.
-  const needDelivery = shouldLoadDelivery(displayOrder);
+  // The parcels of a paid order (one per seller): where each one is, and the delivery code of each one.
+  // An order without parcels (the parcel system is off, or an older order) keeps the old delivery card below.
+  const needParcels = shouldLoadParcels(displayOrder);
+  const parcelRef = orderRef(displayOrder);
+  const reloadParcels = useCallback(async () => {
+    try {
+      const rows = parcelList(await parcelsAPI.getMyParcels(parcelRef));
+      if (!mounted.current) return;
+      const sig = signature(rows);
+      const moved = parcelsSeen.current !== null && sig !== parcelsSeen.current;
+      parcelsSeen.current = sig;
+      setParcels(orderedParcels(rows));
+      if (moved && orderId) dispatch(fetchOrderDetail(orderId));     // the order itself may have moved on
+    } catch (e) {
+      // keep what is on the screen; the customer can tap Refresh
+    }
+  }, [parcelRef, orderId]);
+  useEffect(() => {
+    setParcelCodes({});
+    setParcelCodeErrors({});
+    parcelsSeen.current = null;
+    if (!needParcels) { setParcels([]); setParcelsChecked(false); return undefined; }
+    let alive = true;
+    setParcelsChecked(false);
+    reloadParcels().then(() => { if (alive && mounted.current) setParcelsChecked(true); });
+    return () => { alive = false; };
+  }, [needParcels, displayOrder?.id, displayOrder?.status]);
+
+  // While a rider has a parcel, look again every few seconds: the customer is about to give the code.
+  const riderHasParcel = parcels.some((p) => p.status === 'out_for_delivery');
+  useEffect(() => {
+    if (!needParcels || !riderHasParcel) return undefined;
+    const timer = setInterval(() => { reloadParcels(); }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [needParcels, riderHasParcel, reloadParcels]);
+
+  // The handover code of the old delivery system: only while the parcel of a paid order is on its way,
+  // and only when the order has no parcels.
+  const needDelivery = shouldLoadDelivery(displayOrder) && (!needParcels || parcelsChecked) && parcels.length === 0;
   useEffect(() => {
     setCode('');
     setCodeError('');
@@ -139,6 +190,24 @@ export default function OrderDetailScreen({ navigation, route }) {
       setCodeBusy(false);
     }
   }, [delivery, codeBusy]);
+
+  // The code of ONE parcel (an order with two sellers has two parcels and two codes).
+  const handleParcelCode = useCallback(async (parcel) => {
+    if (!parcel || parcelCodeBusy) return;
+    const id = parcel.id;
+    setParcelCodeBusy(id);
+    setParcelCodeErrors((m) => ({ ...m, [id]: '' }));
+    try {
+      const res = await parcelsAPI.getParcelCode(id);
+      const value = String((res && res.code) || '');
+      setParcelCodes((m) => ({ ...m, [id]: value }));
+      if (!value) setParcelCodeErrors((m) => ({ ...m, [id]: t('wallet.codeError') }));
+    } catch (e) {
+      setParcelCodeErrors((m) => ({ ...m, [id]: codeErrorText(e) }));
+    } finally {
+      if (mounted.current) setParcelCodeBusy('');
+    }
+  }, [parcelCodeBusy]);
 
   const handleCancel = useCallback(() => {
     Alert.alert(
@@ -223,6 +292,100 @@ export default function OrderDetailScreen({ navigation, route }) {
             </View>
           );
         })}
+      </View>
+    );
+  };
+
+  // ── Where each parcel of the order is (one parcel per seller), with the delivery code of each ──
+  const renderParcel = (p, stages) => {
+    const colors = toneColors(tone(p));
+    const step = progressStep(p);
+    const history = historyOf(p);
+    const value = parcelCodes[p.id] || '';
+    const problem = parcelCodeErrors[p.id] || '';
+    const hint = hintFor(p);
+    const way = waybillLine(p);
+    return (
+      <View key={p.id} style={styles.parcelBox} testID={`parcel-${p.id}`}>
+        <View style={styles.parcelHead}>
+          <View style={styles.parcelHeadText}>
+            {p.seller_name ? <Text style={styles.parcelSeller} numberOfLines={2}>{t('parcels.from', { seller: p.seller_name })}</Text> : null}
+            {p.item_summary ? <Text style={styles.parcelItems} numberOfLines={2}>{p.item_summary}</Text> : null}
+          </View>
+          <View style={[styles.parcelPill, { backgroundColor: colors.bg }]} testID={`parcel-status-${p.id}`}>
+            <Text style={[styles.parcelPillText, { color: colors.fg }]}>{statusText(p)}</Text>
+          </View>
+        </View>
+        {step !== null ? (
+          <View style={styles.stageRow} testID={`parcel-stages-${p.id}`}>
+            {stages.map((name, i) => (
+              <View key={name} style={styles.stageCol}>
+                <View style={[styles.stageBar, step > i && styles.stageBarOn]} />
+                <Text style={[styles.stageName, step === i + 1 && styles.stageNameOn]} numberOfLines={1}>{name}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {hint ? <Text style={styles.parcelHint} testID={`parcel-hint-${p.id}`}>{hint}</Text> : null}
+        {canShowParcelCode(p) ? (
+          <View style={styles.parcelCode} testID={`parcel-code-card-${p.id}`}>
+            <Text style={styles.cardTitle}>🔑 {t('wallet.codeTitle')}</Text>
+            <Text style={styles.codeHow}>{t('wallet.codeHow')}</Text>
+            {value ? (
+              <View>
+                <Text style={styles.codeDigits} testID={`parcel-code-digits-${p.id}`} selectable>{spacedCode(value)}</Text>
+                <Text style={styles.codeHint}>{t('wallet.codeValid')}</Text>
+                <Text style={styles.codeHint}>{t('wallet.codeSms')}</Text>
+              </View>
+            ) : null}
+            {problem ? <Text style={styles.codeError} testID={`parcel-code-error-${p.id}`}>{problem}</Text> : null}
+            <TouchableOpacity
+              testID={`parcel-code-button-${p.id}`}
+              style={styles.codeBtn}
+              disabled={!!parcelCodeBusy}
+              onPress={value ? () => setParcelCodes((m) => ({ ...m, [p.id]: '' })) : () => handleParcelCode(p)}
+            >
+              <Text style={styles.codeBtnText}>
+                {parcelCodeBusy === p.id ? t('wallet.codeBusy') : (value ? t('wallet.codeHide') : t('wallet.codeShow'))}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        {history.steps.length > 0 ? (
+          <View style={styles.parcelSteps} testID={`parcel-steps-${p.id}`}>
+            {history.steps.map((s, i) => (
+              <View key={s.key} style={styles.parcelStepRow}>
+                <View style={[styles.parcelDot, i === 0 && styles.parcelDotNew]} />
+                <View style={styles.parcelStepText}>
+                  <Text style={[styles.parcelStepLabel, i === 0 && styles.parcelStepLabelNew]}>
+                    {s.text}{s.place ? ' - ' + s.place : ''}
+                  </Text>
+                  {s.when ? <Text style={styles.parcelStepTime}>{s.when}</Text> : null}
+                </View>
+              </View>
+            ))}
+            {history.hidden > 0 ? <Text style={styles.parcelStepTime}>{t('parcels.earlier', { n: history.hidden })}</Text> : null}
+          </View>
+        ) : null}
+        {way ? <Text style={styles.parcelWaybill}>{way}</Text> : null}
+      </View>
+    );
+  };
+
+  const renderParcelsCard = () => {
+    if (!needParcels || parcels.length === 0) return null;
+    const note = manyNote(parcels.length);
+    const stages = stageNames();
+    return (
+      <View style={styles.card} testID="order-parcels-card">
+        <View style={styles.parcelTop}>
+          <Text style={styles.parcelTitle}>🚚 {parcels.length > 1 ? t('parcels.titleMany') : t('parcels.titleOne')}</Text>
+          <TouchableOpacity testID="parcels-refresh" onPress={() => reloadParcels()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.parcelRefresh}>{t('parcels.refresh')}</Text>
+          </TouchableOpacity>
+        </View>
+        {note ? <Text style={styles.parcelNote} testID="parcels-many-note">{note}</Text> : null}
+        {parcels.map((p) => renderParcel(p, stages))}
       </View>
     );
   };
@@ -587,6 +750,7 @@ export default function OrderDetailScreen({ navigation, route }) {
         </View>
 
         {renderRefundCard()}
+        {renderParcelsCard()}
         {renderCodeCard()}
 
         {/* Real Delivery Tracking — only shown when a real Shipment exists */}
@@ -853,4 +1017,33 @@ const styles = StyleSheet.create({
   refundPill: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: RADIUS.full },
   refundPillText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold },
   refundMessage: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20 },
+  // Parcels card (one box per parcel)
+  parcelTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
+  parcelTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  parcelRefresh: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.primary },
+  parcelNote: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20, marginBottom: SPACING.sm },
+  parcelBox: { backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
+  parcelHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  parcelHeadText: { flex: 1, paddingRight: SPACING.sm },
+  parcelSeller: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  parcelItems: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 19, marginTop: 2 },
+  parcelPill: { paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.full, maxWidth: '45%' },
+  parcelPillText: { fontSize: FONTS.xs, fontWeight: FONTS.semiBold },
+  stageRow: { flexDirection: 'row', marginTop: SPACING.sm },
+  stageCol: { flex: 1, paddingRight: 4 },
+  stageBar: { height: 4, borderRadius: 2, backgroundColor: COLORS.border },
+  stageBarOn: { backgroundColor: COLORS.primary },
+  stageName: { fontSize: 10, color: COLORS.textMuted, marginTop: 3 },
+  stageNameOn: { color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
+  parcelHint: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20, marginTop: SPACING.sm },
+  parcelCode: { marginTop: SPACING.sm, padding: SPACING.base, borderRadius: RADIUS.lg, backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.primary },
+  parcelSteps: { marginTop: SPACING.sm },
+  parcelStepRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
+  parcelDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.border, marginTop: 5, marginRight: SPACING.sm },
+  parcelDotNew: { backgroundColor: COLORS.primary },
+  parcelStepText: { flex: 1 },
+  parcelStepLabel: { fontSize: FONTS.sm, color: COLORS.textSecondary },
+  parcelStepLabelNew: { color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
+  parcelStepTime: { fontSize: FONTS.xs, color: COLORS.textMuted },
+  parcelWaybill: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: SPACING.xs },
 });

@@ -38,6 +38,11 @@ import { EmptyState, FullScreenError } from '../../components/common/ErrorMessag
 import Button from '../../components/common/Button';
 import { get } from '../../api/client';
 import { ordersAPI } from '../../api/orders';
+import { parcelsAPI } from '../../api/parcels';
+import {
+  parcelList, parcelsForOrder, withParcel, canMarkPacked, riderOf, sellerHint,
+  statusText, tone, toneColors,
+} from '../../utils/parcelInfo';
 
 // Universal Shipment status -> friendly label + icon, matching the
 // same mapping used on the customer's OrderDetailScreen tracking card.
@@ -255,10 +260,72 @@ function OrderItemRow({ item, onUpdate, last, compact }) {
   );
 }
 
-function OrderCard({ order, onUpdate, onDetails }) {
+// The seller's parcels of one order: what to do (pack it), who is coming, where it is.
+// The server decides everything; the button only shows when the server says the seller may say "packed".
+function SellerParcels({ parcels, busyId, onPack, flat }) {
+  if (!parcels || parcels.length === 0) return null;
+  return (
+    <View style={[styles.parcelBox, flat && styles.parcelBoxFlat]} testID="seller-parcels">
+      {parcels.map((p, i) => {
+        const colors = toneColors(tone(p));
+        const rider = riderOf(p);
+        const hint = sellerHint(p);
+        return (
+          <View key={p.id} style={[styles.parcelRow, i > 0 && styles.parcelRowBorder]} testID={`seller-parcel-${p.id}`}>
+            <View style={styles.parcelHead}>
+              <Text style={styles.parcelTitle} numberOfLines={1}>
+                {`📦 ${L('Parcel', 'Kifurushi')} ${p.waybill_spaced || p.waybill || ''}`}
+              </Text>
+              <View style={[styles.parcelPill, { backgroundColor: colors.bg }]}>
+                <Text style={[styles.parcelPillText, { color: colors.fg }]}>{statusText(p)}</Text>
+              </View>
+            </View>
+            {!!hint && <Text style={styles.parcelHint}>{hint}</Text>}
+            {!!rider && (
+              <View style={styles.parcelRider}>
+                <Text style={styles.parcelRiderText} numberOfLines={1}>
+                  {`🏍️ ${L('Rider', 'Dereva')}: ${rider.name}`}
+                </Text>
+                {!!rider.phone && (
+                  <TouchableOpacity
+                    testID={`seller-rider-call-${p.id}`}
+                    style={styles.parcelCall}
+                    onPress={() => callNumber(rider.phone)}
+                  >
+                    <Text style={styles.parcelCallText}>{`📞 ${L('Call', 'Piga simu')}`}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            {canMarkPacked(p) && (
+              <TouchableOpacity
+                testID={`seller-pack-${p.id}`}
+                style={[styles.packBtn, busyId === p.id && styles.packBtnBusy]}
+                disabled={!!busyId}
+                onPress={() => onPack(p)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.packBtnText}>
+                  {busyId === p.id
+                    ? L('Saving...', 'Inahifadhi...')
+                    : `✓  ${L('Mark as packed', 'Weka kuwa imefungwa')}`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function OrderCard({ order, onUpdate, onDetails, parcels, packBusy, onPack }) {
   const stage = getFriendlyStage(order.status);
   const pay = getPaymentInfo(order.payment_status);
   const items = Array.isArray(order.items) ? order.items : [];
+  // An order with parcels is moved by its parcels (the seller says "packed", a rider and the hubs scan the rest),
+  // so the old per-item status button is not offered there.
+  const myParcels = parcelsForOrder(parcels, order.order_number);
 
   // Real shipment/tracking info - fetched per-card via the
   // vendor-accessible ShipmentByOrderView. 204 (no shipment yet)
@@ -300,6 +367,12 @@ function OrderCard({ order, onUpdate, onDetails }) {
         </View>
       )}
 
+      {myParcels.length > 0 && (
+        <View style={styles.parcelWrap}>
+          <SellerParcels parcels={myParcels} busyId={packBusy} onPack={onPack} />
+        </View>
+      )}
+
       <View style={styles.customerRow}>
         <Text style={styles.customerIcon}>👤</Text>
         <Text style={styles.customerName} numberOfLines={1}>
@@ -317,7 +390,7 @@ function OrderCard({ order, onUpdate, onDetails }) {
           key={item.id || i}
           item={item}
           last={i === items.length - 1}
-          onUpdate={(it) => onUpdate(order, it)}
+          onUpdate={myParcels.length > 0 ? undefined : (it) => onUpdate(order, it)}
         />
       ))}
 
@@ -379,10 +452,11 @@ function DetailRow({ label, value, strong, color }) {
 // Full order information: customer contact, delivery address, products,
 // payment and dates. `detail` is the full order from GET /orders/<id>/.
 function OrderDetailsModal({
-  visible, order, detail, loading, error, onClose, onRetry,
+  visible, order, detail, loading, error, onClose, onRetry, parcels, packBusy, onPack,
 }) {
   if (!order) return null;
   const o = { ...order, ...(detail || {}) };
+  const myParcels = parcelsForOrder(parcels, o.order_number);
   const stage = getFriendlyStage(o.status);
   const pay = getPaymentInfo(o.payment_status);
   const items = Array.isArray(o.items) ? o.items : [];
@@ -424,6 +498,12 @@ function OrderDetailsModal({
               <StatusPill label={pay.label} color={pay.color}
                 textColor={pay.text} icon={pay.icon} />
             </View>
+
+            {myParcels.length > 0 && (
+              <DetailSection title={myParcels.length > 1 ? L('Parcels', 'Vifurushi') : L('Parcel', 'Kifurushi')}>
+                <SellerParcels parcels={myParcels} busyId={packBusy} onPack={onPack} flat />
+              </DetailSection>
+            )}
 
             <DetailSection title={L('Customer', 'Mteja')}>
               <DetailRow label={L('Name', 'Jina')} value={o.customer_name} strong />
@@ -574,6 +654,8 @@ export default function VendorOrders({ navigation, route }) {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState('');
   const detailsReq = useRef(0);
+  const [parcelRows, setParcelRows] = useState([]);
+  const [packBusy, setPackBusy] = useState('');
 
   // Tab filter *values* unchanged — only the visible labels are friendlier.
   const STATUS_TABS = [
@@ -592,11 +674,55 @@ export default function VendorOrders({ navigation, route }) {
     dispatch(fetchVendorOrders({ page: p, status: activeTab }));
   }, [activeTab, page]);
 
+  // The seller's parcels (the newest 100). If they cannot be loaded (an older server, no internet)
+  // the screen works as it always did and keeps what it already has.
+  const loadParcels = useCallback(async () => {
+    try {
+      setParcelRows(parcelList(await parcelsAPI.getSellerParcels()));
+    } catch (e) {
+      // keep the list on screen
+    }
+  }, []);
+  useEffect(() => { loadParcels(); }, []);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadOrders(true);
+    await Promise.all([loadOrders(true), loadParcels()]);
     setRefreshing(false);
-  }, [loadOrders]);
+  }, [loadOrders, loadParcels]);
+
+  // "Mark as packed": the seller confirms first (it cannot be undone), then the server moves the parcel on.
+  const doPack = async (parcel) => {
+    setPackBusy(parcel.id);
+    try {
+      const res = await parcelsAPI.markPacked(parcel.id);
+      if (res && res.parcel) setParcelRows((rows) => withParcel(rows, res.parcel));
+      else loadParcels();
+      Alert.alert(L('Packed', 'Imefungwa'),
+        L('Marked as packed. A VUMA rider will collect it.', 'Imewekwa kuwa imefungwa. Dereva wa VUMA atakuja kuichukua.'));
+      loadOrders(true);
+    } catch (e) {
+      Alert.alert(t('common.error'),
+        e && e.type === 'VALIDATION_ERROR' && e.message
+          ? e.message
+          : L('Could not save. Check your internet and try again.', 'Imeshindwa kuhifadhi. Angalia intaneti kisha jaribu tena.'));
+    } finally {
+      setPackBusy('');
+    }
+  };
+
+  const handlePack = (parcel) => {
+    if (!parcel || packBusy) return;
+    Alert.alert(
+      L('Mark as packed?', 'Imefungwa tayari?'),
+      L('Do this only when the items are packed and ready for the VUMA rider.',
+        'Fanya hivi tu bidhaa zikiwa zimefungwa na tayari kwa dereva wa VUMA.'),
+      [
+        { text: L('Not yet', 'Bado'), style: 'cancel' },
+        { text: L('Yes, it is packed', 'Ndiyo, imefungwa'), onPress: () => doPack(parcel) },
+      ],
+    );
+  };
 
   const handleLoadMore = useCallback(() => {
     if (loading.vendorOrders || !hasMore) return;
@@ -839,7 +965,8 @@ export default function VendorOrders({ navigation, route }) {
         keyExtractor={(item) => item.id?.toString()}
         renderItem={({ item }) => (
           <OrderCard order={item} onUpdate={openUpdateModal}
-            onDetails={openDetails} />
+            onDetails={openDetails} parcels={parcelRows}
+            packBusy={packBusy} onPack={handlePack} />
         )}
         ListEmptyComponent={() => {
           if (loading.vendorOrders) {
@@ -891,6 +1018,9 @@ export default function VendorOrders({ navigation, route }) {
         error={detailsError}
         onClose={closeDetails}
         onRetry={() => { if (detailsOrder) fetchDetails(detailsOrder); }}
+        parcels={parcelRows}
+        packBusy={packBusy}
+        onPack={handlePack}
       />
     </View>
   );
@@ -984,6 +1114,32 @@ const styles = StyleSheet.create({
   deliveryIcon: { fontSize: FONTS.sm },
   deliveryText: { flex: 1, fontSize: FONTS.xs, color: COLORS.textSecondary, fontWeight: FONTS.semiBold },
   deliveryTracking: { fontSize: FONTS.xs, color: COLORS.textMuted, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  parcelWrap: { paddingHorizontal: SPACING.base, paddingBottom: SPACING.sm },
+  parcelBox: {
+    backgroundColor: COLORS.surfaceAlt, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: SPACING.sm + 2,
+  },
+  parcelBoxFlat: { backgroundColor: 'transparent', borderWidth: 0, paddingHorizontal: 0 },
+  parcelRow: { paddingVertical: SPACING.sm + 2 },
+  parcelRowBorder: { borderTopWidth: 1, borderTopColor: COLORS.divider },
+  parcelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  parcelTitle: { flex: 1, fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  parcelPill: { paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.full, maxWidth: '50%' },
+  parcelPillText: { fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  parcelHint: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 19, marginTop: 4 },
+  parcelRider: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm, marginTop: SPACING.xs },
+  parcelRiderText: { flex: 1, fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
+  parcelCall: {
+    paddingHorizontal: SPACING.sm + 2, paddingVertical: 6, borderRadius: RADIUS.md,
+    borderWidth: 1.5, borderColor: COLORS.primary,
+  },
+  parcelCallText: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.primary },
+  packBtn: {
+    marginTop: SPACING.sm, paddingVertical: SPACING.sm + 3, borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.primary, alignItems: 'center',
+  },
+  packBtnBusy: { opacity: 0.6 },
+  packBtnText: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textWhite },
   customerRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     paddingHorizontal: SPACING.base, paddingBottom: SPACING.sm,
