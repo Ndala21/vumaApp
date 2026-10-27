@@ -168,7 +168,7 @@ export default function WalletScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.secondary} />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -180,7 +180,7 @@ export default function WalletScreen({ navigation }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.textWhite} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />}
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.balanceCard}>
@@ -277,25 +277,25 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: SPACING['2xl'] },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.secondary, paddingHorizontal: SPACING.base,
+    backgroundColor: COLORS.primary, paddingHorizontal: SPACING.base,
     paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
     paddingBottom: SPACING.base,
   },
   backIcon: { fontSize: FONTS.xl, color: COLORS.textWhite, fontWeight: FONTS.bold },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  balanceCard: { backgroundColor: COLORS.secondary, paddingHorizontal: SPACING.xl, paddingBottom: SPACING['2xl'], paddingTop: SPACING.base, alignItems: 'center' },
-  balanceLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.7)', fontWeight: FONTS.medium, marginBottom: SPACING.xs },
+  balanceCard: { backgroundColor: COLORS.primary, paddingHorizontal: SPACING.xl, paddingBottom: SPACING['2xl'], paddingTop: SPACING.base, alignItems: 'center' },
+  balanceLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.92)', fontWeight: FONTS.medium, marginBottom: SPACING.xs },
   balanceAmount: { fontSize: 42, fontWeight: FONTS.black, color: COLORS.textWhite, letterSpacing: -1, marginBottom: SPACING.xs },
-  balanceCurrency: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.6)' },
+  balanceCurrency: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.9)' },
   promoPill: {
-    marginTop: SPACING.md, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: RADIUS.lg,
+    marginTop: SPACING.md, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: RADIUS.lg,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, maxWidth: 320,
   },
-  promoPillText: { color: 'rgba(255,255,255,0.92)', fontSize: FONTS.sm, lineHeight: 18, textAlign: 'center' },
+  promoPillText: { color: '#FFFFFF', fontSize: FONTS.sm, lineHeight: 18, textAlign: 'center' },
   promoPillEnds: { marginTop: SPACING.xs, fontWeight: FONTS.semiBold },
-  promoPillSoon: { color: '#FFD27A' },
-  frozenBadge: { marginTop: SPACING.sm, backgroundColor: COLORS.danger, borderRadius: RADIUS.full, paddingHorizontal: SPACING.base, paddingVertical: SPACING.xs },
-  frozenText: { color: COLORS.textWhite, fontSize: FONTS.sm, fontWeight: FONTS.bold },
+  promoPillSoon: { color: '#FFFFFF', fontWeight: FONTS.black },
+  frozenBadge: { marginTop: SPACING.sm, backgroundColor: COLORS.surface, borderRadius: RADIUS.full, paddingHorizontal: SPACING.base, paddingVertical: SPACING.xs },
+  frozenText: { color: COLORS.dangerText, fontSize: FONTS.sm, fontWeight: FONTS.bold },
   actionsRow: { flexDirection: 'row', backgroundColor: COLORS.surface, paddingVertical: SPACING.xl, paddingHorizontal: SPACING.base, gap: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
   actionBtn: { flex: 1, alignItems: 'center', gap: SPACING.xs },
   actionIconWrap: { width: 52, height: 52, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.primary },
