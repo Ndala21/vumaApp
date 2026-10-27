@@ -11,7 +11,7 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, StatusBar, Platform, Alert, Image, Modal,
+  StyleSheet, StatusBar, Platform, Alert, Image, Modal, Linking,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -38,8 +38,9 @@ import { parcelsAPI } from '../../api/parcels';
 import {
   POLL_MS, shouldLoadParcels, orderRef, parcelList, orderedParcels, signature, tone, toneColors, statusText,
   hintFor, progressStep, stageNames, historyOf, canShowCode as canShowParcelCode, codeErrorText, manyNote,
-  waybillLine,
+  waybillLine, pointInfo, isAtPoint, hasPhoto, photoUri, photoCaption,
 } from '../../utils/parcelInfo';
+import ParcelPhoto from '../../components/ParcelPhoto';
 
 const ORDER_STEPS = [
   { key: 'pending', label: 'Order Placed', icon: '📋' },
@@ -137,8 +138,9 @@ export default function OrderDetailScreen({ navigation, route }) {
     return () => { alive = false; };
   }, [needParcels, displayOrder?.id, displayOrder?.status]);
 
-  // While a rider has a parcel, look again every few seconds: the customer is about to give the code.
-  const riderHasParcel = parcels.some((p) => p.status === 'out_for_delivery');
+  // While a rider has a parcel (or it waits at a pickup point), look again every few seconds:
+  // the customer is about to give the code, and the page shows "Collected" as soon as the attendant has handed it over.
+  const riderHasParcel = parcels.some((p) => p.status === 'out_for_delivery' || p.status === 'at_pickup_point');
   useEffect(() => {
     if (!needParcels || !riderHasParcel) return undefined;
     const timer = setInterval(() => { reloadParcels(); }, POLL_MS);
@@ -297,7 +299,10 @@ export default function OrderDetailScreen({ navigation, route }) {
   };
 
   // ── Where each parcel of the order is (one parcel per seller), with the delivery code of each ──
-  const renderParcel = (p, stages) => {
+  const renderParcel = (p) => {
+    const stages = stageNames(p);
+    const point = pointInfo(p);
+    const atPoint = isAtPoint(p);
     const colors = toneColors(tone(p));
     const step = progressStep(p);
     const history = historyOf(p);
@@ -327,15 +332,28 @@ export default function OrderDetailScreen({ navigation, route }) {
           </View>
         ) : null}
         {hint ? <Text style={styles.parcelHint} testID={`parcel-hint-${p.id}`}>{hint}</Text> : null}
+        {point && (p.status === 'out_for_delivery' || atPoint || p.status === 'delivered') ? (
+          <View style={styles.pointBox} testID={`parcel-point-${p.id}`}>
+            <Text style={styles.pointName}>📍 {t('parcels.pointTitle')}: {point.name}</Text>
+            {point.address ? <Text style={styles.pointLine}>{point.address}</Text> : null}
+            {point.landmark ? <Text style={styles.pointLine}>{point.landmark}</Text> : null}
+            {point.hours ? <Text style={styles.pointLine}>{t('parcels.pointOpen', { hours: point.hours })}</Text> : null}
+            {point.phone && p.status !== 'delivered' ? (
+              <TouchableOpacity testID={`parcel-point-call-${p.id}`} style={styles.pointCall} onPress={() => { Linking.openURL(`tel:${String(point.phone).replace(/[^\d+]/g, '')}`).catch(() => {}); }}>
+                <Text style={styles.pointCallText}>📞 {t('parcels.pointCall')}: {point.phone}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
         {canShowParcelCode(p) ? (
           <View style={styles.parcelCode} testID={`parcel-code-card-${p.id}`}>
-            <Text style={styles.cardTitle}>🔑 {t('wallet.codeTitle')}</Text>
-            <Text style={styles.codeHow}>{t('wallet.codeHow')}</Text>
+            <Text style={styles.cardTitle}>🔑 {atPoint ? t('parcels.pointCodeTitle') : t('wallet.codeTitle')}</Text>
+            <Text style={styles.codeHow}>{atPoint ? t('parcels.pointCodeHow') : t('wallet.codeHow')}</Text>
             {value ? (
               <View>
                 <Text style={styles.codeDigits} testID={`parcel-code-digits-${p.id}`} selectable>{spacedCode(value)}</Text>
-                <Text style={styles.codeHint}>{t('wallet.codeValid')}</Text>
-                <Text style={styles.codeHint}>{t('wallet.codeSms')}</Text>
+                <Text style={styles.codeHint}>{atPoint ? t('parcels.pointCodeValid') : t('wallet.codeValid')}</Text>
+                <Text style={styles.codeHint}>{atPoint ? t('parcels.pointCodeSms') : t('wallet.codeSms')}</Text>
               </View>
             ) : null}
             {problem ? <Text style={styles.codeError} testID={`parcel-code-error-${p.id}`}>{problem}</Text> : null}
@@ -350,6 +368,19 @@ export default function OrderDetailScreen({ navigation, route }) {
               </Text>
             </TouchableOpacity>
           </View>
+        ) : null}
+        {hasPhoto(p) ? (
+          <ParcelPhoto
+            testID={`parcel-photo-${p.id}`}
+            uri={photoUri(p, 'customer')}
+            title={t('parcels.photoTitle')}
+            caption={photoCaption(p)}
+            tapHint={t('parcels.photoTap')}
+            failedText={t('parcels.photoFailed')}
+            retryText={t('parcels.photoRetry')}
+            closeText={t('parcels.photoClose')}
+            onRetry={reloadParcels}
+          />
         ) : null}
         {history.steps.length > 0 ? (
           <View style={styles.parcelSteps} testID={`parcel-steps-${p.id}`}>
@@ -375,7 +406,6 @@ export default function OrderDetailScreen({ navigation, route }) {
   const renderParcelsCard = () => {
     if (!needParcels || parcels.length === 0) return null;
     const note = manyNote(parcels.length);
-    const stages = stageNames();
     return (
       <View style={styles.card} testID="order-parcels-card">
         <View style={styles.parcelTop}>
@@ -385,7 +415,7 @@ export default function OrderDetailScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
         {note ? <Text style={styles.parcelNote} testID="parcels-many-note">{note}</Text> : null}
-        {parcels.map((p) => renderParcel(p, stages))}
+        {parcels.map((p) => renderParcel(p))}
       </View>
     );
   };
@@ -1046,4 +1076,9 @@ const styles = StyleSheet.create({
   parcelStepLabelNew: { color: COLORS.textPrimary, fontWeight: FONTS.semiBold },
   parcelStepTime: { fontSize: FONTS.xs, color: COLORS.textMuted },
   parcelWaybill: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: SPACING.xs },
+  pointBox: { marginTop: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.lg, backgroundColor: COLORS.surfaceSunken },
+  pointName: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  pointLine: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 19, marginTop: 2 },
+  pointCall: { alignSelf: 'flex-start', marginTop: SPACING.sm, paddingVertical: 4 },
+  pointCallText: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primary },
 });

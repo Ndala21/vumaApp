@@ -41,8 +41,9 @@ import { ordersAPI } from '../../api/orders';
 import { parcelsAPI } from '../../api/parcels';
 import {
   parcelList, parcelsForOrder, withParcel, canMarkPacked, riderOf, sellerHint,
-  statusText, tone, toneColors,
+  statusText, tone, toneColors, hasPhoto, photoUri, photoCaption,
 } from '../../utils/parcelInfo';
+import ParcelPhoto from '../../components/ParcelPhoto';
 
 // Universal Shipment status -> friendly label + icon, matching the
 // same mapping used on the customer's OrderDetailScreen tracking card.
@@ -262,7 +263,7 @@ function OrderItemRow({ item, onUpdate, last, compact }) {
 
 // The seller's parcels of one order: what to do (pack it), who is coming, where it is.
 // The server decides everything; the button only shows when the server says the seller may say "packed".
-function SellerParcels({ parcels, busyId, onPack, flat }) {
+function SellerParcels({ parcels, busyId, onPack, flat, onReload }) {
   if (!parcels || parcels.length === 0) return null;
   return (
     <View style={[styles.parcelBox, flat && styles.parcelBoxFlat]} testID="seller-parcels">
@@ -297,6 +298,19 @@ function SellerParcels({ parcels, busyId, onPack, flat }) {
                 )}
               </View>
             )}
+            {hasPhoto(p) && (
+              <ParcelPhoto
+                testID={`seller-photo-${p.id}`}
+                uri={photoUri(p, 'seller')}
+                title={L('Delivery photo', 'Picha ya kufikisha')}
+                caption={photoCaption(p)}
+                tapHint={L('Tap the photo to see it bigger.', 'Bonyeza picha uione kubwa zaidi.')}
+                failedText={L('The photo could not be loaded.', 'Picha imeshindwa kupakia.')}
+                retryText={L('Try again', 'Jaribu tena')}
+                closeText={L('Close', 'Funga')}
+                onRetry={onReload}
+              />
+            )}
             {canMarkPacked(p) && (
               <TouchableOpacity
                 testID={`seller-pack-${p.id}`}
@@ -319,7 +333,7 @@ function SellerParcels({ parcels, busyId, onPack, flat }) {
   );
 }
 
-function OrderCard({ order, onUpdate, onDetails, parcels, packBusy, onPack }) {
+function OrderCard({ order, onUpdate, onDetails, parcels, packBusy, onPack, onReloadParcels }) {
   const stage = getFriendlyStage(order.status);
   const pay = getPaymentInfo(order.payment_status);
   const items = Array.isArray(order.items) ? order.items : [];
@@ -369,7 +383,7 @@ function OrderCard({ order, onUpdate, onDetails, parcels, packBusy, onPack }) {
 
       {myParcels.length > 0 && (
         <View style={styles.parcelWrap}>
-          <SellerParcels parcels={myParcels} busyId={packBusy} onPack={onPack} />
+          <SellerParcels parcels={myParcels} busyId={packBusy} onPack={onPack} onReload={onReloadParcels} />
         </View>
       )}
 
@@ -452,7 +466,7 @@ function DetailRow({ label, value, strong, color }) {
 // Full order information: customer contact, delivery address, products,
 // payment and dates. `detail` is the full order from GET /orders/<id>/.
 function OrderDetailsModal({
-  visible, order, detail, loading, error, onClose, onRetry, parcels, packBusy, onPack,
+  visible, order, detail, loading, error, onClose, onRetry, parcels, packBusy, onPack, onReloadParcels,
 }) {
   if (!order) return null;
   const o = { ...order, ...(detail || {}) };
@@ -501,7 +515,7 @@ function OrderDetailsModal({
 
             {myParcels.length > 0 && (
               <DetailSection title={myParcels.length > 1 ? L('Parcels', 'Vifurushi') : L('Parcel', 'Kifurushi')}>
-                <SellerParcels parcels={myParcels} busyId={packBusy} onPack={onPack} flat />
+                <SellerParcels parcels={myParcels} busyId={packBusy} onPack={onPack} onReload={onReloadParcels} flat />
               </DetailSection>
             )}
 
@@ -966,7 +980,7 @@ export default function VendorOrders({ navigation, route }) {
         renderItem={({ item }) => (
           <OrderCard order={item} onUpdate={openUpdateModal}
             onDetails={openDetails} parcels={parcelRows}
-            packBusy={packBusy} onPack={handlePack} />
+            packBusy={packBusy} onPack={handlePack} onReloadParcels={loadParcels} />
         )}
         ListEmptyComponent={() => {
           if (loading.vendorOrders) {
@@ -1021,6 +1035,7 @@ export default function VendorOrders({ navigation, route }) {
         parcels={parcelRows}
         packBusy={packBusy}
         onPack={handlePack}
+        onReloadParcels={loadParcels}
       />
     </View>
   );

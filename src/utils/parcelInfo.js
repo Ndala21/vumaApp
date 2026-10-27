@@ -7,7 +7,7 @@
  */
 
 import { t } from '../i18n';
-import { COLORS } from './constants';
+import { COLORS, API } from './constants';
 import { formatDateTime } from './helpers';
 import { isSwahili, fmtDay, spacedCode } from './walletInfo';
 
@@ -42,6 +42,7 @@ export function tone(parcel) {
     case 'lost': return 'problem';
     case 'returned':
     case 'cancelled': return 'ended';
+    case 'at_pickup_point':                    // ready: the customer has to come for it
     default: return 'wait';
   }
 }
@@ -99,6 +100,7 @@ const HINT_KEYS = {
   at_hub: 'parcels.hintMoving',
   in_transfer: 'parcels.hintMoving',
   out_for_delivery: 'parcels.hintOut',
+  at_pickup_point: 'parcels.hintAtPoint',
   delivery_failed: 'parcels.hintFailed',
   returning: 'parcels.hintReturning',
   returned: 'parcels.hintReturned',
@@ -109,12 +111,15 @@ const HINT_KEYS = {
 /** One sentence for the customer: what is happening to this parcel now. */
 export function hintFor(parcel) {
   if (!parcel) return '';
+  const point = pointInfo(parcel);
   if (parcel.status === 'delivered') {
     const day = fmtDay(parcel.delivered_at);
+    if (point) return day ? t('parcels.hintCollected', { date: day, point: point.name }) : t('parcels.hintCollectedPlain', { point: point.name });
     return day ? t('parcels.hintDelivered', { date: day }) : t('parcels.hintDeliveredPlain');
   }
+  if (point && parcel.status === 'out_for_delivery') return t('parcels.hintOutToPoint', { point: point.name });
   const key = HINT_KEYS[parcel.status];
-  return key ? t(key, { n: parcel.delivery_attempts || 1 }) : '';
+  return key ? t(key, { n: parcel.delivery_attempts || 1, point: point ? point.name : '' }) : '';
 }
 
 /** 0 = not packed yet, 1 = packed, 2 = on the way, 3 = out for delivery, 4 = delivered. null = no progress bar (cancelled, returned ...). */
@@ -127,14 +132,18 @@ export function progressStep(parcel) {
     case 'at_hub':
     case 'in_transfer':
     case 'delivery_failed': return 2;
-    case 'out_for_delivery': return 3;
+    case 'out_for_delivery':
+    case 'at_pickup_point': return 3;
     case 'delivered': return 4;
     default: return null;
   }
 }
 
-/** The four stages of the progress bar, in the app language. */
-export function stageNames() {
+/** The four stages of the progress bar, in the app language (a parcel for a pickup point ends with "Ready to collect" and "Collected"). */
+export function stageNames(parcel) {
+  if (pointInfo(parcel)) {
+    return [t('parcels.stagePacked'), t('parcels.stageOnWay'), t('parcels.stageAtPoint'), t('parcels.stageCollected')];
+  }
   return [t('parcels.stagePacked'), t('parcels.stageOnWay'), t('parcels.stageOut'), t('parcels.stageDelivered')];
 }
 
@@ -154,9 +163,49 @@ export function historyOf(parcel, limit = STEP_LIMIT) {
   return { steps: shown, hidden: Math.max(0, newest.length - shown.length) };
 }
 
-/** The delivery code can be asked for only while the rider has this parcel. */
+/**
+ * The code can be asked for only while the rider has this parcel, or (for a pickup point) while the parcel waits
+ * at the point. The server says when (can_show_code); this only reads its answer.
+ */
 export function canShowCode(parcel) {
-  return !!parcel && parcel.status === 'out_for_delivery' && parcel.can_show_code === true;
+  return !!parcel && (parcel.status === 'out_for_delivery' || parcel.status === 'at_pickup_point') && parcel.can_show_code === true;
+}
+
+/** The pickup point of a parcel: { name, address, landmark, hours, phone } (empty words where unknown), or null for a home parcel. */
+export function pointInfo(parcel) {
+  const p = parcel && parcel.pickup_point;
+  if (!p || typeof p !== 'object' || !p.name) return null;
+  const s = (x) => (typeof x === 'string' ? x.trim() : '');
+  return { name: String(p.name), address: s(p.address), landmark: s(p.landmark), hours: s(p.opening_hours), phone: s(p.phone) };
+}
+
+/** True when the parcel waits at its pickup point (the customer has to bring the collection code). */
+export const isAtPoint = (parcel) => !!parcel && parcel.status === 'at_pickup_point' && !!pointInfo(parcel);
+
+// ---------------------------------------------------------------- the photo taken where the parcel was left
+
+/** True when the server says there is a delivery photo for this person to see (photo_at is set only then). */
+export function hasPhoto(parcel) {
+  return !!parcel && typeof parcel.photo_at === 'string' && parcel.photo_at.length > 0;
+}
+
+/**
+ * The private address of the photo. `who` is 'customer' or 'seller'. The phone sends its sign-in with it
+ * (the photo is never a public address); ?v= only makes the phone look again when the photo is a new one.
+ */
+export function photoUri(parcel, who) {
+  if (!parcel || !parcel.id) return '';
+  const base = String(API.BASE_URL || '').replace(/\/+$/, '');
+  const path = who === 'seller' ? `/parcels/seller/${parcel.id}/photo/` : `/parcels/${parcel.id}/photo/`;
+  return `${base}${path}?v=${encodeURIComponent(parcel.photo_at || '')}`;
+}
+
+/** The words under the photo: where and when it was taken. */
+export function photoCaption(parcel) {
+  if (!hasPhoto(parcel)) return '';
+  const when = formatDateTime(parcel.photo_at);
+  const point = pointInfo(parcel);
+  return point ? t('parcels.photoAtPoint', { point: point.name, when }) : t('parcels.photoAtDoor', { when });
 }
 
 /** The sentence for a failed code request: the server's own words when it said why, else a plain one. */
@@ -187,6 +236,7 @@ const SELLER_HINTS = {
   in_transfer: ['On its way to the customer.', 'Iko njiani kwa mteja.'],
   out_for_delivery: ['On its way to the customer.', 'Iko njiani kwa mteja.'],
   delivered: ['Delivered to the customer.', 'Imefikishwa kwa mteja.'],
+  at_pickup_point: ['Waiting at the pickup point for the customer to collect it.', 'Kiko kwenye kituo cha kuchukulia, kinasubiri mteja akichukue.'],
   delivery_failed: ['The delivery did not work. VUMA will try again.', 'Kufikisha kumeshindikana. VUMA itajaribu tena.'],
   returning: ['The parcel is coming back to you.', 'Kifurushi kinarudi kwako.'],
   returned: ['The parcel is back with you.', 'Kifurushi kimerudi kwako.'],
@@ -196,8 +246,17 @@ const SELLER_HINTS = {
 
 /** One sentence for the seller. */
 export function sellerHint(parcel) {
+  const sw = isSwahili() ? 1 : 0;
+  const point = pointInfo(parcel);
+  if (point && parcel.status === 'delivered') {
+    return sw ? `Mteja amekichukua kwenye ${point.name}.` : `The customer collected it at ${point.name}.`;
+  }
+  if (point && (parcel.status === 'out_for_delivery' || parcel.status === 'at_pickup_point')) {
+    const pair = SELLER_HINTS[parcel.status];
+    return `${pair[sw]} ${sw ? 'Kituo' : 'Pickup point'}: ${point.name}.`;
+  }
   const pair = parcel && SELLER_HINTS[parcel.status];
-  return pair ? pair[isSwahili() ? 1 : 0] : '';
+  return pair ? pair[sw] : '';
 }
 
 /** The seller's parcels of one order (by order number). */

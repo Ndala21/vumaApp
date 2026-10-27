@@ -26,6 +26,10 @@ export const parcelsAPI = {
    */
   getParcelCode: (parcelId) => post(`/parcels/${parcelId}/code/`),
 
+  // The delivery photo (the picture a rider took where the parcel was left) is a private address the phone shows
+  // as an image together with the sign-in: see utils/parcelInfo.js (photoUri) and components/ParcelPhoto.js.
+  // The server shows it to the customer and to the seller of the parcel only, and only while VUMA allows it.
+
   // ══════════════════════════════════════════════════
   // SELLER
   // ══════════════════════════════════════════════════
