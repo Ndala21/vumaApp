@@ -6,10 +6,12 @@
  *   getInitialURL - the app was closed and the push opened it
  *   subscribe     - the app was already running (background or open)
  * Links from e-mail buttons and the web keep working exactly as before.
+ * A brand-new install that came from an ad opens that ad's product (see installLink.js) when nothing else opened the app.
  */
 
 import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { takeInstallLink } from './installLink';
 
 /** The VUMA link inside a push response, or null. */
 export function pushLink(response) {
@@ -24,6 +26,7 @@ export function pushLink(response) {
 }
 
 export async function getInitialURL() {
+  const installLink = await takeInstallLink();      // read (and used up) on the first start only, never waits long
   const url = await Linking.getInitialURL();
   if (url != null) return url;
   try {
@@ -35,7 +38,7 @@ export async function getInitialURL() {
       return link;
     }
   } catch (e) { /* no push, no link */ }
-  return null;
+  return installLink;
 }
 
 export function subscribe(listener) {
