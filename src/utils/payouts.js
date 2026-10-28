@@ -97,6 +97,29 @@ const TEXT = {
     totalEarned: 'Total earned',
     paidOut: 'Paid out',
     holdNote: 'Money from an order is held for 7 days after delivery. Then you can withdraw it.',
+    comingLabel: 'Coming after pickup',
+    ruleAtPickup: 'Your money is calculated and credited when the VUMA rider collects the parcel from you. You can withdraw it {wait}.',
+    ruleAtDelivery: 'Your money is calculated and credited when the customer receives the parcel. You can withdraw it {wait}.',
+    waitNow: 'at once',
+    waitDays1: 'after 1 day',
+    waitDaysN: 'after {n} days',
+    owesNote: 'You owe VUMA TSh {amount} because a parcel came back. It is taken from your next sales automatically.',
+    salesTitle: 'Your sales - exact amounts',
+    salesEmpty: 'No sales yet.',
+    salesMore: 'Show more',
+    salesFail: 'Could not load your sales. Pull down to try again.',
+    money_waiting: 'Waiting for pickup',
+    money_on_hold: 'On hold until {date}',
+    money_on_hold_soon: 'On hold - released soon',
+    money_on_hold_nodate: 'On hold',
+    money_released: 'Ready to withdraw',
+    money_reversed: 'Taken back',
+    money_mixed: 'Part paid',
+    sumItems: 'Your items',
+    sumFee: 'VUMA fee',
+    sumPay: 'Payment cost',
+    sumNet: 'You receive',
+    today: 'today',
     goesTo: 'Money goes to',
     change: 'Change',
     setUp: 'Set up',
@@ -160,6 +183,29 @@ const TEXT = {
     totalEarned: 'Jumla ya mapato',
     paidOut: 'Ulizokwisha pokea',
     holdNote: 'Pesa za oda hushikiliwa siku 7 baada ya oda kufikishwa. Kisha unaweza kuzitoa.',
+    comingLabel: 'Zinakuja baada ya kuchukuliwa',
+    ruleAtPickup: 'Pesa zako huhesabiwa na kuwekwa dereva wa VUMA anapochukua kifurushi kwako. Unaweza kuzitoa {wait}.',
+    ruleAtDelivery: 'Pesa zako huhesabiwa na kuwekwa mteja anapopokea kifurushi. Unaweza kuzitoa {wait}.',
+    waitNow: 'mara moja',
+    waitDays1: 'baada ya siku 1',
+    waitDaysN: 'baada ya siku {n}',
+    owesNote: 'Unadaiwa na VUMA TSh {amount} kwa sababu kifurushi kilirudi. Zitakatwa kwenye mauzo yako yajayo moja kwa moja.',
+    salesTitle: 'Mauzo yako - kiasi kamili',
+    salesEmpty: 'Bado hakuna mauzo.',
+    salesMore: 'Onyesha zaidi',
+    salesFail: 'Imeshindikana kupakia mauzo yako. Vuta chini ujaribu tena.',
+    money_waiting: 'Inasubiri kuchukuliwa',
+    money_on_hold: 'Imeshikiliwa hadi {date}',
+    money_on_hold_soon: 'Imeshikiliwa - itaachiliwa hivi karibuni',
+    money_on_hold_nodate: 'Imeshikiliwa',
+    money_released: 'Tayari kutoa',
+    money_reversed: 'Imerudishwa',
+    money_mixed: 'Imelipwa kwa sehemu',
+    sumItems: 'Bidhaa zako',
+    sumFee: 'Ada ya VUMA',
+    sumPay: 'Gharama ya malipo',
+    sumNet: 'Unapokea',
+    today: 'leo',
     goesTo: 'Pesa zinaenda kwa',
     change: 'Badilisha',
     setUp: 'Weka',
@@ -272,4 +318,87 @@ export const reasonText = (lang, summary) => {
   };
   if (lang === 'sw' && code && TEXT.sw[`err_${code}`]) return tx(lang, `err_${code}`, vars);
   return summary.reason || '';
+};
+
+// ---- the exact money (P53) ---------------------------------------------------
+
+// The rule in one sentence, from what the server says (earn_at: 'pickup' | 'delivery', hold_days).
+// Returns '' when the server did not send the rule (an older server): the screen keeps its old note.
+export const holdRule = (lang, info) => {
+  if (!info || (info.earn_at !== 'pickup' && info.earn_at !== 'delivery')) return '';
+  const days = Math.max(0, Math.round(num(info.hold_days)));
+  const wait = days === 0 ? tx(lang, 'waitNow') : days === 1 ? tx(lang, 'waitDays1') : tx(lang, 'waitDaysN', { n: days });
+  return tx(lang, info.earn_at === 'pickup' ? 'ruleAtPickup' : 'ruleAtDelivery', { wait });
+};
+
+const MONTHS = {
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  sw: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ago', 'Sep', 'Okt', 'Nov', 'Des'],
+};
+const two = (n) => (n < 10 ? `0${n}` : String(n));
+
+// '2026-10-29T08:00:00Z' -> 'today 11:00' or '29 Oct, 11:00' (the phone's own time). '' if it is not a date.
+export const whenText = (lang, iso, now = new Date()) => {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return '';
+  const n = now instanceof Date ? now : new Date(now);
+  const clock = `${two(d.getHours())}:${two(d.getMinutes())}`;
+  if (d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()) {
+    return `${tx(lang, 'today')} ${clock}`;
+  }
+  return `${d.getDate()} ${(lang === 'sw' ? MONTHS.sw : MONTHS.en)[d.getMonth()]}, ${clock}`;
+};
+
+// Where a sale's money is: 'waiting' | 'on_hold' | 'released' | 'reversed' | 'mixed'
+export const moneyStateText = (lang, state, releasesAt, now = new Date()) => {
+  if (state === 'on_hold') {
+    const when = whenText(lang, releasesAt, now);
+    if (!when) return tx(lang, 'money_on_hold_nodate');
+    const d = new Date(releasesAt);
+    const n = now instanceof Date ? now : new Date(now);
+    if (d.getTime() <= n.getTime()) return tx(lang, 'money_on_hold_soon');
+    return tx(lang, 'money_on_hold', { date: when });
+  }
+  const key = `money_${state}`;
+  return TEXT.en[key] != null ? tx(lang, key) : '';
+};
+
+export const MONEY_STYLE = {
+  waiting: { bg: '#EEF2F7', fg: '#475569', icon: '\u25D4' },
+  on_hold: { bg: '#FFF3CD', fg: '#8A6D00', icon: '\u23F3' },
+  released: { bg: '#E4F7EC', fg: '#1B9C5A', icon: '\u2713' },
+  reversed: { bg: '#FDE8EA', fg: '#D32F2F', icon: '\u21A9' },
+  mixed: { bg: '#E8F3FF', fg: '#2563EB', icon: '\u25D1' },
+};
+
+// 'Your items TSh 10,000 - VUMA fee TSh 800 - Payment cost TSh 90 = TSh 9,110'
+// (the payment cost part only shows when there is one). parts: { sale, fee, pay, net } as numbers or numeric text.
+export const formulaText = (lang, parts) => {
+  if (!parts) return '';
+  const fee = num(parts.fee);
+  const pay = num(parts.pay);
+  let out = `${tx(lang, 'sumItems')} ${tsh(parts.sale)} - ${tx(lang, 'sumFee')} ${tsh(fee)}`;
+  if (pay > 0) out += ` - ${tx(lang, 'sumPay')} ${tsh(pay)}`;
+  return `${out} = ${tsh(parts.net)}`;
+};
+
+// The same for one order as the server sends it to the seller (seller_subtotal, seller_fee, seller_payment_fee,
+// seller_earnings). '' for an older server that does not send the fee.
+export const orderFormula = (lang, order) => {
+  if (!order || order.seller_fee === undefined || order.seller_fee === null || order.seller_fee === '') return '';
+  return formulaText(lang, {
+    sale: order.seller_subtotal, fee: order.seller_fee, pay: order.seller_payment_fee, net: order.seller_earnings,
+  });
+};
+
+// One line of the statement from the server: { sale, commission, payment_fee, net, ... }
+export const lineFormula = (lang, line) => formulaText(lang, {
+  sale: line && line.sale, fee: line && line.commission, pay: line && line.payment_fee, net: line && line.net,
+});
+
+// The note under an order: where the money of this order is. '' when the server sent nothing.
+export const orderMoneyText = (lang, order, now = new Date()) => {
+  const m = order && order.seller_money;
+  if (!m || !m.state) return '';
+  return moneyStateText(lang, m.state, m.releases_at, now);
 };

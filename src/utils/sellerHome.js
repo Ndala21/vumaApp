@@ -21,6 +21,8 @@ const TEXT = {
     moneyLabel: 'Money you can withdraw',
     withdrawBtn: 'Withdraw money',
     onHold: 'On hold',
+    coming: 'Coming after pickup',
+    owesLine: 'You owe VUMA {amount}. It comes off your next sales.',
     totalEarned: 'Total earned',
 
     whatToDo: 'What do you want to do?',
@@ -87,6 +89,8 @@ const TEXT = {
     moneyLabel: 'Pesa unazoweza kutoa',
     withdrawBtn: 'Toa pesa',
     onHold: 'Zinazosubiri',
+    coming: 'Zinakuja baada ya kuchukuliwa',
+    owesLine: 'Unadaiwa na VUMA {amount}. Zitakatwa kwenye mauzo yajayo.',
     totalEarned: 'Jumla ya mapato',
 
     whatToDo: 'Unataka kufanya nini?',

@@ -39,6 +39,7 @@ import Button from '../../components/common/Button';
 import { get } from '../../api/client';
 import { ordersAPI } from '../../api/orders';
 import { parcelsAPI } from '../../api/parcels';
+import { orderFormula, orderMoneyText, MONEY_STYLE } from '../../utils/payouts';
 import {
   parcelList, parcelsForOrder, withParcel, canMarkPacked, riderOf, sellerHint,
   statusText, tone, toneColors, hasPhoto, photoUri, photoCaption,
@@ -105,6 +106,7 @@ const isSwahili = () => {
   }
 };
 const L = (en, sw) => (isSwahili() ? sw : en);
+const moneyLang = () => (isSwahili() ? 'sw' : 'en');
 
 const STAGE_SW = {
   New: 'Mpya',
@@ -419,6 +421,19 @@ function OrderCard({ order, onUpdate, onDetails, parcels, packBusy, onPack, onRe
             {formatPrice(sellerEarnings(order))}
           </Text>
         </View>
+        {!!orderFormula(moneyLang(), order) && (
+          <Text style={styles.formulaNote} testID={`order-formula-${order.order_number}`}>
+            {orderFormula(moneyLang(), order)}
+          </Text>
+        )}
+        {!!orderMoneyText(moneyLang(), order) && (
+          <Text
+            style={[styles.moneyState, { color: (MONEY_STYLE[order.seller_money.state] || MONEY_STYLE.waiting).fg }]}
+            testID={`order-money-${order.order_number}`}
+          >
+            {(MONEY_STYLE[order.seller_money.state] || MONEY_STYLE.waiting).icon} {orderMoneyText(moneyLang(), order)}
+          </Text>
+        )}
         {!!order.has_other_sellers && (
           <Text style={styles.otherNote}>
             {L('This order also has items from other sellers. Your items: ',
@@ -609,9 +624,17 @@ function OrderDetailsModal({
                 value={hasValue(o.seller_subtotal) ? formatPrice(o.seller_subtotal) : ''} />
               <DetailRow label={L('VUMA fee', 'Ada ya VUMA')}
                 value={hasValue(o.seller_fee) ? '- ' + formatPrice(o.seller_fee) : ''} />
-              <DetailRow label={L('Your earnings', 'Mapato yako')}
+              {parseFloat(o.seller_payment_fee) > 0 && (
+                <DetailRow label={L('Payment cost', 'Gharama ya malipo')}
+                  value={'- ' + formatPrice(o.seller_payment_fee)} />
+              )}
+              <DetailRow label={L('You receive', 'Unapokea')}
                 value={formatPrice(sellerEarnings(o))}
                 strong color={COLORS.success} />
+              {!!orderMoneyText(moneyLang(), o) && (
+                <DetailRow label={L('Where your money is', 'Pesa zako ziko wapi')}
+                  value={orderMoneyText(moneyLang(), o)} />
+              )}
               <View style={styles.dtDivider} />
               <DetailRow label={L('Shipping (whole order)', 'Usafirishaji (oda nzima)')}
                 value={hasValue(o.shipping_cost) ? formatPrice(o.shipping_cost) : ''} />
@@ -1317,6 +1340,8 @@ const styles = StyleSheet.create({
   },
   earnValue: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.success },
   otherNote: { fontSize: FONTS.xs, color: COLORS.textMuted, lineHeight: 16 },
+  formulaNote: { fontSize: FONTS.xs, color: COLORS.textSecondary || COLORS.textMuted, lineHeight: 16, marginTop: 2 },
+  moneyState: { fontSize: FONTS.xs, fontWeight: FONTS.bold, lineHeight: 16, marginTop: 4 },
   detailsBtn: {
     margin: SPACING.base, marginTop: SPACING.sm,
     paddingVertical: SPACING.sm + 2, borderRadius: RADIUS.lg,

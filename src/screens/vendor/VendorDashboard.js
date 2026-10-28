@@ -312,11 +312,20 @@ export default function VendorDashboard({ navigation }) {
                 <Text style={styles.moneySplitLabel}>{T('onHold')}</Text>
                 <Text style={styles.moneySplitValue} numberOfLines={1} adjustsFontSizeToFit>{tsh(dashboard.pending_balance)}</Text>
               </View>
+              {!!dashboard.money && (
+                <View style={styles.moneySplitItem} testID="money-coming">
+                  <Text style={styles.moneySplitLabel}>{T('coming')}</Text>
+                  <Text style={styles.moneySplitValue} numberOfLines={1} adjustsFontSizeToFit>{tsh(dashboard.money.coming)}</Text>
+                </View>
+              )}
               <View style={styles.moneySplitItem}>
                 <Text style={styles.moneySplitLabel}>{T('totalEarned')}</Text>
                 <Text style={styles.moneySplitValue} numberOfLines={1} adjustsFontSizeToFit>{tsh(dashboard.total_earnings)}</Text>
               </View>
             </View>
+            {!!dashboard.money && Number(dashboard.money.owes) > 0 && (
+              <Text style={styles.moneyOwes} testID="money-owes">{T('owesLine', { amount: tsh(dashboard.money.owes) })}</Text>
+            )}
             <View style={styles.moneyBtn}>
               <Text style={styles.moneyBtnIcon}>💸</Text>
               <Text style={styles.moneyBtnText}>{T('withdrawBtn')}</Text>
@@ -464,6 +473,7 @@ const styles = StyleSheet.create({
   moneyAmount: { fontSize: 36, fontWeight: FONTS.black, color: 'white', letterSpacing: -0.5, marginTop: 2, marginBottom: SPACING.sm + 2 },
   moneySplitRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.28)', paddingTop: SPACING.sm + 2, marginBottom: SPACING.md },
   moneySplitItem: { flex: 1, paddingRight: SPACING.sm },
+  moneyOwes: { fontSize: FONTS.xs, color: '#FFE2E2', fontWeight: FONTS.bold, marginBottom: SPACING.sm, lineHeight: 16 },
   moneySplitLabel: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.8)', marginBottom: 2 },
   moneySplitValue: { fontSize: FONTS.lg, color: 'white', fontWeight: FONTS.bold },
   moneyBtn: {

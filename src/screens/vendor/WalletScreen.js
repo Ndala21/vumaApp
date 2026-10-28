@@ -22,7 +22,10 @@ import { t, i18n, useTranslation } from '../../i18n';
 import { get, post } from '../../api/client';
 import { vendorsAPI } from '../../api/vendors';
 import WithdrawSheet from '../../components/WithdrawSheet';
-import { tx, tsh, statusLabel, STATUS_STYLE, reasonText, METHOD_LABELS, errorText } from '../../utils/payouts';
+import {
+  tx, tsh, statusLabel, STATUS_STYLE, reasonText, METHOD_LABELS, errorText,
+  holdRule, moneyStateText, MONEY_STYLE, lineFormula, groupDigits,
+} from '../../utils/payouts';
 
 const PAYMENT_METHODS = [
   { code: 'mpesa', label: 'M-Pesa', bg: '#4CAF50' },
@@ -45,19 +48,25 @@ export default function WalletScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [statement, setStatement] = useState(null);
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [salesFailed, setSalesFailed] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [dash, payoutData, sum, prof] = await Promise.all([
+      const [dash, payoutData, sum, prof, stmt] = await Promise.all([
         vendorsAPI.getDashboard(),
         get('/vendors/payouts/my-payouts/'),
         vendorsAPI.getPayoutSummary().catch(() => null),
         vendorsAPI.getProfile().catch(() => null),
+        vendorsAPI.getStatement({ limit: 20 }).catch(() => null),
       ]);
       setDashboard(dash);
       setPayouts(Array.isArray(payoutData) ? payoutData : []);
       setSummary(sum);
       setProfile(prof);
+      setStatement(stmt && Array.isArray(stmt.lines) ? stmt : null);
+      setSalesFailed(!stmt);
     } catch (e) {
       Alert.alert(t('common.error'), T('loadFail'));
     } finally {
@@ -71,6 +80,21 @@ export default function WalletScreen({ navigation }) {
     setRefreshing(true);
     await load();
     setRefreshing(false);
+  };
+
+  const showMore = async () => {
+    if (!statement || moreBusy) return;
+    setMoreBusy(true);
+    try {
+      const next = await vendorsAPI.getStatement({ limit: 20, offset: statement.lines.length });
+      if (next && Array.isArray(next.lines)) {
+        setStatement({ ...next, lines: [...statement.lines, ...next.lines] });
+      }
+    } catch (e) {
+      Alert.alert(t('common.error'), T('salesFail'));
+    } finally {
+      setMoreBusy(false);
+    }
   };
 
   const handleCancel = (payout) => {
@@ -101,6 +125,9 @@ export default function WalletScreen({ navigation }) {
 
   // Off while a rule says no. "No account yet" keeps it on, because tapping it opens the account form.
   const btnOff = !!summary && !summary.can_request && summary.reason_code !== 'no_destination';
+  const moneyNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const comingAmount = moneyNum(summary ? summary.coming : (statement && statement.balances && statement.balances.coming));
+  const owesAmount = moneyNum(summary ? summary.owes : (statement && statement.balances && statement.balances.owes));
 
   return (
     <View style={styles.container}>
@@ -137,7 +164,15 @@ export default function WalletScreen({ navigation }) {
               <Text style={styles.balanceSplitValue} numberOfLines={1} adjustsFontSizeToFit>{formatPrice(dashboard?.total_earnings || 0)}</Text>
             </View>
           </View>
-          <Text style={styles.holdNote}>{T('holdNote')}</Text>
+          {comingAmount > 0 && (
+            <Text style={styles.comingNote} testID="coming-note">
+              {T('comingLabel')}: {tsh(comingAmount)}
+            </Text>
+          )}
+          {owesAmount > 0 && (
+            <Text style={styles.owesNote} testID="owes-note">{T('owesNote', { amount: groupDigits(owesAmount) })}</Text>
+          )}
+          <Text style={styles.holdNote} testID="hold-rule">{holdRule(lang, summary) || T('holdNote')}</Text>
           {!!summary && (
             <TouchableOpacity
               style={[styles.payoutBtn, btnOff && styles.payoutBtnOff]}
@@ -153,6 +188,40 @@ export default function WalletScreen({ navigation }) {
             <Text style={styles.reasonText}>{reasonText(lang, summary)}</Text>
           )}
         </View>
+
+        {/* The exact amount of every sale: sale - VUMA fee - payment cost = what you receive, and where the money is */}
+        <Text style={styles.sectionTitle} testID="sales-title">{T('salesTitle')}</Text>
+        {salesFailed ? (
+          <Text style={styles.emptyText}>{T('salesFail')}</Text>
+        ) : !statement || statement.lines.length === 0 ? (
+          <Text style={styles.emptyText}>{T('salesEmpty')}</Text>
+        ) : (
+          statement.lines.map((line, idx) => {
+            const style = MONEY_STYLE[line.state] || MONEY_STYLE.waiting;
+            return (
+              <View key={`${line.order_number}-${idx}`} style={styles.saleRow} testID={`sale-line-${line.order_number}`}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.saleTitle} numberOfLines={1}>
+                    #{line.order_number} · {line.product_name}{line.quantity > 1 ? ` x${line.quantity}` : ''}
+                  </Text>
+                  <Text style={styles.saleDate}>{line.date}</Text>
+                  <Text style={styles.saleFormula} testID={`sale-formula-${line.order_number}`}>{lineFormula(lang, line)}</Text>
+                  <View style={[styles.payoutStatusPill, { backgroundColor: style.bg, alignSelf: 'flex-start', marginTop: 6 }]}>
+                    <Text style={[styles.payoutStatusText, { color: style.fg }]}>
+                      {style.icon} {moneyStateText(lang, line.state, line.releases_at)}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.saleNet}>{tsh(line.net)}</Text>
+              </View>
+            );
+          })
+        )}
+        {!!statement && statement.has_more && (
+          <TouchableOpacity style={styles.moreBtn} onPress={showMore} disabled={moreBusy} accessibilityRole="button" testID="sales-more">
+            <Text style={styles.moreBtnText}>{moreBusy ? '...' : T('salesMore')}</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Payment Methods */}
         <Text style={styles.sectionTitle}>Payment Methods We Support</Text>
@@ -240,6 +309,16 @@ const styles = StyleSheet.create({
   payoutBtnTextOff: { color: 'rgba(255,255,255,0.7)' },
   holdNote: { marginTop: SPACING.sm, fontSize: 10.5, color: 'rgba(255,255,255,0.8)', lineHeight: 15 },
   reasonText: { marginTop: SPACING.sm, fontSize: FONTS.xs, color: 'white', textAlign: 'center' },
+  comingNote: { marginTop: SPACING.sm, fontSize: FONTS.sm, color: 'white', fontWeight: FONTS.bold },
+  owesNote: { marginTop: SPACING.sm, fontSize: FONTS.xs, color: '#FFE2E2', lineHeight: 16, fontWeight: FONTS.bold },
+
+  saleRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: SPACING.base, marginBottom: SPACING.xs, borderWidth: 1, borderColor: COLORS.border },
+  saleTitle: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  saleDate: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
+  saleFormula: { fontSize: FONTS.xs, color: COLORS.textSecondary || COLORS.textMuted, marginTop: 4, lineHeight: 16 },
+  saleNet: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.success, marginLeft: SPACING.sm },
+  moreBtn: { alignSelf: 'center', paddingVertical: SPACING.sm, paddingHorizontal: SPACING.xl, marginTop: SPACING.xs, marginBottom: SPACING.base },
+  moreBtnText: { fontSize: FONTS.sm, fontWeight: FONTS.bold, color: COLORS.primary },
 
   sectionTitle: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.sm, marginTop: SPACING.sm },
   methodsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.sm },

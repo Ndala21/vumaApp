@@ -131,6 +131,17 @@ export const vendorsAPI = {
   getPayoutSummary: () => get(API.VENDOR_PAYOUT_SUMMARY),
 
   /**
+   * The exact money statement: balances (coming, on hold, ready, owed ...) and one line per sale
+   * with the sale price, VUMA fee, payment cost and the exact amount for the seller.
+   * state: '' | 'waiting' | 'on_hold' | 'released' | 'reversed'
+   */
+  getStatement: ({ limit = 20, offset = 0, state = '' } = {}) => {
+    const params = { limit, offset };
+    if (state) params.state = state;
+    return get(`${API.VENDOR_PAYOUTS_BASE}statement/`, params);
+  },
+
+  /**
    * Cancel a withdrawal that is still waiting for approval
    */
   cancelPayout: (id) => post(`${API.VENDOR_PAYOUTS_BASE}${id}/cancel/`),
