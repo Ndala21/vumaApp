@@ -9,6 +9,7 @@ import { useEffect, useState, useRef, Component } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { post } from './src/api/client';
+import { ensurePushPermission } from './src/utils/pushPermission';
 import SplashScreen from './src/components/SplashScreen';
 import SystemBarsFrame from './src/components/SystemBarsFrame';
 
@@ -25,14 +26,11 @@ Notifications.setNotificationHandler({
 async function registerForPushNotifications() {
   if (!Device.isDevice || require('react-native').Platform.OS !== 'android') return null;
   try {
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let finalStatus = existing;
-    if (existing !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    pushDiag.perm = finalStatus;
-    if (finalStatus !== 'granted') return null;
+    // Asks politely: a VUMA message first, then the phone's own box, at most twice.
+    // See src/utils/pushPermission.js
+    const allowed = await ensurePushPermission();
+    pushDiag.perm = allowed ? 'granted' : 'not allowed';
+    if (!allowed) return null;
 
     const token = await Notifications.getDevicePushTokenAsync();
     return typeof token.data === 'string' ? token.data : null;
