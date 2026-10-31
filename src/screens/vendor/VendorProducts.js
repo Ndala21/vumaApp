@@ -48,6 +48,7 @@ import { EmptyState } from '../../components/common/ErrorMessage';
 import { VendorSizePicker, requiresSize } from '../../components/SizeSelector';
 import { MultiImagePicker } from '../../components/MultiImagePicker';
 import VariantManager from '../../components/VariantManager';
+import { clearPhotoRef, imageRefOf, picturesResolver, variantsForSave, waitsForUpload } from '../../utils/variants';
 import { ImageQualityWarning, ImageQualityBadge } from '../../components/ImageQualityWarning';
 import { MAX_DESC_WORDS, wordCount, limitWords, shortenToLimit, editableDescriptionOf } from '../../utils/productText';
 
@@ -109,7 +110,7 @@ const categoryIdOf = (product, categories) => {
 const variantsSignature = (list) => JSON.stringify((list || []).map((v) => [
   v.size || '', v.color || '', v.material || '', v.storage || '', v.ram || '',
   v.model_name || '', v.weight_volume || '', Number(v.stock) || 0, Number(v.price_adjustment) || 0,
-  v.is_active === false ? 0 : 1,
+  v.is_active === false ? 0 : 1, v.image_ref || '',
 ]).sort());
 
 const failureReason = (result, fallback) => {
@@ -459,6 +460,7 @@ const ProductModal = memo(({
           categoryName={form.category}
           variants={variants}
           onChange={onVariantsChange}
+          images={productImages}
         />
 
         {/* Status */}
@@ -636,6 +638,7 @@ export default function VendorProducts({ navigation, route }) {
       weight_volume: v.weight_volume || '', stock: v.stock || 0,
       price_adjustment: v.price_adjustment || 0,
       is_active: v.is_active !== false,
+      image_ref: v.image_id ? `id:${v.image_id}` : '',
     }));
     setVariants(loadedVariants);
     setVariantsBaseline(variantsSignature(loadedVariants));
@@ -684,6 +687,8 @@ export default function VendorProducts({ navigation, route }) {
         // Continue removing from UI even if API fails
       }
     }
+    // A colour that used this picture goes back to a plain box.
+    if (img) setVariants((prev) => clearPhotoRef(prev, imageRefOf(img)));
     setProductImages((prev) => prev.filter((_, i) => i !== index));
   }, [productImages, editingProduct]);
 
@@ -848,11 +853,15 @@ export default function VendorProducts({ navigation, route }) {
 
     // Save the options (replaces the set for this product). Only when the
     // seller changed them: untouched options are left exactly as they are.
+    // A colour photo that is already on the server is sent now; one that is still
+    // waiting to be uploaded is attached after the pictures are uploaded (below).
+    let variantsSaved = true;
     if (savedId && variantsSignature(variants) !== variantsBaseline) {
       try {
         const { productsAPI } = await import('../../api/products');
-        await productsAPI.bulkSaveVariants(savedId, variants);
+        await productsAPI.bulkSaveVariants(savedId, variantsForSave(variants, picturesResolver(productImages)));
       } catch (e) {
+        variantsSaved = false;
         Alert.alert('Partial Success', 'Product saved, but variants failed to save. Edit the product to retry.');
       }
     }
@@ -878,6 +887,7 @@ export default function VendorProducts({ navigation, route }) {
 
     // Upload only NEW images (not existing ones)
     const newImages = productImages.filter(img => !img.isExisting);
+    const uploadedPictureIds = {};   // phone path -> id on the server, for the colour photos
 
     // Never skip the pictures without saying so.
     if (newImages.length > 0 && !savedId) {
@@ -908,6 +918,8 @@ export default function VendorProducts({ navigation, route }) {
               },
               isFirstOverall
             );
+
+            if (response && response.id != null) uploadedPictureIds[newImages[i].uri] = String(response.id);
 
             // Capture quality data from response
             if (response && response.image_quality) {
@@ -977,6 +989,17 @@ export default function VendorProducts({ navigation, route }) {
             + (firstFailureReason ? `\n\nReason: ${firstFailureReason}` : '')
             + '\n\nOpen the product and tap Edit to add them again.'
         );
+      }
+    }
+
+    // Colour photos that were chosen among pictures just uploaded: now that those
+    // pictures have ids, attach them to their colours.
+    if (savedId && variantsSaved && waitsForUpload(variants)) {
+      try {
+        const { productsAPI } = await import('../../api/products');
+        await productsAPI.bulkSaveVariants(savedId, variantsForSave(variants, picturesResolver(productImages, uploadedPictureIds)));
+      } catch (e) {
+        Alert.alert('Partial Success', 'Product saved, but the colour photos could not be attached. Edit the product to choose them again.');
       }
     }
 

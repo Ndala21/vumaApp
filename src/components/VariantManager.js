@@ -15,11 +15,17 @@
  * `variants` / `onChange` hold the full list; the parent screen is
  * responsible for saving it (existing UI/styling untouched — this is
  * purely additive).
+ *
+ * Colour photos: when the options have colours and the product has pictures,
+ * a "Colour photos" box lets the seller choose which of the product's pictures
+ * shows each colour to buyers (`images` = the product's pictures). The choice
+ * is kept on every option of that colour as `image_ref`.
  */
 import React, { useState, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { ColorPicker, MaterialPicker } from './OptionPickers';
+import { colorsOf, imageRefOf, photoRefOfColor, setColorPhoto } from '../utils/variants';
 
 const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 const SHOE_SIZES_EU  = ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46'];
@@ -57,7 +63,7 @@ function ChipRow({ options, value, onSelect }) {
   );
 }
 
-export default function VariantManager({ categoryName, variants = [], onChange }) {
+export default function VariantManager({ categoryName, variants = [], onChange, images = [] }) {
   const variantType = useMemo(() => getVariantType(categoryName), [categoryName]);
 
   // Draft fields for the "add one combination" form
@@ -74,6 +80,11 @@ export default function VariantManager({ categoryName, variants = [], onChange }
   const [pickerKey, setPickerKey] = useState(0);
 
   if (!variantType) return null;
+
+  // The product's pictures the seller can choose from (the ones that have a picture to show).
+  const pictures = (Array.isArray(images) ? images : [])
+    .map((img) => ({ ref: imageRefOf(img), uri: (img && (img.image_url || img.uri)) || '' }))
+    .filter((pic) => pic.ref && pic.uri);
 
   const resetDraft = () => {
     setSize(''); setColor(''); setMaterial('');
@@ -113,7 +124,9 @@ export default function VariantManager({ categoryName, variants = [], onChange }
       Alert.alert('Stock Required', 'Please enter stock quantity for this option.');
       return;
     }
-    onChange([...variants, draft]);
+    // A colour that already has a photo keeps it for the new option too.
+    const sharedRef = draft.color ? photoRefOfColor(variants, draft.color) : '';
+    onChange([...variants, sharedRef ? { ...draft, image_ref: sharedRef } : draft]);
     resetDraft();
   };
 
@@ -229,6 +242,49 @@ export default function VariantManager({ categoryName, variants = [], onChange }
         <Text style={styles.addBtnText}>+ Add Option</Text>
       </TouchableOpacity>
 
+      {/* ── Colour photos: which product picture shows each colour ── */}
+      {colorsOf(variants).length > 0 && (
+        <View style={styles.photoSection}>
+          <Text style={styles.fieldLabel}>Colour photos <Text style={styles.optional}>(optional)</Text></Text>
+          {pictures.length === 0 ? (
+            <Text style={styles.hint}>Add pictures of the product above, then choose which picture shows each colour.</Text>
+          ) : (
+            <>
+              <Text style={styles.hint}>Buyers see this picture in the colour box. Tap a picture to choose it.</Text>
+              {colorsOf(variants).map((c) => {
+                const chosen = photoRefOfColor(variants, c);
+                return (
+                  <View key={c} style={styles.photoRow}>
+                    <Text style={styles.photoColor}>{c}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={styles.thumbRow}>
+                        <TouchableOpacity
+                          onPress={() => onChange(setColorPhoto(variants, c, ''))}
+                          style={[styles.thumb, styles.thumbNone, !chosen && styles.thumbOn]}
+                          accessibilityRole="button" accessibilityState={{ selected: !chosen }}
+                        >
+                          <Text style={styles.thumbNoneText}>None</Text>
+                        </TouchableOpacity>
+                        {pictures.map((pic) => (
+                          <TouchableOpacity
+                            key={pic.ref}
+                            onPress={() => onChange(setColorPhoto(variants, c, pic.ref))}
+                            style={[styles.thumb, chosen === pic.ref && styles.thumbOn]}
+                            accessibilityRole="button" accessibilityState={{ selected: chosen === pic.ref }}
+                          >
+                            <Image source={{ uri: pic.uri }} style={styles.thumbImage} resizeMode="cover" />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                );
+              })}
+            </>
+          )}
+        </View>
+      )}
+
       {/* ── List of added options ── */}
       {variants.length > 0 && (
         <View style={styles.list}>
@@ -282,6 +338,18 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm + 2, alignItems: 'center', backgroundColor: COLORS.primaryFade, marginTop: 2,
   },
   addBtnText: { fontSize: FONTS.sm, color: COLORS.primaryDark, fontWeight: FONTS.bold },
+  photoSection: { marginTop: SPACING.base },
+  photoRow: { marginBottom: SPACING.sm },
+  photoColor: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, marginBottom: 4 },
+  thumbRow: { flexDirection: 'row', gap: SPACING.xs, paddingBottom: 2 },
+  thumb: {
+    width: 56, height: 56, borderRadius: RADIUS.md, overflow: 'hidden',
+    borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.surfaceAlt,
+  },
+  thumbOn: { borderWidth: 3, borderColor: COLORS.primary },
+  thumbNone: { alignItems: 'center', justifyContent: 'center' },
+  thumbNoneText: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.medium },
+  thumbImage: { width: '100%', height: '100%' },
   list: { marginTop: SPACING.base, gap: SPACING.xs },
   listItem: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surfaceAlt,

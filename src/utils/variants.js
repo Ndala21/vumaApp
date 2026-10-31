@@ -141,3 +141,114 @@ export const unitsAvailable = (product, variants, selectedVariant) => {
   if (selectedVariant) return Math.max(0, stockOf(selectedVariant));
   return list.reduce((sum, v) => sum + Math.max(0, stockOf(v)), 0);
 };
+
+// ── Colour photos ─────────────────────────────────────
+// The seller can choose one of the product's own pictures for each colour. The
+// server sends it on every option as image_id / image_url, and the best selling
+// colours as color_sales_rank (1 or 2). Pure helpers, no React.
+
+const colorOf = (v) => val(v, 'color');
+
+// Photo and sales rank of one colour, taken from the options of that colour.
+export const colorPhotoInfo = (variants, colorValue) => {
+  let imageId = null;
+  let imageUrl = null;
+  let rank = null;
+  activeVariants(variants).forEach((v) => {
+    if (!same(colorOf(v), colorValue)) return;
+    if (!imageUrl && v.image_url) {
+      imageUrl = String(v.image_url);
+      imageId = v.image_id != null ? String(v.image_id) : null;
+    }
+    const r = Number(v.color_sales_rank);
+    if (r === 1 || r === 2) rank = rank == null ? r : Math.min(rank, r);
+  });
+  return { imageUrl, imageId, rank };
+};
+
+// Does any option the customer can see have a colour photo?
+export const hasColorPhotos = (variants) =>
+  activeVariants(variants).some((v) => colorOf(v) && v.image_url);
+
+// Options that differ by colour only (every option has a colour and nothing else).
+export const isColorOnly = (variants) => {
+  const list = activeVariants(variants);
+  return list.length > 0 && list.every((v) => colorOf(v) && VARIANT_ATTRS.every((k) => k === 'color' || !val(v, k)));
+};
+
+// Position of a picture in the product's gallery, or -1.
+export const galleryIndexOf = (images, imageId) => {
+  if (imageId == null || !Array.isArray(images)) return -1;
+  return images.findIndex((img) => img && img.id != null && String(img.id) === String(imageId));
+};
+
+// ── Colour photos: seller side ────────────────────────
+// A picture is referred to as 'id:<server id>' once it is on the server, or as
+// 'uri:<phone path>' while it is still waiting to be uploaded.
+export const imageRefOf = (img) => {
+  if (!img) return '';
+  if (img.isExisting !== false && img.id != null && img.id !== '') return `id:${img.id}`;
+  return img.uri ? `uri:${img.uri}` : '';
+};
+
+export const colorsOf = (variants) => {
+  const seen = [];
+  (Array.isArray(variants) ? variants : []).forEach((v) => {
+    const c = colorOf(v);
+    if (c && !seen.some((x) => same(x, c))) seen.push(c);
+  });
+  return seen;
+};
+
+// The picture reference shared by the options of one colour ('' when none).
+export const photoRefOfColor = (variants, colorValue) => {
+  const hit = (Array.isArray(variants) ? variants : []).find((v) => same(colorOf(v), colorValue) && v.image_ref);
+  return hit ? hit.image_ref : '';
+};
+
+// Give every option of this colour the picture `ref` ('' removes it).
+export const setColorPhoto = (variants, colorValue, ref) =>
+  (Array.isArray(variants) ? variants : []).map((v) =>
+    (same(colorOf(v), colorValue) ? Object.assign({}, v, { image_ref: ref || '' }) : v));
+
+// Forget a picture that was removed from the product.
+export const clearPhotoRef = (variants, ref) =>
+  (Array.isArray(variants) ? variants : []).map((v) =>
+    (ref && v.image_ref === ref ? Object.assign({}, v, { image_ref: '' }) : v));
+
+// Turns a picture reference into what the server needs, for variantsForSave.
+//  - 'id:...'  a picture already on the server: its id (null if it is no longer one of the product's pictures)
+//  - ''        no photo chosen: null clears it
+//  - 'uri:...' a picture that is still on the phone: left out of the first save (undefined),
+//              and, once `uploadedIds` (phone path -> server id) is known, its new id, or null
+//              if that picture failed to upload.
+export const picturesResolver = (productImages, uploadedIds) => {
+  const ids = new Set((Array.isArray(productImages) ? productImages : [])
+    .filter((img) => img && img.isExisting && img.id != null)
+    .map((img) => String(img.id)));
+  return (ref) => {
+    if (!ref) return null;
+    if (String(ref).indexOf('id:') === 0) return ids.has(String(ref).slice(3)) ? String(ref).slice(3) : null;
+    if (!uploadedIds) return undefined;
+    return uploadedIds[String(ref).slice(4)] || null;
+  };
+};
+
+// What is sent to the server. `resolve(ref)` gives the server id of a picture, null
+// to clear it, or undefined to leave the option's picture as it is.
+export const variantsForSave = (variants, resolve) =>
+  (Array.isArray(variants) ? variants : []).map((v) => {
+    const out = {};
+    Object.keys(v).forEach((k) => {
+      if (['image_ref', 'image_url', 'image_id', 'color_sales_rank', 'display_name', 'effective_price'].indexOf(k) === -1) out[k] = v[k];
+    });
+    if (v.image_ref !== undefined) {
+      const id = resolve(v.image_ref);
+      if (id !== undefined) out.image_id = id;
+    }
+    return out;
+  });
+
+// After the pictures are uploaded: does any option still wait for a new picture?
+export const waitsForUpload = (variants) =>
+  (Array.isArray(variants) ? variants : []).some((v) => String(v.image_ref || '').indexOf('uri:') === 0);

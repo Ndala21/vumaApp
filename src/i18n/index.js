@@ -39,6 +39,7 @@ const translations = {
       goBack: 'Go back', noMatchInList: 'No products in this list match "{query}"',
     },
     products: {
+      colorTopSeller1: '#1 in sales', colorTopSeller2: '#2 in sales',
       addToCart: 'Add to Cart', buyNow: 'Buy Now', outOfStock: 'Out of Stock',
       inStock: 'In Stock', freeDelivery: '🚚 Free Delivery', quantity: 'Quantity', soldBy: 'Sold by', percentOff: '{count}% off', freeDeliveryChip: 'Free Delivery', deliveryAtCheckout: 'Delivery fee is shown at checkout', freeDeliveryUntil: 'until {date}',
       sold: 'sold', reviews: '⭐ Reviews', wishlist: 'Wishlist', description: 'Description',
@@ -221,6 +222,7 @@ const translations = {
       freeDelivery: '🚚 무료배송 혜택', shopNow: '지금 쇼핑하기!', searchPlaceholder: '🔍  상품 검색...',
     },
     products: {
+      colorTopSeller1: '판매 1위', colorTopSeller2: '판매 2위',
       addToCart: '장바구니 담기', buyNow: '바로 구매', outOfStock: '품절', inStock: '재고 있음',
       freeDelivery: '🚚 무료배송', quantity: '수량', soldBy: '판매자', percentOff: '{count}% 할인', freeDeliveryChip: '무료배송', deliveryAtCheckout: '배송비는 결제 시 표시됩니다', freeDeliveryUntil: '{date}까지', sold: '판매됨', reviews: '⭐ 리뷰',
       wishlist: '위시리스트', description: '상품 설명', details: '상세 정보',
@@ -326,6 +328,7 @@ const translations = {
       freeDelivery: '🚚 免费配送', shopNow: '立即购物！', searchPlaceholder: '🔍  搜索商品...',
     },
     products: {
+      colorTopSeller1: '销量第1', colorTopSeller2: '销量第2',
       addToCart: '加入购物车', buyNow: '立即购买', outOfStock: '缺货', inStock: '有货',
       freeDelivery: '🚚 免费配送', quantity: '数量', soldBy: '卖家', percentOff: '立减{count}%', freeDeliveryChip: '免费配送', deliveryAtCheckout: '运费将在结算时显示', freeDeliveryUntil: '截止 {date}', sold: '已售', reviews: '⭐ 评价',
       wishlist: '收藏', description: '商品描述', details: '详情',
@@ -434,6 +437,7 @@ const translations = {
       goBack: 'Rudi nyuma', noMatchInList: 'Hakuna bidhaa kwenye orodha hii zinazolingana na "{query}"',
     },
     products: {
+      colorTopSeller1: '#1 kwa mauzo', colorTopSeller2: '#2 kwa mauzo',
       addToCart: 'Ongeza kwenye Kikapu', buyNow: 'Nunua Sasa', outOfStock: 'Haina Stok',
       inStock: 'Ipo', freeDelivery: '🚚 Usafirishaji Bure', quantity: 'Wingi', soldBy: 'Muuzaji', percentOff: 'Punguzo {count}%', freeDeliveryChip: 'Usafirishaji Bure', deliveryAtCheckout: 'Gharama ya usafirishaji huonekana wakati wa kulipa', freeDeliveryUntil: 'hadi {date}',
       sold: 'Imeuzwa', reviews: '⭐ Maoni', wishlist: 'Orodha ya Matakwa',
@@ -611,6 +615,7 @@ const translations = {
       searchPlaceholder: '🔍  Rechercher des produits...',
     },
     products: {
+      colorTopSeller1: 'N°1 des ventes', colorTopSeller2: 'N°2 des ventes',
       addToCart: 'Ajouter au panier', buyNow: 'Acheter maintenant', outOfStock: 'Rupture de stock',
       inStock: 'En stock', freeDelivery: '🚚 Livraison gratuite', quantity: 'Quantité', soldBy: 'Vendu par', percentOff: '{count}% de réduction', freeDeliveryChip: 'Livraison gratuite', deliveryAtCheckout: "Les frais de livraison s'affichent au paiement", freeDeliveryUntil: "jusqu'au {date}",
       sold: 'vendu', reviews: '⭐ Avis', wishlist: 'Liste de souhaits',
@@ -716,6 +721,7 @@ const translations = {
       freeDelivery: '🚚 شحن مجاني', shopNow: '!تسوق الآن', searchPlaceholder: '...🔍  ابحث عن منتجات',
     },
     products: {
+      colorTopSeller1: 'الأول في المبيعات', colorTopSeller2: 'الثاني في المبيعات',
       addToCart: 'أضف إلى السلة', buyNow: 'اشتر الآن', outOfStock: 'نفذت الكمية',
       inStock: 'متوفر', freeDelivery: '🚚 شحن مجاني', quantity: 'الكمية', soldBy: 'البائع', percentOff: 'خصم {count}%', freeDeliveryChip: 'شحن مجاني', deliveryAtCheckout: 'تظهر رسوم التوصيل عند الدفع', freeDeliveryUntil: 'حتى {date}',
       sold: 'مُباع', reviews: '⭐ التقييمات', wishlist: 'قائمة الأمنيات',

@@ -9,18 +9,22 @@
  *     as one row per attribute. The customer picks one value in each row;
  *     values with no stock left for the current picks are greyed out.
  *   - Anything else is shown as one simple row of options.
+ * When the seller gave the colours their own photos, the colour row is shown as
+ * photo boxes (picture, colour name, "#1 in sales" for the best sellers) and
+ * onColorPhoto tells the page which picture to bring to the front.
  * The chosen option is handed back through onSelect (null while incomplete).
  * Prices, stock and the option id used at checkout all come from the option
  * the seller saved - nothing is calculated here.
  */
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet } from 'react-native';
 import { t } from '../i18n';
 import { COLORS, FONTS, SPACING } from '../utils/constants';
 import { formatPrice } from '../utils/helpers';
 import {
   buildOptionModel, chooseOption, choiceFromVariant, isBuyable, optionStatus,
   priceAdjustmentOf, resolveVariant, stockOf, variantName,
+  colorPhotoInfo, hasColorPhotos, isColorOnly,
 } from '../utils/variants';
 
 const LABEL_KEYS = {
@@ -39,20 +43,67 @@ const adjustmentText = (variant) => {
   return (adj > 0 ? '+' : '-') + formatPrice(Math.abs(adj));
 };
 
-export default function VariantPicker({ variants, selectedVariant, onSelect, error }) {
+// One colour as a photo box: the picture, the colour name and, for the two best
+// sellers, "#1 in sales" / "#2 in sales". The chosen box gets the thick border.
+function ColorPhotoBox({ name, photoUrl, rank, selected, disabled, onPress, testID }) {
+  return (
+    <TouchableOpacity
+      disabled={disabled}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={rank ? `${name}, ${t(rank === 1 ? 'products.colorTopSeller1' : 'products.colorTopSeller2')}` : name}
+      accessibilityState={{ selected, disabled }}
+      testID={testID}
+      style={[styles.photoBox, selected && styles.photoBoxActive, disabled && styles.photoBoxDisabled]}
+      onPress={onPress}
+    >
+      <View style={styles.photoFrame}>
+        {photoUrl ? (
+          <Image source={{ uri: photoUrl }} style={styles.photoImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.photoBlank} />
+        )}
+      </View>
+      <View style={styles.photoText}>
+        <Text numberOfLines={2} style={[styles.photoName, selected && styles.photoNameActive, disabled && styles.chipTextDisabled]}>
+          {name}
+        </Text>
+        {!!rank && (
+          <Text numberOfLines={1} style={styles.photoRank}>
+            {t(rank === 1 ? 'products.colorTopSeller1' : 'products.colorTopSeller2')}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+export default function VariantPicker({ variants, selectedVariant, onSelect, onColorPhoto, error }) {
   const model = useMemo(() => buildOptionModel(variants), [variants]);
   const [choice, setChoice] = useState(() => choiceFromVariant(model, selectedVariant));
+  const photoColors = useMemo(() => hasColorPhotos(variants), [variants]);
+  const colorOnly = useMemo(() => isColorOnly(variants), [variants]);
+
+  // Bring the picture of a colour to the front of the gallery (only when it has one).
+  const showColorPhoto = useCallback((value) => {
+    if (!onColorPhoto) return;
+    const { imageId } = colorPhotoInfo(variants, value);
+    if (imageId) onColorPhoto(imageId);
+  }, [variants, onColorPhoto]);
 
   const tapGrouped = useCallback((rowKey, value) => {
     const next = chooseOption(model, choice, rowKey, value);
     setChoice(next);
     onSelect(resolveVariant(model, next));
-  }, [model, choice, onSelect]);
+    if (rowKey === 'color' && next.color) showColorPhoto(next.color);
+  }, [model, choice, onSelect, showColorPhoto]);
 
   const tapFlat = useCallback((variant) => {
     if (!isBuyable(variant)) return;
-    onSelect(selectedVariant && selectedVariant.id === variant.id ? null : variant);
-  }, [onSelect, selectedVariant]);
+    const unselect = !!selectedVariant && selectedVariant.id === variant.id;
+    onSelect(unselect ? null : variant);
+    if (!unselect && colorOnly && variant.color) showColorPhoto(variant.color);
+  }, [onSelect, selectedVariant, colorOnly, showColorPhoto]);
 
   if (model.variants.length === 0) return null;
 
@@ -91,6 +142,21 @@ export default function VariantPicker({ variants, selectedVariant, onSelect, err
                 const selected = !!choice[row.key] && choice[row.key].toLowerCase() === value.toLowerCase();
                 const { available } = optionStatus(model, choice, row.key, value);
                 const disabled = !available && !selected;
+                if (row.key === 'color' && photoColors) {
+                  const info = colorPhotoInfo(variants, value);
+                  return (
+                    <ColorPhotoBox
+                      key={value}
+                      name={value}
+                      photoUrl={info.imageUrl}
+                      rank={info.rank}
+                      selected={selected}
+                      disabled={disabled}
+                      testID={`opt-${row.key}-${value}`}
+                      onPress={() => tapGrouped(row.key, value)}
+                    />
+                  );
+                }
                 return (
                   <TouchableOpacity
                     key={value}
@@ -123,6 +189,21 @@ export default function VariantPicker({ variants, selectedVariant, onSelect, err
               const selected = !!selectedVariant && selectedVariant.id === v.id;
               const out = !isBuyable(v);
               const adj = adjustmentText(v);
+              if (colorOnly && photoColors) {
+                const info = colorPhotoInfo(variants, v.color);
+                return (
+                  <ColorPhotoBox
+                    key={String(v.id)}
+                    name={String(v.color)}
+                    photoUrl={info.imageUrl}
+                    rank={info.rank}
+                    selected={selected}
+                    disabled={out}
+                    testID={`opt-${v.id}`}
+                    onPress={() => tapFlat(v)}
+                  />
+                );
+              }
               return (
                 <TouchableOpacity
                   key={String(v.id)}
@@ -157,6 +238,8 @@ export default function VariantPicker({ variants, selectedVariant, onSelect, err
 }
 
 const CHIP_RADIUS = 6;
+const PHOTO_BOX = 88;
+const PHOTO_RADIUS = 8;
 
 const styles = StyleSheet.create({
   error: { fontSize: FONTS.xs, color: COLORS.danger, marginBottom: SPACING.sm, fontWeight: FONTS.medium },
@@ -180,6 +263,21 @@ const styles = StyleSheet.create({
   chipTextDisabled: { textDecorationLine: 'line-through', color: COLORS.textLight },
   chipSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
   chipOut: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+  // Photo box for a colour. The chosen box has a 2px border; the 1px padding of the
+  // other boxes keeps every box the same size.
+  photoBox: {
+    width: PHOTO_BOX, borderWidth: 1, borderColor: COLORS.borderStrong, borderRadius: PHOTO_RADIUS,
+    backgroundColor: COLORS.surface, overflow: 'hidden', padding: 1,
+  },
+  photoBoxActive: { borderWidth: 2, borderColor: COLORS.primary, padding: 0 },
+  photoBoxDisabled: { opacity: 0.45, backgroundColor: COLORS.surfaceAlt },
+  photoFrame: { width: '100%', aspectRatio: 1, backgroundColor: COLORS.surfaceSunken },
+  photoImage: { width: '100%', height: '100%' },
+  photoBlank: { flex: 1, backgroundColor: COLORS.surfaceSunken },
+  photoText: { paddingHorizontal: 6, paddingTop: 5, paddingBottom: 6, minHeight: 50 },
+  photoName: { fontSize: FONTS.xs, color: COLORS.textPrimary, lineHeight: 15 },
+  photoNameActive: { fontWeight: FONTS.bold },
+  photoRank: { fontSize: 10, fontWeight: FONTS.bold, color: COLORS.discount, marginTop: 3 },
   summary: { fontSize: FONTS.sm, color: COLORS.primaryDark, marginTop: -SPACING.xs },
   summaryDone: { color: COLORS.textSecondary },
   summaryLow: { color: COLORS.danger, fontWeight: FONTS.semiBold },

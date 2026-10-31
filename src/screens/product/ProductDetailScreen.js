@@ -42,7 +42,7 @@ import ProductCard from '../../components/ProductCard';
 import RecommendationSection from '../../components/RecommendationSection';
 import { productsAPI } from '../../api/products';
 import VariantPicker from '../../components/VariantPicker';
-import { variantsDefineSize, activeVariants, unitsAvailable } from '../../utils/variants';
+import { variantsDefineSize, activeVariants, unitsAvailable, galleryIndexOf } from '../../utils/variants';
 import { shortDescriptionOf, hasLongerDescription } from '../../utils/productText';
 
 // ── NEW: Seller Badge & Trust Signals ────────────────
@@ -114,6 +114,7 @@ export default function ProductDetailScreen({ navigation, route }) {
 
   const cartBounce = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
+  const galleryRef = useRef(null);
 
   useEffect(() => {
     if (productId) dispatch(fetchProductDetail(productId));
@@ -199,6 +200,15 @@ export default function ProductDetailScreen({ navigation, route }) {
   const onSale = isFlashSale(displayProduct);
   const images = displayProduct.images || [];
   const reviews = displayProduct.reviews || [];
+  // Tapping a colour that has its own photo brings that picture to the front.
+  const showGalleryPicture = (imageId) => {
+    const index = galleryIndexOf(images, imageId);
+    if (index < 0) return;
+    setActiveImageIndex(index);
+    try {
+      if (galleryRef.current) galleryRef.current.scrollToIndex({ index, animated: true });
+    } catch (e) { /* the picture list is not ready yet: the dots still show the right picture */ }
+  };
   // Options the seller has switched off are never shown to customers.
   const productVariants = activeVariants(displayProduct.variants);
   const needsVariant = productVariants.length > 0;
@@ -347,8 +357,10 @@ export default function ProductDetailScreen({ navigation, route }) {
         {/* Photo: full width and square, dots at the bottom, heart at the bottom right */}
         <View style={styles.galleryWrap}>
           <FlatList
+            ref={galleryRef}
             data={images.length > 0 ? images : [{ image_url: null }]}
             horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
             onMomentumScrollEnd={(e) => setActiveImageIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
             renderItem={({ item }) => item.image_url ? (
               <Image source={{ uri: item.image_url }} style={styles.galleryImage} resizeMode="cover" />
@@ -460,6 +472,7 @@ export default function ProductDetailScreen({ navigation, route }) {
                 key={`options-${displayProduct.id}`}
                 variants={productVariants}
                 selectedVariant={selectedVariant}
+                onColorPhoto={showGalleryPicture}
                 onSelect={(v) => {
                   setSelectedVariant(v);
                   if (v) setVariantError(false);
