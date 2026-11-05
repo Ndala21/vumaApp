@@ -6,12 +6,14 @@
  *   getInitialURL - the app was closed and the push opened it
  *   subscribe     - the app was already running (background or open)
  * Links from e-mail buttons and the web keep working exactly as before.
+ * A product link of the website (https://vumashop.online/p/<id>/, for example from Google) opens that product in the app (see webLinks.js).
  * A brand-new install that came from an ad opens that ad's product (see installLink.js) when nothing else opened the app.
  */
 
 import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { takeInstallLink } from './installLink';
+import { appLinkFromWeb } from './webLinks';
 
 /** The VUMA link inside a push response, or null. */
 export function pushLink(response) {
@@ -28,7 +30,7 @@ export function pushLink(response) {
 export async function getInitialURL() {
   const installLink = await takeInstallLink();      // read (and used up) on the first start only, never waits long
   const url = await Linking.getInitialURL();
-  if (url != null) return url;
+  if (url != null) return appLinkFromWeb(url);
   try {
     const response = await Notifications.getLastNotificationResponseAsync();
     const link = pushLink(response);
@@ -42,7 +44,7 @@ export async function getInitialURL() {
 }
 
 export function subscribe(listener) {
-  const urlSub = Linking.addEventListener('url', ({ url }) => listener(url));
+  const urlSub = Linking.addEventListener('url', ({ url }) => listener(appLinkFromWeb(url)));
   let pushSub = null;
   try {
     pushSub = Notifications.addNotificationResponseReceivedListener((response) => {
