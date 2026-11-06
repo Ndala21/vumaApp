@@ -23,6 +23,9 @@ export const authAPI = {
     password2: data.password,  // ← confirm password
     phone: data.phone || '',
     language: data.language || 'en',
+    // the friend's invite code (empty when there is none) and this phone's id, so the server can link the two people
+    referral_code: data.referral_code || '',
+    device_id: data.device_id || '',
   }),
 
   /**
@@ -50,6 +53,9 @@ export const authAPI = {
     post('/users/google/', {
       id_token: data.id_token,
       fcm_token: data.fcm_token || '',
+      // only used by the server for a brand-new account
+      referral_code: data.referral_code || '',
+      device_id: data.device_id || '',
     }),
 
   /**

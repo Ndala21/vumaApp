@@ -10,10 +10,14 @@
  *                          never keeps the app waiting for more than a moment.
  *   linkFromReferrer()  -> the same decision for one referrer text (used by the function above and by the tests).
  *
- * Android only (Google Play). Only an ad note with a real product id is accepted; nothing else can open a screen.
+ * The same note also carries a friend's invite code (vuma_ref=CODE, see utils/inviteCode.js): the code is kept for the
+ * sign-up and the app opens the invite screen.
+ *
+ * Android only (Google Play). Only an ad note with a real product id, or an invite code, is accepted; nothing else can open a screen.
  */
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { inviteFromReferrer, savePendingInvite, takeClipboardInvite } from '../utils/inviteCode';
 
 export const DONE_KEY = 'vuma_install_link_done';
 const MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;     // an old install is not a fresh ad click any more
@@ -71,10 +75,18 @@ export async function takeInstallLink() {
     const got = await within(Application.getInstallReferrerAsync(), WAIT_MS);
     if (got.late) return null;                                         // Google Play did not answer in time
     if (got.error) {
-      if (got.error && got.error.code === NOT_AVAILABLE) await AsyncStorage.setItem(DONE_KEY, '1');
+      if (got.error && got.error.code === NOT_AVAILABLE) {
+        // No Google Play on this phone (the app was installed from a file): the invite page may have left the code on the clipboard.
+        await AsyncStorage.setItem(DONE_KEY, '1');
+        const copied = await takeClipboardInvite();
+        return copied ? 'vuma://invite/' + copied : null;
+      }
       return null;
     }
     await AsyncStorage.setItem(DONE_KEY, '1');                         // used up: it can only ever fire once
+    // A friend's invite link (utm_source=vuma_invite&vuma_ref=CODE): keep the code for the sign-up and open the invite screen.
+    const invite = await savePendingInvite(inviteFromReferrer(got.value));
+    if (invite) return 'vuma://invite/' + invite;
     return linkFromReferrer(got.value);
   } catch (e) {
     return null;

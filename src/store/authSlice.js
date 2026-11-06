@@ -64,7 +64,11 @@ export const register = createAsyncThunk(
   async (credentials, { rejectWithValue }) => {
     try {
       const { authAPI } = await import('../api/auth');
-      const data = await authAPI.register(credentials);
+      const { signupInviteFields, clearPendingInvite } = await import('../utils/inviteCode');
+      // the code typed in the form, else the one the phone kept from the invite link
+      const invite = await signupInviteFields(credentials.referral_code);
+      const data = await authAPI.register({ ...credentials, ...invite });
+      await clearPendingInvite();      // the server has dealt with it (applied or not); do not send it again
       await storage.saveAuthData({ accessToken: data.access, refreshToken: data.refresh, user: data.user, rememberMe: true });
       setAuthToken(data.access);
       return data;
@@ -131,14 +135,18 @@ export const login = createAsyncThunk(
 // reach the same signed-in state - not a separate flow to track.
 export const googleLogin = createAsyncThunk(
   'auth/googleLogin',
-  async ({ idToken, fcmToken = '' }, { rejectWithValue }) => {
+  async ({ idToken, fcmToken = '', referralCode = '' }, { rejectWithValue }) => {
     try {
       const { authAPI } = await import('../api/auth');
 
+      const { signupInviteFields, clearPendingInvite } = await import('../utils/inviteCode');
+      const invite = await signupInviteFields(referralCode);
       const data = await authAPI.googleLogin({
         id_token: idToken,
         fcm_token: fcmToken,
+        ...invite,
       });
+      await clearPendingInvite();
 
       if (!data || !data.access) {
         return rejectWithValue('Google sign-in failed. Please try again.');

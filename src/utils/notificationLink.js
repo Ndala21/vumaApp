@@ -34,7 +34,7 @@ export function linkPath(url) {
  * What a link points at: { kind, id, path } or null when it is not a VUMA link.
  * kind: order, orders, product, seller-order, seller-orders, seller-dashboard, seller-products,
  *       seller-earnings, seller-shop, seller-apply, cart, search, home, profile, wishlist, wallet,
- *       referral, gift, chat, notifications, other
+ *       referral, invite, gift, chat, notifications, other
  */
 export function parseLink(url) {
   const path = linkPath(url);
@@ -58,6 +58,7 @@ export function parseLink(url) {
   if (a === 'wishlist') return out('wishlist');
   if (a === 'wallet') return out('wallet');
   if (a === 'referral') return out('referral');
+  if (a === 'invite' && b) return out('invite', b);
   if (a === 'welcome-gift') return out('gift');
   if (a === 'chat') return out('chat');
   if (a === 'notifications') return out('notifications');
@@ -104,6 +105,7 @@ export function openLink(navigation, url, { isVendor = false } = {}) {
     case 'wishlist': navigation.navigate('Wishlist'); return true;
     case 'wallet': navigation.navigate('Wallet'); return true;
     case 'referral': navigation.navigate('Referral'); return true;
+    case 'invite': navigation.navigate('Invite', { code: link.id }); return true;
     case 'gift': navigation.navigate('WelcomeGift'); return true;
     case 'chat': navigation.navigate('Chat'); return true;
     default:

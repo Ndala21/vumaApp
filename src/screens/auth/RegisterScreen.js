@@ -43,6 +43,8 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, LANGUAGES } from '../../utils/
 import { iosTop } from '../../utils/safeArea';
 import { storage } from '../../utils/storage';
 import { setAuthToken } from '../../api/client';
+import { checkInviteCode, cleanCode, getPendingInvite } from '../../utils/inviteCode';
+import { tzs } from '../../utils/rewards';
 
 const TIMEOUT_MS = 15000;
 
@@ -133,8 +135,10 @@ export default function RegisterScreen({ navigation }) {
 
   const [form, setFormState] = useState({
     username: '', email: '', password: '',
-    confirmPassword: '', phone: '', language: 'en',
+    confirmPassword: '', phone: '', language: 'en', referral_code: '',
   });
+  // The invite code of the friend who sent this person: { status: idle | checking | ok | bad | unknown, name, gift }
+  const [invite, setInvite] = useState({ status: 'idle', name: '', gift: 0 });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -157,6 +161,31 @@ export default function RegisterScreen({ navigation }) {
       dispatch(clearError());
     };
   }, []);
+
+  // A code kept from the friend's invite link is filled in for the person.
+  useEffect(() => {
+    let alive = true;
+    getPendingInvite().then((code) => {
+      if (alive && code) setFormState(prev => (prev.referral_code ? prev : { ...prev, referral_code: code }));
+    });
+    return () => { alive = false; };
+  }, []);
+
+  // Ask the server who the code belongs to, a moment after the person stops typing.
+  useEffect(() => {
+    const code = cleanCode(form.referral_code);
+    if (!code) { setInvite({ status: 'idle', name: '', gift: 0 }); return undefined; }
+    setInvite((prev) => ({ ...prev, status: 'checking' }));
+    let alive = true;
+    const timer = setTimeout(async () => {
+      const checked = await checkInviteCode(code);
+      if (!alive) return;
+      if (checked.valid === true) setInvite({ status: 'ok', name: checked.referrerName, gift: checked.friendGift });
+      else if (checked.valid === false) setInvite({ status: 'bad', name: '', gift: 0 });
+      else setInvite({ status: 'unknown', name: '', gift: 0 });
+    }, 500);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [form.referral_code]);
 
   // Auto-navigate after successful registration (isAuthenticated = true)
   useEffect(() => {
@@ -231,6 +260,8 @@ export default function RegisterScreen({ navigation }) {
       errs.password = 'Password must be at least 6 characters';
     if (form.password !== form.confirmPassword)
       errs.confirmPassword = 'Passwords do not match';
+    if (form.referral_code.trim() && invite.status === 'bad')
+      errs.referral_code = 'Invite code not found. Check it, or clear the box.';
     if (!agreedToTerms)
       errs.terms = 'Please agree to Terms & Conditions';
     setFieldErrors(errs);
@@ -261,6 +292,7 @@ export default function RegisterScreen({ navigation }) {
         password2: form.confirmPassword,
         phone: form.phone.trim(),
         language: form.language,
+        referral_code: cleanCode(form.referral_code),
       }));
 
       if (register.fulfilled.match(result)) {
@@ -277,7 +309,10 @@ export default function RegisterScreen({ navigation }) {
         }
 
         stopLoading();
-        showToast('✅ Account created! Welcome to VUMA!');
+        const friend = result.payload && result.payload.referral;
+        showToast(friend && friend.applied
+          ? `✅ Account created! ${friend.referrer_name || 'Your friend'} invited you - your welcome gift is waiting.`
+          : '✅ Account created! Welcome to VUMA!');
         navigateToHome();
 
       } else if (register.rejected.match(result)) {
@@ -319,7 +354,7 @@ export default function RegisterScreen({ navigation }) {
         throw new Error('Could not get a Google ID token. Please try again.');
       }
 
-      const dispatched = await dispatch(googleLogin({ idToken }));
+      const dispatched = await dispatch(googleLogin({ idToken, referralCode: cleanCode(form.referral_code) }));
 
       if (googleLogin.fulfilled.match(dispatched)) {
         setIsGoogleLoading(false);
@@ -475,6 +510,34 @@ export default function RegisterScreen({ navigation }) {
           </View>
           <FieldError field="confirmPassword" />
 
+          {/* Invite code of the friend who sent this person (optional) */}
+          <Text style={styles.label}>Invite code (optional)</Text>
+          <View style={[styles.inputWrap, (fieldErrors.referral_code || invite.status === 'bad') && styles.inputError,
+            invite.status === 'ok' && styles.inputOk]}>
+            <Text style={styles.inputIcon}>🎁</Text>
+            <TextInput
+              style={styles.input}
+              value={form.referral_code}
+              onChangeText={v => setField('referral_code', v)}
+              placeholder="From a friend, if you have one"
+              placeholderTextColor={COLORS.textLight}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="next"
+              editable={!isLoading}
+            />
+          </View>
+          {invite.status === 'checking' && <Text style={styles.inviteHint}>Checking the code...</Text>}
+          {invite.status === 'ok' && (
+            <Text style={[styles.inviteHint, styles.inviteOk]}>
+              {`✓ Invited by ${invite.name || 'a friend'}.`}{invite.gift > 0 ? ` Your welcome gift: ${tzs(invite.gift)}.` : ''}
+            </Text>
+          )}
+          {invite.status === 'bad' && !fieldErrors.referral_code && (
+            <Text style={styles.fieldError}>Invite code not found. Check it, or clear the box.</Text>
+          )}
+          <FieldError field="referral_code" />
+
           {/* Terms */}
           <View style={styles.termsRow}>
             <TouchableOpacity
@@ -620,6 +683,9 @@ const styles = StyleSheet.create({
   eyeBtn: { padding: SPACING.xs },
   eyeIcon: { fontSize: 16 },
   fieldError: { fontSize: FONTS.xs, color: COLORS.danger, marginTop: 4, fontWeight: FONTS.medium },
+  inputOk: { borderColor: COLORS.success },
+  inviteHint: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4 },
+  inviteOk: { color: COLORS.success, fontWeight: FONTS.semiBold },
   termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginTop: SPACING.md, marginBottom: 4 },
   checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: COLORS.borderStrong, borderRadius: RADIUS.xs, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   checkboxOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },

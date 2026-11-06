@@ -46,6 +46,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { initializeAuth, forceLogout } from '../store/authSlice';
+import { attachPendingInvite } from '../utils/inviteCode';
 import { loadCart, loadWishlist, syncCartToServer } from '../store/cartSlice';
 import { fetchNotificationCount } from '../store/notificationSlice';
 import { getInitialURL, subscribe } from './pushLinks';
@@ -74,6 +75,7 @@ import ShopProfileScreen from '../screens/vendor/ShopProfileScreen';
 import MazaoScreen from '../screens/mazao/MazaoScreen';
 import MazaoAddProduct from '../screens/mazao/MazaoProduct';
 import ReferralScreen from '../screens/referral/ReferralScreen';
+import InviteScreen from '../screens/referral/InviteScreen';
 
 // ── Seller Store ──────────────────────────────────────
 import SellerStoreScreen from '../screens/vendor/SellerStoreScreen';
@@ -134,6 +136,7 @@ const linking = {
           Notifications: 'notifications',
           Chat: 'chat',
           Referral: 'referral',
+          Invite: 'invite/:code',
           SellerWallet: 'seller/earnings',
           ShopProfile: 'seller/shop',
           ApplicationStatus: 'seller/apply',
@@ -218,6 +221,8 @@ function MainStack({ isVendor }) {
 
       {/* Referral */}
       <Stack.Screen name="Referral" component={ReferralScreen} options={{ animation: 'slide_from_bottom' }} />
+      {/* A friend's invite link (vuma://invite/CODE) */}
+      <Stack.Screen name="Invite" component={InviteScreen} options={{ animation: 'fade' }} />
 
       {/* Chat */}
       <Stack.Screen name="Chat" component={ChatScreen} options={{ animation: 'slide_from_bottom' }} />
@@ -260,6 +265,12 @@ export default function AppNavigator() {
     const timer = setTimeout(() => dispatch(syncCartToServer()), 2500);
     return () => clearTimeout(timer);
   }, [isAuthenticated, cartItems]);
+
+  // A friend's invite code that the phone kept (from the invite link) is added to the new account. The server decides
+  // if it is allowed and tells both people; nothing is shown here.
+  useEffect(() => {
+    if (isAuthenticated) attachPendingInvite().catch(() => {});
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) {

@@ -10,10 +10,13 @@ import {
   StatusBar, Platform, Linking,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import { selectUser } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { iosTop } from '../../utils/safeArea';
 import { get } from '../../api/client';
+import { tzs } from '../../utils/rewards';
+import { FRIEND_STATUS, friendRows, heroLines } from '../../utils/referralText';
 
 const SHARE_CHANNELS = [
   { id: 'whatsapp',  label: 'WhatsApp',  icon: '💬', color: '#25D366', scheme: 'whatsapp://send?text=' },
@@ -61,10 +64,11 @@ export default function ReferralScreen({ navigation }) {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('invite'); // invite | dashboard | leaderboard
 
-  useEffect(() => { loadData(); }, []);
+  // Loads when the screen opens and again each time the person comes back to it (from the wallet, say).
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const loadData = async () => {
-    setLoading(true);
+    if (!data) setLoading(true);
     try {
       const [codeData, dashData] = await Promise.all([
         get('/referrals/code/'),
@@ -72,7 +76,7 @@ export default function ReferralScreen({ navigation }) {
       ]);
       setData({ ...codeData, ...dashData });
     } catch (e) {
-      Alert.alert('Error', 'Could not load referral data.');
+      if (!data) Alert.alert('Error', 'Could not load referral data.');
     } finally {
       setLoading(false);
     }
@@ -158,24 +162,30 @@ export default function ReferralScreen({ navigation }) {
             {/* Hero */}
             <View style={styles.hero}>
               <Text style={styles.heroEmoji}>🎉</Text>
-              <Text style={styles.heroTitle}>
-                {data?.campaign
-                  ? `Earn TZS ${Number(data.campaign.referrer_reward).toLocaleString()} per invite!`
-                  : 'Invite Friends & Earn Rewards!'}
-              </Text>
-              <Text style={styles.heroSub}>
-                Invite friends to VUMA. Your friend gets a bigger Welcome Gift, and you get your reward in your VUMA wallet after their first paid order.
-              </Text>
+              <Text style={styles.heroTitle}>{heroLines(data).title}</Text>
+              <Text style={styles.heroSub}>{heroLines(data).sub}</Text>
             </View>
+
+            {/* The wallet, one tap away */}
+            <TouchableOpacity style={styles.walletCard} activeOpacity={0.85} onPress={() => navigation.navigate('Wallet')}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.walletLabel}>Your VUMA wallet</Text>
+                <Text style={styles.walletAmount}>{tzs(data?.wallet_balance || 0)}</Text>
+                <Text style={styles.walletSub}>Rewards go here. Use them to pay for orders.</Text>
+              </View>
+              <Text style={styles.walletGo}>Open ›</Text>
+            </TouchableOpacity>
 
             {/* How it works */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>How It Works</Text>
               {[
-                { step: '1', icon: '📤', text: 'Share your unique referral link with friends' },
-                { step: '2', icon: '👤', text: 'Your friend creates a VUMA account' },
-                { step: '3', icon: '🛒', text: 'They place and pay for their first order' },
-                { step: '4', icon: '💰', text: 'Your reward goes into your VUMA wallet automatically. Use it to pay for orders.' },
+                { step: '1', icon: '📤', text: 'Share your link or code with friends' },
+                { step: '2', icon: '👤', text: 'Your friend creates a VUMA account with it' },
+                { step: '3', icon: '🛒', text: data?.campaign?.min_order_amount > 0
+                  ? `They pay for their first order (${tzs(data.campaign.min_order_amount)} or more)`
+                  : 'They pay for their first order' },
+                { step: '4', icon: '💰', text: 'Your reward goes into your VUMA wallet automatically, and we tell you.' },
               ].map(item => (
                 <View key={item.step} style={styles.stepRow}>
                   <View style={styles.stepNumber}>
@@ -240,11 +250,19 @@ export default function ReferralScreen({ navigation }) {
           <>
             {/* Stats */}
             <View style={styles.statsGrid}>
-              <StatCard icon="📤" value={data?.total_invites || 0} label="Total Invites" color={COLORS.info} />
-              <StatCard icon="✅" value={data?.successful_referrals || 0} label="Successful" color={COLORS.success} />
-              <StatCard icon="⏳" value={data?.pending_rewards_count || 0} label="Pending Rewards" color={COLORS.warning} />
-              <StatCard icon="💰" value={`TZS ${Number(data?.total_earned || 0).toLocaleString()}`} label="Total Earned" color={COLORS.primary} />
+              <StatCard icon="📤" value={data?.total_invites || 0} label="Link opens" color={COLORS.info} />
+              <StatCard icon="👤" value={data?.friends_joined || 0} label="Friends joined" color={COLORS.warning} />
+              <StatCard icon="✅" value={data?.friends_rewarded ?? data?.successful_referrals ?? 0} label="Rewards paid" color={COLORS.success} />
+              <StatCard icon="💰" value={tzs(data?.total_earned || 0)} label="Total earned" color={COLORS.primary} />
             </View>
+
+            <TouchableOpacity style={styles.walletCard} activeOpacity={0.85} onPress={() => navigation.navigate('Wallet')}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.walletLabel}>Your VUMA wallet</Text>
+                <Text style={styles.walletAmount}>{tzs(data?.wallet_balance || 0)}</Text>
+              </View>
+              <Text style={styles.walletGo}>Open ›</Text>
+            </TouchableOpacity>
 
             {/* Pending rewards */}
             {(data?.pending_reward_amount || 0) > 0 && (
@@ -255,37 +273,30 @@ export default function ReferralScreen({ navigation }) {
               </View>
             )}
 
-            {/* Recent referrals */}
-            {data?.recent_referrals?.length > 0 && (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Recent Invites</Text>
-                {data.recent_referrals.map((ref, i) => (
-                  <View key={i} style={styles.refRow}>
-                    <View style={styles.refAvatar}>
-                      <Text style={styles.refAvatarText}>
-                        {(ref.referee__username || ref.referee__email || '?')[0].toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.refInfo}>
-                      <Text style={styles.refName}>{ref.referee__username || ref.referee__email}</Text>
-                      <Text style={styles.refDate}>{new Date(ref.clicked_at).toLocaleDateString()}</Text>
-                    </View>
-                    <View style={[styles.refStatus,
-                      ref.status === 'rewarded' ? styles.refStatusGreen
-                      : ref.status === 'completed' ? styles.refStatusBlue
-                      : styles.refStatusGrey
-                    ]}>
-                      <Text style={styles.refStatusText}>
-                        {ref.status === 'rewarded' ? '✅ Paid'
-                        : ref.status === 'completed' ? '🔄 Processing'
-                        : ref.status === 'registered' ? '👤 Joined'
-                        : '🔗 Clicked'}
-                      </Text>
-                    </View>
+            {/* Friends who joined with your link or code */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Your friends</Text>
+              {friendRows(data).length === 0 ? (
+                <Text style={styles.emptyFriends}>No friends yet. Share your link and they will show up here.</Text>
+              ) : friendRows(data).map((friend, i) => (
+                <View key={i} style={styles.refRow}>
+                  <View style={styles.refAvatar}>
+                    <Text style={styles.refAvatarText}>{friend.initial}</Text>
                   </View>
-                ))}
-              </View>
-            )}
+                  <View style={styles.refInfo}>
+                    <Text style={styles.refName}>{friend.name}</Text>
+                    {!!friend.joined && <Text style={styles.refDate}>Joined {friend.joined}</Text>}
+                  </View>
+                  <View style={[styles.refStatus,
+                    friend.status === 'rewarded' ? styles.refStatusGreen
+                    : friend.status === 'waiting' ? styles.refStatusBlue
+                    : styles.refStatusGrey
+                  ]}>
+                    <Text style={styles.refStatusText}>{(FRIEND_STATUS[friend.status] || FRIEND_STATUS.waiting).label}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
 
             {/* Reward history */}
             {data?.reward_history?.length > 0 && (
@@ -406,6 +417,12 @@ const styles = StyleSheet.create({
   statIcon: { fontSize: 24, marginBottom: 4 },
   statValue: { fontSize: FONTS.xl, fontWeight: FONTS.black },
   statLabel: { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center' },
+  walletCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base, marginBottom: SPACING.sm, borderWidth: 1.5, borderColor: COLORS.primary + '55', ...SHADOWS.sm },
+  walletLabel: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: FONTS.semiBold },
+  walletAmount: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.primary, marginVertical: 2 },
+  walletSub: { fontSize: FONTS.xs, color: COLORS.textMuted },
+  walletGo: { fontSize: FONTS.base, fontWeight: FONTS.bold, color: COLORS.primary },
+  emptyFriends: { fontSize: FONTS.sm, color: COLORS.textMuted, lineHeight: 20 },
   pendingCard: { backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: COLORS.warning + '60', alignItems: 'center' },
   pendingTitle: { fontSize: FONTS.sm, color: COLORS.warning, fontWeight: FONTS.bold },
   pendingAmount: { fontSize: 28, fontWeight: FONTS.black, color: COLORS.warning, marginVertical: SPACING.xs },
