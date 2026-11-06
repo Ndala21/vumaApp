@@ -27,6 +27,23 @@
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "vumastore.store",
+              "pathPrefix": "/app/"
+            },
+            {
+              "scheme": "https",
+              "host": "vumastore.store",
+              "pathPrefix": "/invite/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
       "adaptiveIcon": {
