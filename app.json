@@ -62,13 +62,14 @@
       "bundleIdentifier": "com.vumastore",
       "supportsTablet": false,
       "config": {
-        "googleMapsApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A"
+        "googleMapsApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A",
+        "usesNonExemptEncryption": false
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "VUMA uses your location to pin your delivery address and show nearby pickup points.",
-        "NSLocationAlwaysUsageDescription": "VUMA uses your location for accurate delivery.",
         "NSCameraUsageDescription": "Allow VUMA to use your camera to take product photos.",
-        "NSPhotoLibraryUsageDescription": "Allow VUMA to access your photos to upload product images."
+        "NSPhotoLibraryUsageDescription": "Allow VUMA to access your photos to upload product images.",
+        "LSApplicationQueriesSchemes": ["whatsapp", "tg", "fb"]
       }
     },
     "plugins": [
@@ -76,7 +77,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow VUMA to access your photos to upload product images.",
-          "cameraPermission": "Allow VUMA to use your camera to take product photos."
+          "cameraPermission": "Allow VUMA to use your camera to take product photos.",
+          "microphonePermission": "VUMA uses the microphone only when you record a video of your product."
         }
       ],
       [
@@ -88,8 +90,15 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow VUMA to use your location to pin your delivery address.",
-          "locationWhenInUsePermission": "Allow VUMA to use your location for accurate delivery."
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "locationWhenInUsePermission": "VUMA uses your location to pin your delivery address and show nearby pickup points."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "VUMA uses Face ID so you can sign in quickly and safely."
         }
       ],
       "@react-native-google-signin/google-signin"

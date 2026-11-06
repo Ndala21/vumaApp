@@ -18,6 +18,7 @@ import {
 import { useSelector } from 'react-redux';
 import { selectUser, selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { post, get } from '../../api/client';
 
 const VUMA_AVATAR = '🤖';
@@ -323,7 +324,7 @@ export default function AIChatScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.secondary, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base, gap: SPACING.sm },
+  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.secondary, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.base, gap: SPACING.sm },
   backBtn: { padding: 4 },
   backIcon: { fontSize: FONTS.xl, color: 'white', fontWeight: FONTS.bold },
   headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },

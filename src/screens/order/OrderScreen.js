@@ -20,6 +20,7 @@ import {
   COLORS, FONTS, SPACING, RADIUS, SHADOWS,
   ORDER_STATUS, ORDER_STATUS_COLORS,
 } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import {
   formatPrice, formatDate,
   getOrderStatusLabel, getOrderStatusColor,
@@ -355,7 +356,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(4) : SPACING.base,
     paddingBottom: SPACING.base,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.divider,

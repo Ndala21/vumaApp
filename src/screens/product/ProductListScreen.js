@@ -25,6 +25,7 @@ import {
   Modal,
   ScrollView,
   TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -54,6 +55,7 @@ import {
   SCREENS,
   SHADOWS,
 } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { formatPrice } from '../../utils/helpers';
 import ProductCard from '../../components/ProductCard';
 import SearchBar from '../../components/SearchBar';
@@ -324,7 +326,7 @@ export default function ProductListScreen({
       transparent
       onRequestClose={() => setShowFilters(false)}
     >
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.modalCard}>
           {/* Header */}
           <View style={styles.modalHeader}>
@@ -340,6 +342,7 @@ export default function ProductListScreen({
 
           <ScrollView
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Price Range */}
             <Text style={styles.filterLabel}>
@@ -425,7 +428,7 @@ export default function ProductListScreen({
             />
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 
@@ -752,7 +755,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.sm,
     paddingTop:
-      Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
+      Platform.OS === 'ios' ? iosTop(4) : SPACING.base,
     paddingBottom: SPACING.xs,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.divider,

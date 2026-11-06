@@ -20,6 +20,7 @@ import {
   ActivityIndicator, Image, TextInput, RefreshControl, BackHandler,
 } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { formatPrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
@@ -484,7 +485,7 @@ export default function PromoteProductsScreen({ navigation }) {
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
         <Header title={T('reviewTitle')} onBack={backFromStep} />
-        <ScrollView contentContainerStyle={styles.payScroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.payScroll} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
           <View style={styles.reviewCard}>
             <View style={styles.reviewTop}>
               <Text style={styles.reviewCount}>{T('yourProducts', { n: selectedProducts.length })}</Text>
@@ -689,7 +690,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.primary, paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.base,
   },
   headerBack: { fontSize: 22, color: 'white', fontWeight: FONTS.bold },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: FONTS.lg, fontWeight: FONTS.bold, color: 'white', marginHorizontal: SPACING.sm },

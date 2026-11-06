@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, API } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import Button from '../../components/common/Button';
 import { upload, setAuthToken, get } from '../../api/client';
 import { storage } from '../../utils/storage';
@@ -901,7 +902,7 @@ export default function SellerRegisterScreen({ navigation }) {
         </View>
       )}
 
-      <KeyboardAwareScrollView
+      <KeyboardAwareScrollView keyboardDismissMode="interactive"
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always"
         enableOnAndroid extraScrollHeight={120}
@@ -933,7 +934,7 @@ export default function SellerRegisterScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.base },
   backArrow: { fontSize: FONTS.xl, color: 'white', fontWeight: FONTS.bold },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: 'white' },
   progressWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.sm, paddingHorizontal: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },

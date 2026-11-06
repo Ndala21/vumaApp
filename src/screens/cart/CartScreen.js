@@ -14,6 +14,7 @@ import {
 } from '../../store/cartSlice';
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import ProductCard from '../../components/ProductCard';
 import { productsAPI } from '../../api/products';
 import { get, post } from '../../api/client';
@@ -509,7 +510,7 @@ export default function CartScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
   headerTitle: { fontSize: FONTS.xl, fontWeight: FONTS.black, color: COLORS.textPrimary },
   headerDelete: { fontSize: FONTS.sm, color: COLORS.danger, fontWeight: FONTS.semiBold },
   selectAllBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm + 2, gap: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider },

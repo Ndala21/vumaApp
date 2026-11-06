@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { post } from '../../api/client';
 
 export default function ResetPasswordScreen({ navigation, route }) {
@@ -60,7 +61,7 @@ export default function ResetPasswordScreen({ navigation, route }) {
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAwareScrollView
+      <KeyboardAwareScrollView keyboardDismissMode="interactive"
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
@@ -151,7 +152,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? 50 : 24, paddingBottom: SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(3) : 24, paddingBottom: SPACING.base,
     borderBottomWidth: 1, borderBottomColor: COLORS.divider,
   },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },

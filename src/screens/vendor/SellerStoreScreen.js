@@ -3,6 +3,8 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Image, Share, Alert, Linking, ActivityIndicator,
   FlatList, Modal, TextInput, Dimensions, RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -472,7 +474,7 @@ export default function SellerStoreScreen({ route, navigation }) {
 
       {/* Report Modal */}
       <Modal visible={reportModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Report Seller</Text>
             <Text style={styles.modalSubtitle}>
@@ -521,7 +523,7 @@ export default function SellerStoreScreen({ route, navigation }) {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

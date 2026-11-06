@@ -45,6 +45,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, selectIsAuthenticated } from '../../store/authSlice';
 import { removeFromCartAndSave } from '../../store/cartSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { getEffectivePrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import { get, post } from '../../api/client';
@@ -609,7 +610,7 @@ export default function CheckoutScreen({ navigation, route }) {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAwareScrollView
+      <KeyboardAwareScrollView keyboardDismissMode="interactive"
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always"
         enableOnAndroid extraScrollHeight={100}
@@ -1011,7 +1012,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.base,
     borderBottomWidth: 1, borderBottomColor: COLORS.divider,
   },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },

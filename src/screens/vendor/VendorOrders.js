@@ -18,6 +18,7 @@ import {
   StyleSheet, StatusBar, Platform, Alert,
   RefreshControl, Modal, ScrollView, TextInput,
   Image, Linking, ActivityIndicator,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -28,6 +29,7 @@ import {
 import {
   COLORS, FONTS, SPACING, RADIUS, SHADOWS, ORDER_STATUS,
 } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import {
   formatPrice, formatDateTime,
   getOrderStatusLabel, getOrderStatusColor,
@@ -866,7 +868,7 @@ export default function VendorOrders({ navigation, route }) {
     <Modal visible={showUpdateModal} transparent
       animationType="slide"
       onRequestClose={() => setShowUpdateModal(false)}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
@@ -938,7 +940,7 @@ export default function VendorOrders({ navigation, route }) {
             style={styles.modalBtn}
           />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 
@@ -1071,7 +1073,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(4) : SPACING.base,
     paddingBottom: SPACING.base,
   },
   headerTitle: {

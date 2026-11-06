@@ -41,6 +41,7 @@ import {
   selectCategories,
 } from '../../store/productSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { formatPrice } from '../../utils/helpers';
 import Button from '../../components/common/Button';
 import Loading, { SkeletonListItem } from '../../components/common/Loading';
@@ -278,7 +279,7 @@ const ProductModal = memo(({
         <View style={{ width: 32 }} />
       </View>
 
-      <KeyboardAwareScrollView
+      <KeyboardAwareScrollView keyboardDismissMode="interactive"
         contentContainerStyle={styles.modalScroll}
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
@@ -1167,7 +1168,7 @@ export default function VendorProducts({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.primary, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.primary, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(4) : SPACING.base, paddingBottom: SPACING.base },
   headerTitle: { fontSize: FONTS['2xl'], fontWeight: FONTS.bold, color: 'white' },
   headerRight: { flexDirection: 'row', gap: SPACING.sm },
   headerIconBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
@@ -1215,7 +1216,7 @@ const styles = StyleSheet.create({
   deleteBtn: { width: 34, height: 34, borderRadius: RADIUS.full, backgroundColor: COLORS.dangerLight, alignItems: 'center', justifyContent: 'center' },
   deleteBtnText: { fontSize: 15 },
   modalContainer: { flex: 1, backgroundColor: COLORS.background },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(4) : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   modalClose: { fontSize: FONTS.xl, color: COLORS.textMuted, fontWeight: FONTS.bold },
   modalTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   modalScroll: { padding: SPACING.base },

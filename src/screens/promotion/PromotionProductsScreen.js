@@ -10,6 +10,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar, Platform,
 } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SCREENS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import ProductCard from '../../components/ProductCard';
 import { SkeletonProductGrid } from '../../components/common/Loading';
 import { EmptyState } from '../../components/common/ErrorMessage';
@@ -85,7 +86,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || SPACING.xl) + SPACING.sm,
+    paddingTop: Platform.OS === 'ios' ? iosTop(3) : (StatusBar.currentHeight || SPACING.xl) + SPACING.sm,
     paddingBottom: SPACING.sm,
     borderBottomWidth: 1, borderBottomColor: COLORS.divider,
   },

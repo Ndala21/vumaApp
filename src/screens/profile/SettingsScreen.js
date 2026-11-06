@@ -37,6 +37,7 @@ import {
   SHADOWS,
   LANGUAGES,
 } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { storage } from '../../utils/storage';
 import { get, patch } from '../../api/client';
 import {
@@ -209,6 +210,8 @@ const SectionToggle = ({ title, section }) => (
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
       >
         {/* ── Profile ── */}
         <Text style={styles.groupLabel}>{t('profile.profile').toUpperCase()}</Text>
@@ -361,7 +364,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(4) : SPACING.base,
     paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider,
   },
   backBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.surfaceSunken, alignItems: 'center', justifyContent: 'center' },

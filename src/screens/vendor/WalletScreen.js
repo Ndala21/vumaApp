@@ -17,6 +17,7 @@ import {
   StatusBar, Platform, Alert, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { formatPrice } from '../../utils/helpers';
 import { t, i18n, useTranslation } from '../../i18n';
 import { get, post } from '../../api/client';
@@ -288,7 +289,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.primary, paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.base,
   },
   headerBack: { fontSize: 22, color: 'white', fontWeight: FONTS.bold },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: 'white' },

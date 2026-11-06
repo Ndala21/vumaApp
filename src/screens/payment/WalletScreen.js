@@ -24,6 +24,7 @@ import {
   RADIUS,
   SHADOWS,
 } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import {
   formatPrice,
   formatDateTime,
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.primary, paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(4) : SPACING.base,
     paddingBottom: SPACING.base,
   },
   backIcon: { fontSize: FONTS.xl, color: COLORS.textWhite, fontWeight: FONTS.bold },

@@ -50,6 +50,7 @@ import { addToCartAndSave, selectCartItemCount } from '../../store/cartSlice';
 import { selectUnreadCount } from '../../store/notificationSlice';
 import { selectUser, selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SCREENS, CATEGORIES, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { formatPrice, formatCountdown, secondsUntil } from '../../utils/helpers';
 import {
   groupBanners, feedBanners, slotBanner, slotBannerIds, buildFaidaRow, bannerAction, formatAmount,
@@ -802,7 +803,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.sm,
-    paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] + SPACING.xs : (StatusBar.currentHeight || SPACING.xl) + SPACING.sm,
+    paddingTop: Platform.OS === 'ios' ? iosTop(4) : (StatusBar.currentHeight || SPACING.xl) + SPACING.sm,
     paddingBottom: SPACING.sm,
     borderBottomWidth: 1, borderBottomColor: COLORS.divider,
     gap: SPACING.sm,

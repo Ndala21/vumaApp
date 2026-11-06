@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { get } from '../../api/client';
 import { formatDate } from '../../utils/helpers';
 
@@ -203,7 +204,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
   centerFill: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   loadingText: { fontSize: FONTS.sm, color: COLORS.textMuted, marginBottom: SPACING.base },
-  scroll: { padding: SPACING.xl, paddingTop: Platform.OS === 'ios' ? 70 : SPACING.xl, alignItems: 'center' },
+  scroll: { padding: SPACING.xl, paddingTop: Platform.OS === 'ios' ? iosTop(23) : SPACING.xl, alignItems: 'center' },
 
   headerIconWrap: { width: 72, height: 72, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.base },
   headerIcon: { fontSize: 34 },

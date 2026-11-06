@@ -46,6 +46,7 @@ import {
 } from '../../store/notificationSlice';
 import { selectIsApprovedVendor } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { t, useTranslation } from '../../i18n';
 import {
   GROUPS, linkOf, parseLink, openLink, buttonText, iconOf, formatWhen, isLong,
@@ -432,7 +433,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base,
     paddingBottom: SPACING.md,
   },
   headerSide: { width: 36, alignItems: 'flex-start' },

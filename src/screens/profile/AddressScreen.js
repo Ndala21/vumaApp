@@ -11,6 +11,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import Button from '../../components/common/Button';
 import { get, post, patch, del } from '../../api/client';
 
@@ -283,7 +284,7 @@ export default function AddressScreen({ navigation, route }) {
           <View style={{ width: 60 }} />
         </View>
 
-        <KeyboardAwareScrollView
+        <KeyboardAwareScrollView keyboardDismissMode="interactive"
           contentContainerStyle={styles.formScroll}
           keyboardShouldPersistTaps="always"
           enableOnAndroid
@@ -484,7 +485,7 @@ export default function AddressScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(4) : SPACING.base, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider, ...SHADOWS.sm },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   backBtn: { fontSize: FONTS.lg, color: COLORS.primary, fontWeight: FONTS.bold, paddingRight: SPACING.sm },
   addBtn: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },

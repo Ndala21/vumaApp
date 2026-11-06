@@ -15,6 +15,7 @@ import {
   StatusBar, Platform, Alert, RefreshControl, ActivityIndicator, Image,
 } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { i18n, useTranslation } from '../../i18n';
 import { vendorsAPI } from '../../api/vendors';
 import { homeLang } from '../../utils/sellerHome';
@@ -197,6 +198,8 @@ export default function ShopProfileScreen({ navigation }) {
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={COLORS.primary} />}
       >
         {loadFailed && !profile ? (
@@ -292,7 +295,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.primary, paddingHorizontal: SPACING.base,
-    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base,
+    paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.base,
   },
   headerBack: { fontSize: 22, color: 'white', fontWeight: FONTS.bold },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: 'white' },

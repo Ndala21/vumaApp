@@ -24,6 +24,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser, logout, updateProfile } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { getErrorMessage } from '../../utils/helpers';
 import { storage } from '../../utils/storage';
 import { i18n, useTranslation, notifyLanguageChange } from '../../i18n';
@@ -421,7 +422,7 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? SPACING['3xl'] : SPACING.base,
+    paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(4) : SPACING.base,
     paddingBottom: SPACING.sm,
   },
   headerLogo: { fontSize: 24, fontWeight: '900', color: COLORS.primary, letterSpacing: -0.5 },
@@ -530,7 +531,7 @@ const styles = StyleSheet.create({
 
   // Menu
   menuContainer: { flex: 1, backgroundColor: '#FFFFFF' },
-  menuHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 54 : SPACING.xl, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
+  menuHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(7) : SPACING.xl, paddingBottom: SPACING.base, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   menuAvatar: { width: 42, height: 42, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   menuAvatarText: { fontSize: 18, fontWeight: FONTS.bold, color: 'white' },
   menuShopName: { flex: 1, fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.textPrimary },

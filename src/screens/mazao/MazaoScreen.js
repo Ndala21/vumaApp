@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, SCREENS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { get } from '../../api/client';
 import { formatPrice } from '../../utils/helpers';
@@ -282,7 +283,7 @@ export default function MazaoScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { backgroundColor: '#0E3B2C', paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base, paddingHorizontal: SPACING.base },
+  header: { backgroundColor: '#0E3B2C', paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.base, paddingHorizontal: SPACING.base },
   headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm },
   backBtn: { padding: SPACING.xs },
   backBtnText: { fontSize: FONTS.xl, color: 'white', fontWeight: FONTS.bold },

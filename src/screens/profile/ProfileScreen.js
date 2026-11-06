@@ -33,6 +33,7 @@ import {
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectUser } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { get } from '../../api/client';
 import { productsAPI } from '../../api/products';
 import ProductCard from '../../components/ProductCard';
@@ -396,7 +397,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
 
   // Guest top bar
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 54 : SPACING.base, paddingBottom: SPACING.sm },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.surface, paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(7) : SPACING.base, paddingBottom: SPACING.sm },
   topBarLogo: { fontSize: 26, fontWeight: '900', color: COLORS.primary, letterSpacing: -1 },
   topBarIcons: { flexDirection: 'row', gap: SPACING.sm },
   topBarIconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -444,7 +445,7 @@ const styles = StyleSheet.create({
 
   // Compact profile header (logged in) — Coupang keeps this minimal:
   // avatar, name, settings icon. Nothing else.
-  topProfileBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, padding: SPACING.base, paddingTop: Platform.OS === 'ios' ? 54 : SPACING.base, gap: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
+  topProfileBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, padding: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(7) : SPACING.base, gap: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   avatar: { width: 44, height: 44, borderRadius: RADIUS.full, backgroundColor: COLORS.primaryFade, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: FONTS.lg, fontWeight: FONTS.black, color: COLORS.primary },
   userName: { flex: 1, fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary },

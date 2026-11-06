@@ -25,6 +25,7 @@ import {
   SCREENS,
   LANGUAGES,
 } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import { storage } from '../../utils/storage';
 
 const { width, height } = Dimensions.get('window');
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
   },
   skipBtn: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 56 : 40,
+    top: Platform.OS === 'ios' ? iosTop(9) : 40,
     left: SPACING.base,
     zIndex: 10,
     paddingHorizontal: SPACING.md,
@@ -343,7 +344,7 @@ const styles = StyleSheet.create({
   },
   langBtn: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 56 : 40,
+    top: Platform.OS === 'ios' ? iosTop(9) : 40,
     right: SPACING.base,
     zIndex: 10,
     paddingHorizontal: SPACING.md,

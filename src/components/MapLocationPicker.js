@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, API } from '../utils/constants';
+import { iosTop } from '../utils/safeArea';
 import { post } from '../api/client';
 
 const { width, height } = Dimensions.get('window');
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
   header: {
     position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    paddingTop: Platform.OS === 'ios' ? 54 : SPACING.xl,
+    paddingTop: Platform.OS === 'ios' ? iosTop(7) : SPACING.xl,
     paddingHorizontal: SPACING.base, paddingBottom: SPACING.base,
     backgroundColor: 'rgba(255,255,255,0.96)',
   },
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
   searchIcon: { fontSize: 15 },
   searchInput: { flex: 1, fontSize: FONTS.sm, color: COLORS.textPrimary, height: '100%' },
   resultsWrap: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 100 : SPACING.xl + 56, left: SPACING.base, right: SPACING.base,
+    position: 'absolute', top: Platform.OS === 'ios' ? iosTop(53) : SPACING.xl + 56, left: SPACING.base, right: SPACING.base,
     backgroundColor: 'white', borderRadius: RADIUS.lg, maxHeight: 260,
     ...SHADOWS.lg, zIndex: 20,
   },

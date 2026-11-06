@@ -18,6 +18,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSelector } from 'react-redux';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import Button from '../../components/common/Button';
 import { post, patch, upload } from '../../api/client';
 
@@ -267,7 +268,7 @@ export default function MazaoAddProduct({ navigation, route }) {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAwareScrollView
+      <KeyboardAwareScrollView keyboardDismissMode="interactive"
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="always"
         enableOnAndroid extraScrollHeight={120}
@@ -593,7 +594,7 @@ export default function MazaoAddProduct({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0E3B2C', paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? 50 : SPACING.base, paddingBottom: SPACING.base },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0E3B2C', paddingHorizontal: SPACING.base, paddingTop: Platform.OS === 'ios' ? iosTop(3) : SPACING.base, paddingBottom: SPACING.base },
   backBtn: { fontSize: FONTS.xl, color: 'white', fontWeight: FONTS.bold },
   headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: 'white' },
   scroll: { padding: SPACING.base },

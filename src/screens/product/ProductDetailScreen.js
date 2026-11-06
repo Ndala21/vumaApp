@@ -30,6 +30,7 @@ import {
 } from '../../store/cartSlice';
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SCREENS, SHADOWS } from '../../utils/constants';
+import { iosTop } from '../../utils/safeArea';
 import {
   formatPrice, formatDate, formatEastAfricaDate, getDiscount, isFlashSale,
   getEffectivePrice, formatCountdown, secondsUntil, getInitials,
@@ -307,7 +308,7 @@ export default function ProductDetailScreen({ navigation, route }) {
 
   const headerOpacity = scrollY.interpolate({ inputRange: [width * 0.5, width * 0.75], outputRange: [0, 1], extrapolate: 'clamp' });
   // Room for the phone's clock/battery bar above the round buttons.
-  const topInset = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24) + 6;
+  const topInset = Platform.OS === 'ios' ? iosTop(3) : (StatusBar.currentHeight || 24) + 6;
   const vendorLabel = displayProduct.vendor_info?.shop_name || displayProduct.vendor_name || '';
   // "until 25 Oct" when the VUMA team set an end date for this product's free delivery.
   const freeUntilText = displayProduct.free_delivery && displayProduct.free_delivery_until
