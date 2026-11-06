@@ -7,6 +7,11 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSelector } from 'react-redux';
+import { selectIsAuthenticated, selectUser } from '../../store/authSlice';
+import { post } from '../../api/client';
+import ReportSheet from '../../components/ReportSheet';
+import { useBlocked, filterBlocked, reportErrorText } from '../../utils/safety';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const API = 'https://vumastore.store/api/v1';
@@ -109,7 +114,7 @@ const ProductCard = ({ product, onPress }) => (
 );
 
 // ── Review Card ───────────────────────────────────────
-const ReviewCard = ({ review }) => (
+const ReviewCard = ({ review, onReport }) => (
   <View style={styles.reviewCard}>
     <View style={styles.reviewHeader}>
       <View style={styles.reviewAvatar}>
@@ -127,6 +132,18 @@ const ReviewCard = ({ review }) => (
       <Text style={styles.reviewComment}>{review.comment}</Text>
     ) : null}
     <Text style={styles.reviewProduct}>Re: {review.product}</Text>
+    {onReport ? (
+      <TouchableOpacity
+        style={styles.reportLink}
+        hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+        onPress={onReport}
+        accessibilityRole="button"
+        accessibilityLabel="Report this review"
+        testID={`report-review-${review.id}`}
+      >
+        <Text style={styles.reportLinkText}>Report</Text>
+      </TouchableOpacity>
+    ) : null}
   </View>
 );
 
@@ -143,6 +160,11 @@ export default function SellerStoreScreen({ route, navigation }) {
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [reporting, setReporting] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [reviewReport, setReviewReport] = useState(null);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  const me = useSelector(selectUser);
+  const blocked = useBlocked(isAuthenticated);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -176,27 +198,43 @@ export default function SellerStoreScreen({ route, navigation }) {
     Linking.openURL(`https://wa.me/${phone}?text=${msg}`);
   };
 
+  // Reports go to the VUMA team, who must be able to answer, so the customer has to be signed in.
+  const askToSignIn = () => {
+    Alert.alert('Sign in needed', 'Please sign in to send a report.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign in', onPress: () => navigation.navigate('Auth', { screen: 'Login' }) },
+    ]);
+  };
+
+  const openSellerReport = () => {
+    if (!isAuthenticated) { askToSignIn(); return; }
+    setReportError('');
+    setReportModal(true);
+  };
+
+  const openReviewReport = (review) => {
+    if (!isAuthenticated) { askToSignIn(); return; }
+    setReviewReport({ targetId: review.id, userId: review.user_id, userName: review.customer });
+  };
+
   const handleReport = async () => {
     if (!reportReason.trim()) {
-      Alert.alert('Required', 'Please select a reason for reporting.');
+      setReportError('Please select a reason for reporting.');
       return;
     }
     setReporting(true);
+    setReportError('');
     try {
-      const res = await fetch(`${API}/vendors/store/${vendorId}/report/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: reportReason, details: reportDetails }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setReportModal(false);
-        setReportReason('');
-        setReportDetails('');
-        Alert.alert('Report Submitted', 'Thank you. Our team will review within 24 hours.');
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to submit report. Please try again.');
+      // The signed-in request: the old plain request carried no sign-in, so the server
+      // refused it and the customer was never told.
+      await post(`vendors/store/${vendorId}/report/`, { reason: reportReason, details: reportDetails });
+      setReportModal(false);
+      setReportReason('');
+      setReportDetails('');
+      // Wait for the window to slide away: an alert shown at the same moment can be lost on iPhone.
+      setTimeout(() => Alert.alert('Report Submitted', 'Thank you. Our team will review within 24 hours.'), 400);
+    } catch (e) {
+      setReportError(reportErrorText(e, 'Failed to submit report. Please try again.'));
     } finally {
       setReporting(false);
     }
@@ -323,7 +361,7 @@ export default function SellerStoreScreen({ route, navigation }) {
             <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleShare}>
               <Text style={styles.actionBtnSecondaryText}>⬆ Share</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtnDanger} onPress={() => setReportModal(true)}>
+            <TouchableOpacity style={styles.actionBtnDanger} onPress={openSellerReport} testID="report-seller">
               <Text style={styles.actionBtnDangerText}>⚑ Report</Text>
             </TouchableOpacity>
           </View>
@@ -334,6 +372,7 @@ export default function SellerStoreScreen({ route, navigation }) {
           {TABS.map(t => (
             <TouchableOpacity
               key={t.id}
+              testID={`seller-tab-${t.id}`}
               onPress={() => setActiveTab(t.id)}
               style={[styles.tab, activeTab === t.id && styles.tabActive]}
             >
@@ -386,7 +425,13 @@ export default function SellerStoreScreen({ route, navigation }) {
                 <Text style={styles.emptySubtext}>Be the first to review this seller</Text>
               </View>
             ) : (
-              reviews.map(r => <ReviewCard key={r.id} review={r} />)
+              filterBlocked(reviews, blocked.ids).map(r => (
+                <ReviewCard
+                  key={r.id}
+                  review={r}
+                  onReport={!me || r.user_id !== me.id ? () => openReviewReport(r) : undefined}
+                />
+              ))
             )}
           </View>
         )}
@@ -489,9 +534,10 @@ export default function SellerStoreScreen({ route, navigation }) {
               'Rude or unprofessional behavior',
               'Selling prohibited items',
               'Other',
-            ].map(r => (
+            ].map((r, ri) => (
               <TouchableOpacity
                 key={r}
+                testID={`seller-reason-${ri}`}
                 onPress={() => setReportReason(r)}
                 style={[styles.reasonOption, reportReason === r && styles.reasonOptionActive]}
               >
@@ -510,12 +556,13 @@ export default function SellerStoreScreen({ route, navigation }) {
               style={styles.textInput}
               placeholderTextColor={C.textMut}
             />
+            {!!reportError && <Text style={styles.reportError} testID="seller-report-error">{reportError}</Text>}
 
             <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setReportModal(false)} style={styles.modalCancelBtn}>
+              <TouchableOpacity onPress={() => setReportModal(false)} style={styles.modalCancelBtn} testID="seller-report-cancel">
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleReport} disabled={reporting} style={styles.modalSubmitBtn}>
+              <TouchableOpacity onPress={handleReport} disabled={reporting} style={styles.modalSubmitBtn} testID="seller-report-send">
                 {reporting
                   ? <ActivityIndicator color={C.white} size="small" />
                   : <Text style={styles.modalSubmitText}>Submit Report</Text>
@@ -525,6 +572,15 @@ export default function SellerStoreScreen({ route, navigation }) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <ReportSheet
+        visible={!!reviewReport}
+        onClose={() => setReviewReport(null)}
+        kind="review"
+        targetId={reviewReport ? reviewReport.targetId : undefined}
+        userId={reviewReport ? reviewReport.userId : undefined}
+        userName={reviewReport ? reviewReport.userName : undefined}
+      />
     </SafeAreaView>
   );
 }
@@ -615,6 +671,9 @@ const styles = StyleSheet.create({
   reviewDate:       { fontSize: 11, color: C.textMut },
   reviewComment:    { fontSize: 13, color: C.text, lineHeight: 18, marginBottom: 6 },
   reviewProduct:    { fontSize: 11, color: C.textMut, fontStyle: 'italic' },
+  reportLink:       { alignSelf: 'flex-end', paddingVertical: 4 },
+  reportLinkText:   { fontSize: 11, color: C.textMut, textDecorationLine: 'underline' },
+  reportError:      { color: C.red, fontSize: 13, marginTop: 10 },
 
   // Verification
   verifyBanner:       { backgroundColor: C.orange, borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 16 },

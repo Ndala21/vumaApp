@@ -90,7 +90,10 @@ Please contact the vendor or VUMA Support within a reasonable time of delivery f
 6. Prohibited Use
 You agree not to use VUMA Store for any unlawful purpose or to violate any applicable laws.
 
-7. Changes
+7. User Content and Community Rules
+Customers and vendors can post reviews, product listings and store information on VUMA Store. You must not post anything that is unlawful, abusive, hateful, threatening, sexually explicit, fake or misleading, or that breaks someone else's rights. There is no tolerance for objectionable content or abusive users. Reviews are checked for offensive words. You can report any review, product or seller with the Report button, and you can hide a person whose reviews you do not want to see (Settings shows who you hid and lets you unhide them). Our team looks at every report within 24 hours and removes content that breaks these rules. We may suspend or close accounts that break these rules without notice.
+
+8. Changes
 These terms may be updated from time to time. Continued use of the app after changes constitutes acceptance.
 
 For questions, contact support@vumastore.store.`;

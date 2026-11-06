@@ -47,6 +47,7 @@ import {
 } from '../../i18n';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import HiddenPeople from '../../components/HiddenPeople';
 
 export default function SettingsScreen({ navigation }) {
   const { t } = useTranslation();
@@ -328,6 +329,9 @@ const SectionToggle = ({ title, section }) => (
             </View>
           ))}
         </View>
+
+        {/* ── Hidden people (only shown when someone is hidden) ── */}
+        <HiddenPeople isAuthenticated={!!user} />
 
         {/* ── App Info ── */}
         <Text style={styles.groupLabel}>{t('settings.appInfo').toUpperCase()}</Text>

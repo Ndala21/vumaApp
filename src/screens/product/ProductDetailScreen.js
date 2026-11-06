@@ -28,7 +28,7 @@ import {
   addToCartAndSave, toggleWishlistAndSave,
   selectIsInCart, selectIsInWishlist,
 } from '../../store/cartSlice';
-import { selectIsAuthenticated } from '../../store/authSlice';
+import { selectIsAuthenticated, selectUser } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SCREENS, SHADOWS } from '../../utils/constants';
 import { iosTop } from '../../utils/safeArea';
 import {
@@ -45,6 +45,8 @@ import { productsAPI } from '../../api/products';
 import VariantPicker from '../../components/VariantPicker';
 import { variantsDefineSize, activeVariants, unitsAvailable, galleryIndexOf } from '../../utils/variants';
 import { shortDescriptionOf, hasLongerDescription } from '../../utils/productText';
+import ReportSheet from '../../components/ReportSheet';
+import { useBlocked, filterBlocked } from '../../utils/safety';
 
 // ── NEW: Seller Badge & Trust Signals ────────────────
 import { SellerBadge, TrustSignals } from '../../components/vendor/SellerBadge';
@@ -93,6 +95,7 @@ export default function ProductDetailScreen({ navigation, route }) {
   const loading = useSelector(selectProductsLoading);
   const errors = useSelector(selectProductsErrors);
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const me = useSelector(selectUser);
   const isInCart = useSelector(selectIsInCart(product?.id));
   const isWishlisted = useSelector(selectIsInWishlist(product?.id));
 
@@ -112,6 +115,9 @@ export default function ProductDetailScreen({ navigation, route }) {
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [showQtyModal, setShowQtyModal] = useState(false);
   const [barShown, setBarShown] = useState(false);
+  // Report window (a review or this product) and the people this customer hid.
+  const [reportTarget, setReportTarget] = useState(null);
+  const blocked = useBlocked(isAuthenticated);
 
   const cartBounce = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -200,7 +206,7 @@ export default function ProductDetailScreen({ navigation, route }) {
   const discount = getDiscount(displayProduct.price, effectivePrice);
   const onSale = isFlashSale(displayProduct);
   const images = displayProduct.images || [];
-  const reviews = displayProduct.reviews || [];
+  const reviews = filterBlocked(displayProduct.reviews || [], blocked.ids);
   // Tapping a colour that has its own photo brings that picture to the front.
   const showGalleryPicture = (imageId) => {
     const index = galleryIndexOf(images, imageId);
@@ -289,6 +295,12 @@ export default function ProductDetailScreen({ navigation, route }) {
     const vendorId = displayProduct.vendor_info?.id || displayProduct.vendor_id;
     if (!vendorId) return;
     navigation.navigate('SellerStore', { vendorId });
+  };
+
+  // Reporting needs a signed-in customer (the team must be able to answer).
+  const openReport = (target) => {
+    if (!isAuthenticated) { setPendingAction(null); setShowAuthModal(true); return; }
+    setReportTarget(target);
   };
 
   const handleSubmitReview = async () => {
@@ -544,6 +556,16 @@ export default function ProductDetailScreen({ navigation, route }) {
               <Text style={styles.detailValue}>{value}</Text>
             </View>
           ))}
+          <TouchableOpacity
+            style={styles.reportLink}
+            hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+            onPress={() => openReport({ kind: 'product', targetId: displayProduct.id })}
+            accessibilityRole="button"
+            accessibilityLabel="Report this product"
+            testID="report-product"
+          >
+            <Text style={styles.reportLinkText}>Report this product</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Reviews */}
@@ -582,6 +604,18 @@ export default function ProductDetailScreen({ navigation, route }) {
                 <View style={styles.verifiedPurchasePill}>
                   <Text style={styles.verifiedPurchase}>✓ Verified Purchase</Text>
                 </View>
+              )}
+              {!!review.id && (!me || review.user_id !== me.id) && (
+                <TouchableOpacity
+                  style={styles.reportLink}
+                  hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+                  onPress={() => openReport({ kind: 'review', targetId: review.id, userId: review.user_id, userName: review.user_name })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report this review"
+                  testID={`report-review-${review.id}`}
+                >
+                  <Text style={styles.reportLinkText}>Report</Text>
+                </TouchableOpacity>
               )}
             </View>
           ))}
@@ -710,6 +744,15 @@ export default function ProductDetailScreen({ navigation, route }) {
         onClose={() => { setShowAuthModal(false); setPendingAction(null); }}
         onLogin={handleAuthLogin}
         onRegister={handleAuthRegister}
+      />
+
+      <ReportSheet
+        visible={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        kind={reportTarget ? reportTarget.kind : undefined}
+        targetId={reportTarget ? reportTarget.targetId : undefined}
+        userId={reportTarget ? reportTarget.userId : undefined}
+        userName={reportTarget ? reportTarget.userName : undefined}
       />
 
       {showReviewModal && (
@@ -865,6 +908,8 @@ const styles = StyleSheet.create({
   reviewComment: { fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20, marginBottom: SPACING.xs },
   verifiedPurchasePill: { alignSelf: 'flex-start', backgroundColor: COLORS.successLight, borderRadius: RADIUS.sm, paddingHorizontal: 6, paddingVertical: 2 },
   verifiedPurchase: { fontSize: 10.5, color: COLORS.successText, fontWeight: FONTS.semiBold },
+  reportLink: { alignSelf: 'flex-end', paddingVertical: SPACING.xs + 2 },
+  reportLinkText: { fontSize: FONTS.xs, color: COLORS.textMuted, textDecorationLine: 'underline' },
   noReviews: { fontSize: FONTS.sm, color: COLORS.textMuted, textAlign: 'center', paddingVertical: SPACING.xl },
 
   bottomBar: {
