@@ -38,6 +38,7 @@ import { get } from '../../api/client';
 import { productsAPI } from '../../api/products';
 import ProductCard from '../../components/ProductCard';
 import SellersYouMightLike from '../../components/SellersYouMightLike';
+import BrandLogo from '../../components/BrandLogo';
 
 export default function ProfileScreen({ navigation }) {
   const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -110,7 +111,7 @@ export default function ProfileScreen({ navigation }) {
         <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
         <View style={styles.topBar}>
-          <Text style={styles.topBarLogo}>VUMA</Text>
+          <BrandLogo height={24} />
           <View style={styles.topBarIcons}>
             <TouchableOpacity
               style={styles.topBarIconBtn}

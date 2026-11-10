@@ -45,6 +45,8 @@ import { storage } from '../../utils/storage';
 import { setAuthToken } from '../../api/client';
 import { checkInviteCode, cleanCode, getPendingInvite } from '../../utils/inviteCode';
 import { tzs } from '../../utils/rewards';
+import BackButton from '../../components/BackButton';
+import BrandLogo from '../../components/BrandLogo';
 
 const TIMEOUT_MS = 15000;
 
@@ -398,14 +400,9 @@ export default function RegisterScreen({ navigation }) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </TouchableOpacity>
-          <View style={styles.headerLogoRow}>
-            <View style={styles.logoBadge}><Text style={styles.logoBadgeText}>V</Text></View>
-            <Text style={styles.logo}>VUMA</Text>
-          </View>
-          <View style={{ width: 40 }} />
+          <BackButton navigation={navigation} />
+          <BrandLogo height={26} />
+          <View style={{ width: 84 }} />
         </View>
 
         <Text style={styles.title}>Create Account</Text>

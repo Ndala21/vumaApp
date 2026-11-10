@@ -30,6 +30,8 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { iosTop } from '../../utils/safeArea';
 import { storage } from '../../utils/storage';
 import { setAuthToken } from '../../api/client';
+import BackButton from '../../components/BackButton';
+import BrandLogo from '../../components/BrandLogo';
 
 const TIMEOUT_MS = 15000;
 
@@ -262,13 +264,14 @@ export default function LoginScreen({ navigation }) {
         extraScrollHeight={Platform.OS === 'ios' ? 20 : 60}
         keyboardOpeningTime={0}
       >
+        {/* Back: an iPhone has no back key and this screen cannot be swiped away */}
+        <View style={styles.topRow}>
+          <BackButton navigation={navigation} />
+        </View>
+
         {/* Logo */}
         <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>V</Text>
-          </View>
-          <Text style={styles.logoWord}>VUMA</Text>
-          <Text style={styles.tagline}>Smart Shopping. Fast Delivery.</Text>
+          <BrandLogo variant="full" height={84} />
         </View>
 
         {/* Card */}
@@ -429,7 +432,8 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { flexGrow: 1, paddingHorizontal: SPACING.base, paddingBottom: SPACING['2xl'] },
-  header: { alignItems: 'center', paddingTop: Platform.OS === 'ios' ? iosTop(13) : 44, paddingBottom: SPACING.xl },
+  topRow: { alignItems: 'flex-start', paddingTop: Platform.OS === 'ios' ? iosTop(3) : 24 },
+  header: { alignItems: 'center', paddingTop: SPACING.sm, paddingBottom: SPACING.xl },
   logoBadge: {
     width: 56, height: 56, borderRadius: RADIUS.xl, backgroundColor: COLORS.primary,
     alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.sm, ...SHADOWS.primary,

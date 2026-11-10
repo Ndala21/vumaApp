@@ -58,6 +58,7 @@ import {
 import ProductCard from '../../components/ProductCard';
 import CategoryBar from '../../components/CategoryBar';
 import SearchBar from '../../components/SearchBar';
+import BrandLogo from '../../components/BrandLogo';
 import HomeBanner from '../../components/HomeBanner';
 import { OfferCard, OfferBanner, BannerCard, BannerStrip } from '../../components/OfferCards';
 import FeedBanner from '../../components/FeedBanner';
@@ -569,7 +570,7 @@ export default function HomeScreen({ navigation }) {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
       <View style={styles.topBar}>
-        <Text style={styles.logoWord}>VUMA</Text>
+        <BrandLogo height={16} />
         <View style={styles.topSearch}>
           <SearchBar
             onSearch={handleSearchSubmit} placeholder="Search products..."

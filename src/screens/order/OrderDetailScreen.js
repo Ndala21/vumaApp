@@ -42,6 +42,7 @@ import {
   waybillLine, pointInfo, isAtPoint, hasPhoto, photoUri, photoCaption,
 } from '../../utils/parcelInfo';
 import ParcelPhoto from '../../components/ParcelPhoto';
+import BrandLogo from '../../components/BrandLogo';
 
 const ORDER_STEPS = [
   { key: 'pending', label: 'Order Placed', icon: '📋' },
@@ -538,7 +539,9 @@ export default function OrderDetailScreen({ navigation, route }) {
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Receipt Header */}
             <View style={styles.receiptHeader}>
-              <Text style={styles.receiptLogo}>VUMA</Text>
+              <View style={styles.receiptLogoBox}>
+                <BrandLogo height={30} />
+              </View>
               <Text style={styles.receiptTitle}>Official Receipt</Text>
               <Text style={styles.receiptStore}>VUMA MARKETPLACE LIMITED</Text>
               <Text style={styles.receiptWebsite}>vumastore.store</Text>
@@ -998,6 +1001,7 @@ const styles = StyleSheet.create({
   receiptContainer: { backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'], maxHeight: '90%', paddingBottom: Platform.OS === 'ios' ? 34 : 16 },
   receiptHeader: { alignItems: 'center', padding: SPACING.xl, backgroundColor: COLORS.secondary, borderTopLeftRadius: RADIUS['2xl'], borderTopRightRadius: RADIUS['2xl'] },
   receiptLogo: { fontSize: FONTS['4xl'], fontWeight: FONTS.black, color: COLORS.primary, letterSpacing: -2 },
+  receiptLogoBox: { backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm },
   receiptTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite, marginTop: SPACING.xs },
   receiptStore: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
   receiptWebsite: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.6)', marginTop: 2 },

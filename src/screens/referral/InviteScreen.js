@@ -13,6 +13,7 @@ import { useSelector } from 'react-redux';
 import { selectIsAuthenticated } from '../../store/authSlice';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { tzs } from '../../utils/rewards';
+import BrandLogo from '../../components/BrandLogo';
 import {
   attachPendingInvite, checkInviteCode, cleanCode, savePendingInvite,
 } from '../../utils/inviteCode';
@@ -66,7 +67,7 @@ export default function InviteScreen({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
       <View style={styles.card}>
-        <View style={styles.logo}><Text style={styles.logoText}>VUMA</Text></View>
+        <View style={styles.logo}><BrandLogo variant="full" height={64} /></View>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: SPACING.xl }} />
         ) : (
@@ -109,7 +110,7 @@ export default function InviteScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primaryFade, justifyContent: 'center', padding: SPACING.base },
   card: { backgroundColor: COLORS.surface, borderRadius: RADIUS['2xl'], padding: SPACING.xl, alignItems: 'center', ...SHADOWS.md },
-  logo: { backgroundColor: COLORS.primary, borderRadius: RADIUS.lg, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.xl, marginBottom: SPACING.lg },
+  logo: { marginBottom: SPACING.lg },
   logoText: { color: COLORS.textWhite, fontSize: FONTS['2xl'], fontWeight: FONTS.black, letterSpacing: 1 },
   title: { fontSize: FONTS.xl, fontWeight: FONTS.extraBold, color: COLORS.textPrimary, textAlign: 'center', marginBottom: SPACING.sm },
   body: { fontSize: FONTS.sm, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 21, marginBottom: SPACING.base },

@@ -35,6 +35,7 @@ import {
   hx, homeLang, greetingKey, newOrdersLine, productsLine, ordersLine, moneyVisible, badgeText,
 } from '../../utils/sellerHome';
 import Loading from '../../components/common/Loading';
+import BrandLogo from '../../components/BrandLogo';
 import { FullScreenError } from '../../components/common/ErrorMessage';
 
 // ── Menu (opens from the "Menu" button) ───────────────────────────────────────
@@ -246,7 +247,7 @@ export default function VendorDashboard({ navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerLogo}>VUMA</Text>
+        <BrandLogo height={22} />
         <View style={styles.headerIcons}>
           <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIconBtn} accessibilityRole="button">
             <Text style={styles.headerBell}>🔔</Text>

@@ -12,6 +12,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { iosTop } from '../../utils/safeArea';
 import { post } from '../../api/client';
+import BackButton from '../../components/BackButton';
 
 export default function ResetPasswordScreen({ navigation, route }) {
   const { uid, token } = route.params || {};
@@ -56,7 +57,7 @@ export default function ResetPasswordScreen({ navigation, route }) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
       <View style={styles.header}>
-        <View style={{ width: 36 }} />
+        <BackButton navigation={navigation} compact />
         <Text style={styles.headerTitle}>Set New Password</Text>
         <View style={{ width: 36 }} />
       </View>
