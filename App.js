@@ -23,8 +23,12 @@ Notifications.setNotificationHandler({
 });
 
 // ── Register device for push notifications ────────────
+// The address of this app at Expo. An iPhone uses it to ask Expo for its push address (Android uses Firebase).
+const EAS_PROJECT_ID = '621141ab-f046-4da8-9785-b0c952d0530e';
+
 async function registerForPushNotifications() {
-  if (!Device.isDevice || require('react-native').Platform.OS !== 'android') return null;
+  const os = require('react-native').Platform.OS;
+  if (!Device.isDevice || (os !== 'android' && os !== 'ios')) return null;
   try {
     // Asks politely: a VUMA message first, then the phone's own box, at most twice.
     // See src/utils/pushPermission.js
@@ -32,6 +36,12 @@ async function registerForPushNotifications() {
     pushDiag.perm = allowed ? 'granted' : 'not allowed';
     if (!allowed) return null;
 
+    if (os === 'ios') {
+      // Apple's own address cannot be used by VUMA's Firebase sender, so an iPhone takes an Expo address.
+      // The server sends iPhone messages through Expo, which hands them on to Apple.
+      const expoToken = await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID });
+      return typeof expoToken.data === 'string' ? expoToken.data : null;
+    }
     const token = await Notifications.getDevicePushTokenAsync();
     return typeof token.data === 'string' ? token.data : null;
   } catch (e) {

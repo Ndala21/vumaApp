@@ -78,6 +78,10 @@
     "ios": {
       "bundleIdentifier": "com.vumastore",
       "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:vumashop.online",
+        "applinks:vumastore.store"
+      ],
       "config": {
         "googleMapsApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A",
         "usesNonExemptEncryption": false
@@ -118,7 +122,13 @@
           "faceIDPermission": "VUMA uses Face ID so you can sign in quickly and safely."
         }
       ],
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-notifications",
+        {
+          "mode": "production"
+        }
+      ]
     ],
     "extra": {
       "googleMapsApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A",

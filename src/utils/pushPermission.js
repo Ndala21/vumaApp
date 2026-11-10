@@ -96,9 +96,7 @@ export function ensurePushPermission() {
 }
 
 async function decide() {
-  // iPhone messages are not switched on yet (the server sends through Android's service only), so
-  // asking would promise something that never arrives.
-  if (Platform.OS === 'ios') return false;
+  // iPhones are asked the same way as Android 13 phones: a VUMA message first, then the phone's own box.
   const current = await Notifications.getPermissionsAsync();
   if (current.status === 'granted') return true;
 
