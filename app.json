@@ -78,6 +78,7 @@
     "ios": {
       "bundleIdentifier": "com.vumastore",
       "supportsTablet": false,
+      "usesAppleSignIn": true,
       "associatedDomains": [
         "applinks:vumashop.online",
         "applinks:vumastore.store"
@@ -123,6 +124,7 @@
         }
       ],
       "@react-native-google-signin/google-signin",
+      "expo-apple-authentication",
       [
         "expo-notifications",
         {

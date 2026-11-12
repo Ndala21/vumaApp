@@ -1,16 +1,20 @@
 /**
  * VUMA Store - which sign-in choices the login and register screens show.
  *
- * "Continue with Google" is Android only for now. On an iPhone, Apple's App
- * Store rules (4.8) ask for "Sign in with Apple" next to any other company's
- * sign-in button, and Google sign-in on iPhone also needs its own client
- * setup that is not done yet. Email and password works on both phones.
- * Switch this on for iOS only after both of those are in place.
+ *  - "Continue with Google": Android always. On an iPhone only when GOOGLE_IOS_CLIENT_ID below is filled in. That is the
+ *    Google "iOS" client made for the bundle id com.vumastore, and its reversed form must also be the iosUrlScheme of the
+ *    @react-native-google-signin/google-signin plugin in app.json (the iPhone app has to be built again after that).
+ *  - "Continue with Apple": iPhone only (src/utils/appleSignIn.js asks the phone). App Store rule 4.8: an app that offers
+ *    Google sign-in must offer Sign in with Apple too, and it does.
+ * Email and password works on both phones.
  */
 import { Platform } from 'react-native';
 
-export function googleSignInEnabled(os) {
-  return os === 'android';
+// Google Cloud > APIs & Services > Credentials > the iOS client. Looks like 123456789-abcdefg.apps.googleusercontent.com
+export const GOOGLE_IOS_CLIENT_ID = '';
+
+export function googleSignInEnabled(os, iosClientId = GOOGLE_IOS_CLIENT_ID) {
+  return os === 'android' || (os === 'ios' && !!iosClientId);
 }
 
 export const GOOGLE_SIGNIN_ENABLED = googleSignInEnabled(Platform.OS);

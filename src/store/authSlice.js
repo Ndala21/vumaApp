@@ -173,6 +173,51 @@ export const googleLogin = createAsyncThunk(
   }
 );
 
+// Sign in with Apple (iPhone) - takes the identity token Apple gave the phone and exchanges it for VUMA's own JWT via the
+// backend's /users/apple/ endpoint, which checks the token with Apple's public keys before trusting anything in it.
+// Shares the 'login' loading/error slots with email/password and Google sign-in (same signed-in state, same stored tokens).
+export const appleLogin = createAsyncThunk(
+  'auth/appleLogin',
+  async ({ identityToken, firstName = '', lastName = '', fcmToken = '', referralCode = '' }, { rejectWithValue }) => {
+    try {
+      const { authAPI } = await import('../api/auth');
+
+      const { signupInviteFields, clearPendingInvite } = await import('../utils/inviteCode');
+      const invite = await signupInviteFields(referralCode);
+      const data = await authAPI.appleLogin({
+        identity_token: identityToken,
+        first_name: firstName,
+        last_name: lastName,
+        fcm_token: fcmToken,
+        ...invite,
+      });
+      await clearPendingInvite();
+
+      if (!data || !data.access) {
+        return rejectWithValue('Sign in with Apple failed. Please try again.');
+      }
+
+      await storage.saveAuthData({
+        accessToken: data.access,
+        refreshToken: data.refresh,
+        user: data.user,
+        rememberMe: true,
+      });
+
+      setAuthToken(data.access);
+
+      return { ...data, rememberMe: true };
+    } catch (error) {
+      const msg =
+        error?.message ||
+        error?.payload ||
+        (typeof error === 'string' ? error : null) ||
+        'Sign in with Apple failed. Please try again.';
+      return rejectWithValue(msg);
+    }
+  }
+);
+
 export const biometricLogin = createAsyncThunk(
   'auth/biometricLogin',
   async (_, { rejectWithValue }) => {
@@ -405,6 +450,24 @@ const authSlice = createSlice({
         state.errors.login = null;
       })
       .addCase(googleLogin.rejected, (state, action) => {
+        state.loading.login = false;
+        state.errors.login = action.payload;
+        state.isAuthenticated = false;
+      });
+
+    // Apple Login - shares the 'login' loading/error slots (see appleLogin thunk comment).
+    builder
+      .addCase(appleLogin.pending, (state) => { state.loading.login = true; state.errors.login = null; })
+      .addCase(appleLogin.fulfilled, (state, action) => {
+        state.loading.login = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.access;
+        state.refreshToken = action.payload.refresh;
+        state.rememberMe = action.payload.rememberMe;
+        state.errors.login = null;
+      })
+      .addCase(appleLogin.rejected, (state, action) => {
         state.loading.login = false;
         state.errors.login = action.payload;
         state.isAuthenticated = false;

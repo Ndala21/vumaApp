@@ -59,6 +59,21 @@ export const authAPI = {
     }),
 
   /**
+   * Sign in or register with the identity token Apple gave the iPhone (Sign in with Apple).
+   * The server checks the token with Apple. Same answer as googleLogin: { access, refresh, user }.
+   */
+  appleLogin: (data) =>
+    post('/users/apple/', {
+      identity_token: data.identity_token,
+      full_name: [data.first_name, data.last_name].filter(Boolean).join(' '),
+      first_name: data.first_name || '',
+      last_name: data.last_name || '',
+      fcm_token: data.fcm_token || '',
+      referral_code: data.referral_code || '',
+      device_id: data.device_id || '',
+    }),
+
+  /**
    * Logout — blacklists refresh token
    */
   logout: (refreshToken) =>
