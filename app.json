@@ -123,7 +123,12 @@
           "faceIDPermission": "VUMA uses Face ID so you can sign in quickly and safely."
         }
       ],
-      "@react-native-google-signin/google-signin",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.532626175456-7d09dngvbfsobarl3nrqf4l003oj3b59"
+        }
+      ],
       "expo-apple-authentication",
       [
         "expo-notifications",

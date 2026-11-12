@@ -11,7 +11,7 @@
 import { Platform } from 'react-native';
 
 // Google Cloud > APIs & Services > Credentials > the iOS client. Looks like 123456789-abcdefg.apps.googleusercontent.com
-export const GOOGLE_IOS_CLIENT_ID = '';
+export const GOOGLE_IOS_CLIENT_ID = '532626175456-7d09dngvbfsobarl3nrqf4l003oj3b59.apps.googleusercontent.com';
 
 export function googleSignInEnabled(os, iosClientId = GOOGLE_IOS_CLIENT_ID) {
   return os === 'android' || (os === 'ios' && !!iosClientId);
