@@ -30,7 +30,7 @@ import React, { useState, useEffect, useCallback, memo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
   Platform, Alert, RefreshControl, Modal, TextInput, Image, ScrollView,
-  ActivityIndicator,
+  ActivityIndicator, Keyboard,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
@@ -268,6 +268,7 @@ const ProductModal = memo(({
   onGenerateDescription, aiDescLoading,
   onCheckPricing, pricingLoading, pricingSuggestion,
   videoAsset, existingVideoUrl, onPickVideo, onRemoveVideo, videoUploading,
+  nestedModals,
 }) => (
   <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent={false}>
     <View style={styles.modalContainer}>
@@ -488,6 +489,10 @@ const ProductModal = memo(({
         />
         <View style={{ height: 120 }} />
       </KeyboardAwareScrollView>
+      {/* The category list and the picture-quality message are drawn INSIDE this pop-up.
+          On an iPhone a second pop-up that is not inside the first one never opens
+          (the Category button did nothing). Android did not mind. */}
+      {nestedModals}
     </View>
   </Modal>
 ));
@@ -1126,7 +1131,7 @@ export default function VendorProducts({ navigation, route }) {
         loading={loading.createProduct || loading.updateProduct}
         uploading={uploading}
         uploadingIndex={uploadingIndex}
-        onOpenCategoryPicker={() => setShowCategoryPicker(true)}
+        onOpenCategoryPicker={() => { Keyboard.dismiss(); setShowCategoryPicker(true); }}
         onToggleSize={handleToggleSize}
         variants={variants}
         onVariantsChange={setVariants}
@@ -1140,27 +1145,30 @@ export default function VendorProducts({ navigation, route }) {
         onPickVideo={handlePickVideo}
         onRemoveVideo={handleRemoveVideo}
         videoUploading={videoUploading}
-      />
+        nestedModals={(
+          <>
+            <CategoryPickerModal
+              visible={showCategoryPicker}
+              categories={categories}
+              onSelect={handleCategorySelect}
+              onClose={() => setShowCategoryPicker(false)}
+              loading={loading.categories}
+            />
 
-      <CategoryPickerModal
-        visible={showCategoryPicker}
-        categories={categories}
-        onSelect={handleCategorySelect}
-        onClose={() => setShowCategoryPicker(false)}
-        loading={loading.categories}
-      />
-
-      {/* Image Quality Warning Modal */}
-      <ImageQualityWarning
-        quality={currentQuality}
-        visible={showQualityModal}
-        imageUri={currentImageUri}
-        onDismiss={() => setShowQualityModal(false)}
-        onRetry={() => {
-          setShowQualityModal(false);
-          openAddModal();
-        }}
-        onPublishAnyway={() => setShowQualityModal(false)}
+            {/* Image Quality Warning Modal */}
+            <ImageQualityWarning
+              quality={currentQuality}
+              visible={showQualityModal}
+              imageUri={currentImageUri}
+              onDismiss={() => setShowQualityModal(false)}
+              onRetry={() => {
+                setShowQualityModal(false);
+                openAddModal();
+              }}
+              onPublishAnyway={() => setShowQualityModal(false)}
+            />
+          </>
+        )}
       />
     </View>
   );
