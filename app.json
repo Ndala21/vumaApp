@@ -143,7 +143,7 @@
         {
           "ios": {
             "useFrameworks": "static",
-            "forceStaticLinking": ["RNFBApp", "RNFBAnalytics"]
+            "forceStaticLinking": ["RNFBApp", "RNFBAnalytics", "react-native-maps", "react-native-google-maps"]
           }
         }
       ],
