@@ -2,7 +2,7 @@
   "expo": {
     "name": "VUMA",
     "slug": "vumaapp",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -77,6 +77,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.vumastore",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "associatedDomains": [
@@ -135,7 +136,18 @@
         {
           "mode": "production"
         }
-      ]
+      ],
+      "@react-native-firebase/app",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "forceStaticLinking": ["RNFBApp", "RNFBAnalytics"]
+          }
+        }
+      ],
+      "./plugins/withFirebaseNoAdId"
     ],
     "extra": {
       "googleMapsApiKey": "AIzaSyBVJ_ljFAJkbehdrXWhWabXRyV076ctR4A",
