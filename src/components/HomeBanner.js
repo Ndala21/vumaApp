@@ -11,6 +11,11 @@
  * Softened to a much lighter, shorter overlay - still keeps white
  * text readable without dominating the image. A true smooth gradient
  * would need expo-linear-gradient, which isn't installed yet.
+ *
+ * A banner can also carry a short video (tap the play button on the slide: the
+ * video plays on the slide and the sliding pauses, nothing is downloaded before
+ * the tap) and event details (a calendar tile with the date, and a line with the
+ * time and place). See utils/bannerMedia.js and components/BannerVideo.js.
  */
 
 import React, { useState, useEffect, useRef, memo } from 'react';
@@ -18,23 +23,76 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   Dimensions, Image,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
+import { i18n } from '../i18n';
+import { bannerEvent, bannerVideoUrl, bannerWords } from '../utils/bannerMedia';
+import { VIDEO_READY, BannerVideoPlayer, PlayButton, RoundButton } from './BannerVideo';
+import EventTile from './EventTile';
 
 const { width } = Dimensions.get('window');
 const BANNER_HEIGHT = 184;
 const AUTO_SLIDE_INTERVAL = 4000;
 
-const BannerSlide = memo(({ item, onPress }) => {
+const BannerSlide = memo(({ item, onPress, active = true, onPlayChange }) => {
   const hasImage = !!item.image;
+  const focused = useIsFocused();
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  const setPlay = (value) => {
+    setPlaying(value);
+    if (onPlayChange) onPlayChange(value);
+  };
+
+  // swiped to another slide, or this screen was left: the video stops
+  useEffect(() => {
+    if (playing && (!active || !focused)) setPlay(false);
+  }, [active, focused]);
+
+  const lang = i18n.getLocale ? i18n.getLocale() : 'en';
+  const words = bannerWords(lang);
+  const videoUrl = hasImage && VIDEO_READY && !videoFailed ? bannerVideoUrl(item) : null;
+  const ev = hasImage ? bannerEvent(item, Date.now(), lang) : null;
+  const isPlaying = playing && !!videoUrl;
+
+  const handleSlidePress = () => {
+    if (playing) setPlay(false);
+    onPress(item);
+  };
 
   if (hasImage) {
     return (
-      <TouchableOpacity activeOpacity={0.95} onPress={() => onPress(item)} style={styles.slide}>
+      <TouchableOpacity activeOpacity={0.95} onPress={handleSlidePress} style={styles.slide}>
         <View style={styles.slideCard}>
           <Image source={{ uri: item.image }} style={styles.bannerImage} resizeMode="cover" />
-          <View style={styles.imageOverlay}>
+          {isPlaying ? (
+            <BannerVideoPlayer
+              uri={videoUrl}
+              muted={muted}
+              onEnd={() => setPlay(false)}
+              onFail={() => { setPlay(false); setVideoFailed(true); }}
+            />
+          ) : null}
+          {ev && !isPlaying ? <EventTile info={ev} large style={styles.eventTile} /> : null}
+          {videoUrl && !isPlaying ? (
+            <PlayButton size={44} label={words.play} style={styles.corner} onPress={() => { setMuted(true); setPlay(true); }} />
+          ) : null}
+          {isPlaying ? (
+            <View style={styles.controls}>
+              <RoundButton symbol={muted ? '🔇' : '🔊'} label={muted ? words.soundOn : words.soundOff} onPress={() => setMuted((m) => !m)} />
+              <RoundButton symbol={'✕'} label={words.close} onPress={() => setPlay(false)} />
+            </View>
+          ) : null}
+          <View style={[styles.imageOverlay, isPlaying && styles.imageOverlayOnVideo]}>
             {item.title ? <Text style={styles.overlayTitle} numberOfLines={1}>{item.title}</Text> : null}
-            {item.subtitle ? <Text style={styles.overlaySubtitle} numberOfLines={1}>{item.subtitle}</Text> : null}
+            {ev ? (
+              <View style={styles.overlayEventBox}>
+                {!!ev.whenLine && <Text style={styles.overlayEvent} numberOfLines={1}>{ev.whenLine}</Text>}
+                {!!ev.placeLine && <Text style={styles.overlayEvent} numberOfLines={1}>{ev.placeLine}</Text>}
+              </View>
+            ) : (item.subtitle ? <Text style={styles.overlaySubtitle} numberOfLines={1}>{item.subtitle}</Text> : null)}
             {item.button_text ? (
               <View style={styles.overlayBtn}>
                 <Text style={styles.overlayBtnText}>{item.button_text}</Text>
@@ -109,6 +167,12 @@ export default function HomeBanner({ banners = [], onBannerPress, navigation }) 
     onBannerPress(item);
   };
 
+  // a video is playing on a slide: hold the sliding until it stops
+  const handlePlayChange = (isPlaying) => {
+    if (isPlaying) stopTimer();
+    else if (displayBanners.length > 1) startTimer();
+  };
+
   if (displayBanners.length === 0) return null;
 
   return (
@@ -120,7 +184,10 @@ export default function HomeBanner({ banners = [], onBannerPress, navigation }) 
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id?.toString()}
-        renderItem={({ item }) => <BannerSlide item={item} onPress={handlePress} />}
+        extraData={activeIndex}
+        renderItem={({ item, index }) => (
+          <BannerSlide item={item} onPress={handlePress} active={index === activeIndex} onPlayChange={handlePlayChange} />
+        )}
         onMomentumScrollEnd={handleMomentumScrollEnd}
         onScrollBeginDrag={stopTimer}
         getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
@@ -160,6 +227,12 @@ const styles = StyleSheet.create({
   },
   bannerImage: { width: '100%', height: '100%' },
   imageOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: SPACING.base },
+  imageOverlayOnVideo: { backgroundColor: 'rgba(0,0,0,0.38)' },
+  eventTile: { position: 'absolute', top: 10, left: 12 },
+  corner: { position: 'absolute', top: 12, right: 12 },
+  controls: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
+  overlayEventBox: { marginBottom: SPACING.sm },
+  overlayEvent: { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: '#FFFFFF', marginTop: 1, textShadowColor: 'rgba(0,0,0,0.55)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
   overlayTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite, marginBottom: 3, letterSpacing: FONTS.trackTight, textShadowColor: 'rgba(0,0,0,0.55)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
   overlaySubtitle: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.92)', marginBottom: SPACING.sm, textShadowColor: 'rgba(0,0,0,0.55)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
   overlayBtn: {
