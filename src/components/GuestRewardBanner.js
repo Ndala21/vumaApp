@@ -3,7 +3,8 @@
  *
  * People install the app, look around and leave without an account. This banner tells them what an account gives
  * (a link to share and rewards in the wallet) and sends them to the sign-up screen.
- * It names no amount, so it stays true when the reward changes in the console.
+ * It names the exact amount one invite pays (read from the server, so it follows the console); until the amount is
+ * known, or when none is running, it uses general words with no amount.
  * Arabic: the app already flips rows for right-to-left, so nothing here is mirrored by hand.
  */
 import React, { useEffect, useRef, useState } from 'react';
@@ -12,12 +13,14 @@ import { COLORS, FONTS } from '../utils/constants';
 import { useTranslation } from '../i18n';
 import { guestRewardText } from '../i18n/guestReward';
 import { hideForADay, readHiddenUntil, shouldShowBanner } from '../utils/guestBanner';
+import { loadOffer } from '../utils/referralOffer';
 
 export const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 80 : 64;
 
 export default function GuestRewardBanner({ isAuthenticated, tab, onSignUp, onSignIn }) {
   const { t, locale } = useTranslation();
-  const words = guestRewardText(locale);
+  const [offer, setOffer] = useState(null);                 // what one invite pays (null until known)
+  const words = guestRewardText(locale, offer);
   const [hiddenUntil, setHiddenUntil] = useState(null);   // null until the saved choice is read
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const slide = useRef(new Animated.Value(0)).current;
@@ -28,6 +31,13 @@ export default function GuestRewardBanner({ isAuthenticated, tab, onSignUp, onSi
     readHiddenUntil().then((v) => { if (alive) setHiddenUntil(v); });
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) return undefined;                  // only people without an account need the number
+    let alive = true;
+    loadOffer((o) => { if (alive) setOffer(o); });
+    return () => { alive = false; };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
