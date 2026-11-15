@@ -59,7 +59,22 @@ export const productsAPI = {
 
   getMyProducts: () => get(API.PRODUCT_MY),
 
-  getCategories: () => get(API.CATEGORIES),
+  // The server may send the category list in pages of 20. The seller's "Choose category"
+  // list needs every category, so collect the other pages too (a failed page keeps what we have).
+  getCategories: async () => {
+    const first = await get(API.CATEGORIES);
+    if (!first || Array.isArray(first) || !first.next || !Array.isArray(first.results)) return first;
+    let results = first.results.slice();
+    try {
+      for (let page = 2; page <= 6; page += 1) {
+        const more = await get(API.CATEGORIES, { page });
+        if (!more || !Array.isArray(more.results)) break;
+        results = results.concat(more.results);
+        if (!more.next) break;
+      }
+    } catch (e) { /* keep the pages we already have */ }
+    return Object.assign({}, first, { results, next: null });
+  },
 
   getCategoryDetail: (slug) => get(API.CATEGORY_DETAIL(slug)),
 

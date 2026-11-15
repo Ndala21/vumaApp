@@ -9,6 +9,9 @@
  *   - an orange "Free Delivery" tag,
  *   - five stars with the number of ratings, e.g. "(9,999+)".
  * A small round cart button sits at the bottom right of the photo.
+ * When the seller gave the product choices (colours, sizes, storage ...), small
+ * colour dots and one short line ("EU 38-43") sit under the name, and the cart
+ * button opens the product page so the customer picks before buying.
  * The featured variant (text over the photo) is unchanged.
  */
 
@@ -19,6 +22,7 @@ import { t } from '../i18n';
 import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../utils/constants';
 import { formatPrice, getDiscount, isFlashSale, getEffectivePrice } from '../utils/helpers';
 import { addToCartAndSave, selectIsInCart } from '../store/cartSlice';
+import { cardOptions } from '../utils/cardOptions';
 
 // 1284 -> "1,284", 12500 -> "9,999+"
 export const formatRatingCount = (n) => {
@@ -31,6 +35,34 @@ export const starsFor = (avg) => {
   const filled = Math.max(0, Math.min(5, Math.round(Number(avg) || 0)));
   return '★'.repeat(filled) + '☆'.repeat(5 - filled);
 };
+
+// One colour dot. "Multicolor" is drawn as two halves.
+const ColorDot = memo(({ color }) => (
+  <View style={[styles.dot, !color.multi && { backgroundColor: color.hex }]}>
+    {color.multi && (
+      <>
+        <View style={[styles.dotHalf, { backgroundColor: '#F472B6' }]} />
+        <View style={[styles.dotHalf, { backgroundColor: '#2563EB' }]} />
+      </>
+    )}
+  </View>
+));
+
+// The colour dots and the short line of choices, e.g. "● ● ● +2  EU 38–43".
+const OptionsRow = memo(({ info }) => {
+  if (!info || (info.colors.length === 0 && !info.line)) return null;
+  return (
+    <View style={styles.optRow} testID="card-options" accessible accessibilityLabel={info.label}>
+      {info.colors.length > 0 && (
+        <View style={styles.dots}>
+          {info.colors.map((c) => <ColorDot key={c.name} color={c} />)}
+          {info.moreColors > 0 && <Text style={styles.dotsMore}>{'+' + info.moreColors}</Text>}
+        </View>
+      )}
+      {!!info.line && <Text style={styles.optText} numberOfLines={1}>{info.line}</Text>}
+    </View>
+  );
+});
 
 // ── Safe Image with fallback ──────────────────────────
 const ProductImage = memo(({ uri, style, placeholderSize = 40 }) => {
@@ -66,10 +98,16 @@ function ProductCard({ product, onPress, style, variant = 'grid', onAddedToCart 
   const outOfStock = product.stock <= 0;
   const imageUrl = product.primary_image || product.images?.[0]?.image_url || null;
   const hasRating = Number(product.rating_avg) > 0;
+  const options = cardOptions(product);
 
   const handleAddToCart = (e) => {
     e && e.stopPropagation && e.stopPropagation();
     if (outOfStock) return;
+    // The customer has to choose (size, colour, storage ...) first: open the product page.
+    if (options.hasChoices && onPress) {
+      onPress();
+      return;
+    }
     dispatch(addToCartAndSave(product, 1));
     onAddedToCart && onAddedToCart(product);
   };
@@ -79,6 +117,7 @@ function ProductCard({ product, onPress, style, variant = 'grid', onAddedToCart 
     <>
       {product.is_sponsored && <Text style={styles.sponsoredLabel}>Sponsored</Text>}
       <Text style={styles.name} numberOfLines={nameLines}>{product.name}</Text>
+      <OptionsRow info={options} />
       {discount > 0 && (
         <View style={styles.offRow}>
           <View style={styles.offDot}><Text style={styles.offDotText}>%</Text></View>
@@ -199,6 +238,12 @@ const styles = StyleSheet.create({
   sponsoredLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: FONTS.medium, marginBottom: 2 },
   vendorName: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 4 },
   name: { fontSize: 12.5, color: COLORS.textPrimary, lineHeight: 17, fontWeight: FONTS.regular },
+  optRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 2, marginTop: 4 },
+  dots: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(0,0,0,0.18)', overflow: 'hidden', flexDirection: 'row' },
+  dotHalf: { flex: 1 },
+  dotsMore: { fontSize: 10.5, color: COLORS.textMuted, marginLeft: 1 },
+  optText: { flexShrink: 1, fontSize: 11, color: COLORS.textSecondary },
   offRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   offDot: { width: 15, height: 15, borderRadius: RADIUS.full, backgroundColor: COLORS.discount, alignItems: 'center', justifyContent: 'center' },
   offDotText: { color: COLORS.textWhite, fontSize: 9.5, fontWeight: FONTS.extraBold, lineHeight: 12 },
