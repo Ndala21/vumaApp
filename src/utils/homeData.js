@@ -61,6 +61,53 @@ function isEmoji(text) {
   return typeof text === 'string' && text.length > 0 && text.length <= 8 && /[^\x00-\x7F]/.test(text);
 }
 
+// The icon a category gets when nobody chose one (the shopping bags). It says nothing about the category.
+const GENERIC_ICONS = ['\u{1F6CD}\uFE0F', '\u{1F6CD}'];
+
+// Icons by what a category is about. Used only when the server has no icon of its own for it and the built-in
+// list does not know it, so every category still gets a fitting picture.
+const ICON_WORDS = [
+  [/shoe|sneaker|boot|sandal|footwear/, '\u{1F45F}'],
+  [/phone|mobile/, '\u{1F4F1}'],
+  [/computer|laptop|tablet/, '\u{1F4BB}'],
+  [/electronic|appliance|\btvs?\b/, '\u{1F4FA}'],
+  [/fashion|cloth|wear|apparel|dress|shirt|garment/, '\u{1F457}'],
+  [/jewel|watch/, '\u{1F48D}'],
+  [/\bbags?\b|luggage/, '\u{1F45C}'],
+  [/beauty|cosmetic|makeup|salon/, '\u{1F484}'],
+  [/health|pharmac|medic|wellness/, '\u{1F48A}'],
+  [/baby|\bkids?\b|child/, '\u{1F476}'],
+  [/\btoys?\b|\bgames?\b/, '\u{1F9F8}'],
+  [/sport|fitness|gym/, '\u26BD'],
+  [/\bpets?\b/, '\u{1F415}'],
+  [/livestock|cattle|poultry/, '\u{1F404}'],
+  [/agri|farm|mazao|crop|seed|fertili/, '\u{1F33E}'],
+  [/produce|vegetable|fruit/, '\u{1F966}'],
+  [/grocer|supermarket/, '\u{1F6D2}'],
+  [/food|cake|bakery|restaurant|drink|beverage|snack/, '\u{1F370}'],
+  [/furniture|sofa|\bbeds?\b/, '\u{1F6CB}'],
+  [/kitchen|cooking|dining|tableware|crockery/, '\u{1F373}'],
+  [/home|house|living|decor/, '\u{1F3E1}'],
+  [/auto|\bcars?\b|vehicle|motor|spare|tyre|tire/, '\u{1F697}'],
+  [/book|stationery|school/, '\u{1F4DA}'],
+  [/construction|building|cement/, '\u{1F9F1}'],
+  [/hardware|tools?\b/, '\u{1F527}'],
+  [/office|printing/, '\u{1F58A}'],
+  [/service/, '\u{1F6E0}'],
+];
+
+// The server's own icon first, then the built-in one for the same slug, then one that fits the name, then a box.
+function iconFor(category, known) {
+  const own = typeof category.icon === 'string' ? category.icon.trim() : '';
+  if (isEmoji(own) && GENERIC_ICONS.indexOf(own) === -1) return own;
+  if (known[category.slug] && known[category.slug].icon) return known[category.slug].icon;
+  const text = (String(category.slug || '') + ' ' + String(category.name || '')).toLowerCase();
+  for (let i = 0; i < ICON_WORDS.length; i++) {
+    if (ICON_WORDS[i][0].test(text)) return ICON_WORDS[i][1];
+  }
+  return '\u{1F4E6}';
+}
+
 function nameOf(category, locale) {
   const translated = category['name_' + locale];
   if (typeof translated === 'string' && translated.trim()) return translated.trim();
@@ -102,7 +149,7 @@ export function buildCategoryBar(real, builtin, options) {
       id: String(c.id != null ? c.id : c.slug),
       slug: c.slug,
       label: nameOf(c, opts.locale),
-      icon: isEmoji(c.icon) ? c.icon : ((known[c.slug] && known[c.slug].icon) || '\u{1F4E6}'),
+      icon: iconFor(c, known),
     })),
   ];
 }
