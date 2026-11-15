@@ -8,6 +8,7 @@ import { storage } from '../utils/storage';
 import { getErrorMessage, getFieldErrors } from '../utils/helpers';
 import { setAuthToken, clearAuthToken } from '../api/client';
 import { USER_ROLES } from '../utils/constants';
+import { isNewAccount, trackSignUp } from '../utils/adEvents';
 
 export const initializeAuth = createAsyncThunk(
   'auth/initialize',
@@ -68,6 +69,7 @@ export const register = createAsyncThunk(
       // the code typed in the form, else the one the phone kept from the invite link
       const invite = await signupInviteFields(credentials.referral_code);
       const data = await authAPI.register({ ...credentials, ...invite });
+      trackSignUp('email');            // tells Google a person registered (never waits, never fails)
       await clearPendingInvite();      // the server has dealt with it (applied or not); do not send it again
       await storage.saveAuthData({ accessToken: data.access, refreshToken: data.refresh, user: data.user, rememberMe: true });
       setAuthToken(data.access);
@@ -151,6 +153,7 @@ export const googleLogin = createAsyncThunk(
       if (!data || !data.access) {
         return rejectWithValue('Google sign-in failed. Please try again.');
       }
+      if (isNewAccount(data)) trackSignUp('google');            // a new account is a sign-up
 
       await storage.saveAuthData({
         accessToken: data.access,
@@ -196,6 +199,7 @@ export const appleLogin = createAsyncThunk(
       if (!data || !data.access) {
         return rejectWithValue('Sign in with Apple failed. Please try again.');
       }
+      if (isNewAccount(data)) trackSignUp('apple');             // a new account is a sign-up
 
       await storage.saveAuthData({
         accessToken: data.access,
