@@ -58,6 +58,7 @@ import TabNavigator from './TabNavigator';
 import VendorNavigator from './VendorNavigator';
 
 import HomeScreen from '../screens/home/HomeScreen';
+import ProductListScreen from '../screens/product/ProductListScreen';
 import ProductDetailScreen from '../screens/product/ProductDetailScreen';
 import OrderDetailScreen from '../screens/order/OrderDetailScreen';
 import CheckoutScreen from '../screens/payment/CheckoutScreen';
@@ -178,7 +179,7 @@ function MainStack({ isVendor }) {
 
       {/* Products */}
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ animation: 'slide_from_bottom' }} />
-      <Stack.Screen name="ProductList" component={HomeScreen} />
+      <Stack.Screen name="ProductList" component={ProductListScreen} />
 
       {/* Promotion Products — multi-product promotion results */}
       <Stack.Screen name="PromotionProducts" component={PromotionProductsScreen} options={{ animation: 'slide_from_right' }} />

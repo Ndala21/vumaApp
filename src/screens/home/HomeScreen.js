@@ -33,7 +33,7 @@
  * row, in the admin-defined display order.
  */
 
-import { t } from '../../i18n';
+import { t, useTranslation } from '../../i18n';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
@@ -44,7 +44,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   fetchProducts, fetchFeaturedProducts, fetchFlashSaleProducts, fetchCategories,
   selectProducts, selectFeaturedProducts, selectFlashSaleProducts, selectCategories,
-  selectProductsLoading, selectHasNextPage, selectCurrentPage, resetProducts,
+  selectProductsLoading, selectHasNextPage, selectCurrentPage, selectTotalCount, resetProducts,
 } from '../../store/productSlice';
 import { addToCartAndSave, selectCartItemCount } from '../../store/cartSlice';
 import { selectUnreadCount } from '../../store/notificationSlice';
@@ -71,6 +71,7 @@ import { get, post } from '../../api/client';
 import CouponSheet from '../../components/CouponSheet';
 import { getPendingCoupon, setPendingCoupon } from '../../utils/pendingCoupon';
 import { giftCardCopy } from '../../utils/rewards';
+import { pickNewArrivals, buildCategoryBar, flashSalePercent } from '../../utils/homeData';
 
 const { width } = Dimensions.get('window');
 const NUM_COLUMNS = width >= 700 ? 4 : 3; // still used by wide-screen horizontal rows above the grid
@@ -78,6 +79,8 @@ const NUM_COLUMNS = width >= 700 ? 4 : 3; // still used by wide-screen horizonta
 export default function HomeScreen({ navigation }) {
   const dispatch = useDispatch();
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const user = useSelector(selectUser);
+  const { locale } = useTranslation();
   const products = useSelector(selectProducts);
   const featured = useSelector(selectFeaturedProducts);
   const flashSale = useSelector(selectFlashSaleProducts);
@@ -86,6 +89,7 @@ export default function HomeScreen({ navigation }) {
   const hasNextPage = useSelector(selectHasNextPage);
   const currentPage = useSelector(selectCurrentPage);
   const cartCount = useSelector(selectCartItemCount);
+  const totalCount = useSelector(selectTotalCount);
   const unreadCount = useSelector(selectUnreadCount);
 
   const [activeCategory, setActiveCategory] = useState('');
@@ -101,6 +105,8 @@ export default function HomeScreen({ navigation }) {
   const [couponSheetOpen, setCouponSheetOpen] = useState(false);
   const [chosenCoupon, setChosenCoupon] = useState('');
   const [dynamicOffers, setDynamicOffers] = useState([]);
+  const [newArrivals, setNewArrivals] = useState([]);
+  const [catsChecked, setCatsChecked] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const toastTimer = React.useRef(null);
   const mainScrollRef = useRef(null);
@@ -146,11 +152,15 @@ export default function HomeScreen({ navigation }) {
 
   const loadInitialData = useCallback(async () => {
     dispatch(resetProducts());
+    // New arrivals come from the real shop (newest first), asked at the same time as the products below.
+    productsAPI.getProducts({ page: 1, ordering: '-created_at' })
+      .then((data) => setNewArrivals(pickNewArrivals(data?.results || data)))
+      .catch(() => {});
     await Promise.all([
       dispatch(fetchProducts({ page: 1, category: '', refresh: true })),
       dispatch(fetchFeaturedProducts()),
       dispatch(fetchFlashSaleProducts()),
-      dispatch(fetchCategories()),
+      dispatch(fetchCategories()).then(() => setCatsChecked(true)),
     ]);
     loadExtraFeatures();
   }, []);
@@ -362,14 +372,17 @@ export default function HomeScreen({ navigation }) {
   // CategoryBar's memo() and could cause its re-render to happen
   // while a touch gesture was still settling, occasionally producing
   // a duplicate tap on the same category button.
-  const allCategories = useMemo(() => [
-    { id: 'all', label: t('common.all'), icon: '🏠', slug: '' },
-    ...CATEGORIES.filter((c) => c.id !== 'all'),
-  ], []);
+  // The bar is built from the real categories (only those that have products), see utils/homeData.js. The
+  // built-in list is used only if the server list cannot be loaded.
+  const allCategories = useMemo(
+    () => buildCategoryBar(categories, CATEGORIES, { all: t('common.all'), locale, ready: catsChecked }),
+    [categories, catsChecked, locale],
+  );
 
   // ── VUMA Faida & Ofa — promotion cards, Swahili-labeled, each only
   // shown when its real backing campaign is active. ──
   const giftCopy = giftCardCopy(promotions?.welcome_gift);
+  const flashPercent = flashSalePercent(flashSale);
   const freeDeliverySubtitle = (n) => (n > 0 ? `Bidhaa ${n} zilizochaguliwa` : 'Bidhaa zilizochaguliwa');
   const couponCount = promotions?.coupons?.count || 0;
   const FAIDA_CARDS = [
@@ -394,7 +407,7 @@ export default function HomeScreen({ navigation }) {
       key: 'flash_sale',
       show: promotions?.flash_sale?.active,
       icon: '⚡', bg: '#EFE7FD',
-      title: 'Ofa za Kijana', subtitle: 'Punguzo hadi 70%',
+      title: 'Ofa za Kijana', subtitle: flashPercent > 0 ? `Punguzo hadi ${flashPercent}%` : 'Bei zilizopunguzwa',
       cta: 'Nunua Sasa', ctaColor: '#7C4DE0',
       onPress: () => {
         dispatch(resetProducts());
@@ -450,7 +463,7 @@ export default function HomeScreen({ navigation }) {
   const trendingStrips = bannerGroups.slots.above_trending || [];
 
   // ── Horizontal product row ──
-  const HorizontalRow = ({ title, data, accent = COLORS.primary }) => {
+  const HorizontalRow = ({ title, data, accent = COLORS.primary, onSeeAll }) => {
     if (!data?.length) return null;
     return (
       <View style={styles.section}>
@@ -459,6 +472,12 @@ export default function HomeScreen({ navigation }) {
             <View style={[styles.sectionAccent, { backgroundColor: accent }]} />
             <Text style={styles.sectionTitle}>{title}</Text>
           </View>
+          {onSeeAll ? (
+            <TouchableOpacity style={styles.seeAllBtn} onPress={onSeeAll}>
+              <Text style={styles.seeAll}>See all</Text>
+              <Text style={styles.seeAllArrow}>›</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
           {data.slice(0, 8).map((product) => (
@@ -616,6 +635,15 @@ export default function HomeScreen({ navigation }) {
           />
         </View>
 
+        {/* ── New Arrivals - the newest real products (added in the last 14 days), right under the top banner.
+             Nothing shows until a seller has added something new. ── */}
+        <HorizontalRow
+          title="New Arrivals"
+          data={newArrivals}
+          accent={COLORS.success}
+          onSeeAll={() => navigation.navigate('ProductList', { title: 'New Arrivals' })}
+        />
+
         {/* ── VUMA Faida & Ofa — real, active promotions only ── */}
         {FAIDA_ROW.length > 0 && (
           <View style={[styles.section, styles.faidaSection]}>
@@ -654,7 +682,7 @@ export default function HomeScreen({ navigation }) {
 
           {sellerStripBanner ? (
             <BannerStrip banner={sellerStripBanner} onPress={handleSlotBannerPress} />
-          ) : (
+          ) : user?.role === 'vendor' ? null : (
             <OfferBanner
               testID="offer-seller-banner"
               variant="seller"
@@ -767,7 +795,7 @@ export default function HomeScreen({ navigation }) {
             </Text>
           </View>
           <View style={styles.productCountPill}>
-            <Text style={styles.productCount}>{products.length}</Text>
+            <Text style={styles.productCount}>{totalCount > 0 ? totalCount : products.length}</Text>
           </View>
         </View>
 
