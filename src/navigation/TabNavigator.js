@@ -11,13 +11,16 @@
  * rather than a broad app-wide setting. Set to false to test.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { SCREENS, COLORS, FONTS } from '../utils/constants';
 import { selectCartItemCount } from '../store/cartSlice';
 import { selectUnreadCount } from '../store/notificationSlice';
+import { selectIsAuthenticated } from '../store/authSlice';
+import GuestRewardBanner from '../components/GuestRewardBanner';
 
 import HomeScreen from '../screens/home/HomeScreen';
 import ProductListScreen from '../screens/product/ProductListScreen';
@@ -63,97 +66,114 @@ function TabIcon({ icon, label, focused, badgeCount = 0 }) {
 export default function TabNavigator() {
   const cartCount = useSelector(selectCartItemCount);
   const unreadCount = useSelector(selectUnreadCount);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  const navigation = useNavigation();
+  const [activeTab, setActiveTab] = useState(SCREENS.HOME);
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarStyle: styles.tabBar,
-        tabBarHideOnKeyboard: false,
-      }}
-    >
-      {/* Home */}
-      <Tab.Screen
-        name={SCREENS.HOME}
-        component={HomeScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="🏠"
-              label="Home"
-              focused={focused}
-            />
-          ),
+    <View style={styles.root}>
+      <Tab.Navigator
+        screenListeners={({ route }) => ({ focus: () => setActiveTab(route.name) })}
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarStyle: styles.tabBar,
+          tabBarHideOnKeyboard: false,
         }}
-      />
+      >
+        {/* Home */}
+        <Tab.Screen
+          name={SCREENS.HOME}
+          component={HomeScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon="🏠"
+                label="Home"
+                focused={focused}
+              />
+            ),
+          }}
+        />
 
-      {/* Search */}
-      <Tab.Screen
-        name={SCREENS.SEARCH}
-        component={ProductListScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="🔍"
-              label="Search"
-              focused={focused}
-            />
-          ),
-        }}
-      />
+        {/* Search */}
+        <Tab.Screen
+          name={SCREENS.SEARCH}
+          component={ProductListScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon="🔍"
+                label="Search"
+                focused={focused}
+              />
+            ),
+          }}
+        />
 
-      {/* Cart */}
-      <Tab.Screen
-        name={SCREENS.CART}
-        component={CartScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="🛒"
-              label="Cart"
-              focused={focused}
-              badgeCount={cartCount}
-            />
-          ),
-        }}
-      />
+        {/* Cart */}
+        <Tab.Screen
+          name={SCREENS.CART}
+          component={CartScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon="🛒"
+                label="Cart"
+                focused={focused}
+                badgeCount={cartCount}
+              />
+            ),
+          }}
+        />
 
-      {/* Orders */}
-      <Tab.Screen
-        name={SCREENS.ORDERS}
-        component={OrderScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="📦"
-              label="Orders"
-              focused={focused}
-            />
-          ),
-        }}
-      />
+        {/* Orders */}
+        <Tab.Screen
+          name={SCREENS.ORDERS}
+          component={OrderScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon="📦"
+                label="Orders"
+                focused={focused}
+              />
+            ),
+          }}
+        />
 
-      {/* Profile */}
-      <Tab.Screen
-        name={SCREENS.PROFILE}
-        component={ProfileScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="👤"
-              label="Profile"
-              focused={focused}
-              badgeCount={unreadCount}
-            />
-          ),
-        }}
+        {/* Profile */}
+        <Tab.Screen
+          name={SCREENS.PROFILE}
+          component={ProfileScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon
+                icon="👤"
+                label="Profile"
+                focused={focused}
+                badgeCount={unreadCount}
+              />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+
+      {/* Guests: a banner above the tab bar that leads to sign-up (the link to share, rewards in the wallet) */}
+      <GuestRewardBanner
+        isAuthenticated={isAuthenticated}
+        tab={activeTab}
+        onSignUp={() => navigation.navigate('Auth', { screen: 'Register' })}
+        onSignIn={() => navigation.navigate('Auth', { screen: 'Login' })}
       />
-    </Tab.Navigator>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   tabBar: {
     position: 'absolute',
     bottom: 0,

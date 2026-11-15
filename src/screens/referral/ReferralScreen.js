@@ -16,7 +16,7 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { iosTop } from '../../utils/safeArea';
 import { get } from '../../api/client';
 import { tzs } from '../../utils/rewards';
-import { FRIEND_STATUS, friendRows, heroLines } from '../../utils/referralText';
+import { FRIEND_STATUS, friendRows, heroLines, howSteps, pendingNote } from '../../utils/referralText';
 
 const SHARE_CHANNELS = [
   { id: 'whatsapp',  label: 'WhatsApp',  icon: '💬', color: '#25D366', scheme: 'whatsapp://send?text=' },
@@ -179,14 +179,7 @@ export default function ReferralScreen({ navigation }) {
             {/* How it works */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>How It Works</Text>
-              {[
-                { step: '1', icon: '📤', text: 'Share your link or code with friends' },
-                { step: '2', icon: '👤', text: 'Your friend creates a VUMA account with it' },
-                { step: '3', icon: '🛒', text: data?.campaign?.min_order_amount > 0
-                  ? `They pay for their first order (${tzs(data.campaign.min_order_amount)} or more)`
-                  : 'They pay for their first order' },
-                { step: '4', icon: '💰', text: 'Your reward goes into your VUMA wallet automatically, and we tell you.' },
-              ].map(item => (
+              {howSteps(data).map(item => (
                 <View key={item.step} style={styles.stepRow}>
                   <View style={styles.stepNumber}>
                     <Text style={styles.stepNumberText}>{item.step}</Text>
@@ -269,7 +262,7 @@ export default function ReferralScreen({ navigation }) {
               <View style={[styles.card, styles.pendingCard]}>
                 <Text style={styles.pendingTitle}>⏳ Pending Rewards</Text>
                 <Text style={styles.pendingAmount}>TZS {Number(data.pending_reward_amount).toLocaleString()}</Text>
-                <Text style={styles.pendingSub}>Released after friend's order is confirmed</Text>
+                <Text style={styles.pendingSub}>{pendingNote(data)}</Text>
               </View>
             )}
 
