@@ -148,6 +148,14 @@ try {
   console.error('IMPORT ERROR:', e?.toString());
 }
 
+// ── Lazy import of the update screen (a problem inside it must never stop the app from opening) ──
+let UpdateGate = null;
+try {
+  UpdateGate = require('./src/components/UpdateGate').default;
+} catch (e) {
+  console.error('UPDATE SCREEN IMPORT ERROR:', e?.toString());
+}
+
 function App() {
   const [i18nReady, setI18nReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
@@ -241,6 +249,7 @@ function App() {
               <SystemBarsFrame>
                 <AppNavigator />
               </SystemBarsFrame>
+              {UpdateGate ? <UpdateGate ready={splashDone} /> : null}
             </Provider>
           ) : (
             <View style={{ flex: 1, backgroundColor: '#fff' }} />
